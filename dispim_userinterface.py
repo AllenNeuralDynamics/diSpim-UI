@@ -65,7 +65,7 @@ class UserInterface:
                                                    self.instrument)
         general_imaging_tab = {'live_view': general_imaging.live_view_widget(),
                                'screenshot': general_imaging.screenshot_button(),
-                               'position': general_imaging.sample_stage_position(),
+                               #'position': general_imaging.sample_stage_position(),
                                'volumetric_image': general_imaging.volumeteric_imaging_button(),
                                'waveform': general_imaging.waveform_graph()}
         general_imaging.laser_wl_select()
@@ -73,16 +73,6 @@ class UserInterface:
         imaging.setWidget(general_imaging_tab_widget)
         return imaging
 
-    def wavelength_tab(self):
-        laser_specs_wavelength = self.cfg.laser_specs[wavelength]
-        laser_wavelength_params = LaserWavelengthParamTabs(self.cfg, self.instrument, self.viewer)
-        laser_wavelength_params.scan(laser_specs_wavelength, 'laser_specs', wl=wavelength)
-        laser_wavelength_params.scan(laser_specs_wavelength, 'laser_specs', wl=wavelength)
-
-        laser_specs_wavelength = self.cfg.laser_specs[wavelength]
-        # laser_specs = {}
-        tab_widget_wl = self.scan(laser_specs_wavelength, 'laser_specs', wl=wavelength, subdict=True)
-        laser_wavelength_params.adding_wavelength_tabs(self.wavelengths, dock, self.imaging_dock)
     def close_instrument(self):
         self.instrument.cfg.save()
         self.instrument.close()

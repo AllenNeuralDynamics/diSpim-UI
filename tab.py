@@ -23,8 +23,7 @@ class Tab:
         path = path + self.pathFind(dictionary, kw, path, True) if path is not None else self.pathFind(dictionary, kw)
         if self.pathGet(dictionary, path) - value != 0:
             self.pathSet(dictionary, path, value)
-
-            #instrument._setup_waveform_hardware(wl)
+            self.instrument._setup_waveform_hardware(specify)
 
     def scan(self, dictionary: dict, attr: str, prev_key: str = None, QDictionary: dict = None,
              WindowDictionary: dict = None, wl: str = None, input_type: str = QLineEdit, subdict: bool = False):

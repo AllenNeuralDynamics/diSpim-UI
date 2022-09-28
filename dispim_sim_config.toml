@@ -142,9 +142,9 @@ right_offset = 1.65
 right_amplitude = 0
 
 [channel_specs.488.galvo]
-x_left_offset = 3.0
+x_left_offset = 2.5
 x_left_amplitude = -0.015
-x_right_offset = 2.74
+x_right_offset = 2.78
 x_right_amplitude = -0.015
 y_left_offset = 2.56
 y_left_amplitude = 1.3
