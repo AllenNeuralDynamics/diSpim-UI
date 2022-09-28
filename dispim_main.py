@@ -17,7 +17,7 @@ if __name__ == '__main__':
     # Check if we didn't supply a config file and populate a safe guess.
     if not args.config_path:
         if args.simulated:
-            args.config_path = r'C:\Users\micah.woodard\PycharmProjects\Spim-UI\dispim\dispim_sim_config.toml'
+            args.config_path = r'C:\Users\micah.woodard\PycharmProjects\diSpim-UI\dispim_sim_config.toml'
         else:
             args.config_path = "./config.toml"
     # try:
