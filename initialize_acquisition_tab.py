@@ -177,15 +177,15 @@ class InitializeAcquisitionTab(Tab):
         pos_label.setFont(f)
         pos_value = QSpinBox()
         pos_value.setValue(self.stage_position[direction])
-        pos_value.setFixedWidth(20)
+        #pos_value.setFixedWidth(20)
         return pos_label, pos_value
 
     def volumeteric_imaging_button(self):
 
         volumetric_image = {'start': QPushButton('Start Volumetric Imaging')}
         volumetric_image['start'].clicked.connect(self.start_volumetric_imaging)
-        volumetric_image['overwrite'] = QCheckBox('Overwrite Data')
-        volumetric_image['overwrite'].setChecked(True)
+        #volumetric_image['overwrite'] = QCheckBox('Overwrite Data')
+        #volumetric_image['overwrite'].setChecked(True)
 
         return self.create_layout(struct='H', **volumetric_image)
 
@@ -215,8 +215,8 @@ class InitializeAcquisitionTab(Tab):
             self.viewer.window.add_dock_widget(self.waveform['graph'])
         except:
             for index, ao_name in enumerate(self.cfg.daq_ao_names_to_channels.keys()):
-                self.waveform['graph'].setFixedWidth(500)
-                self.waveform['graph'].setFixedHeight(250)
+                #self.waveform['graph'].setFixedWidth(500)
+                #self.waveform['graph'].setFixedHeight(250)
                 self.waveform['graph'].setTitle("Waveforms One Image Capture Sequence", color="w", size="10pt")
                 self.waveform['graph'].setLabel('bottom', 'Time (s)')
                 self.waveform['graph'].setLabel('left', 'Amplitude (V)')
