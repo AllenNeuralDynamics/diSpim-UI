@@ -29,7 +29,7 @@ class AcquisitionParamsTab(Tab):
                 if prop_obj.fset is not None and prop_obj.fget is not None:
                     #Creates the attribute label and input box
                     imaging_specs[attr, '_label'], imaging_specs[attr] = \
-                        self.create_widget(getattr(config, attr), attr,QLineEdit)
+                        self.create_widget(getattr(config, attr), QLineEdit, label=attr)
                     #Connects input box to changing config object when attribute value is changed
                     imaging_specs[attr].editingFinished.connect(lambda obj=config, var=attr, widget=imaging_specs[attr]:
                                                                 self.set_attribute(obj, var, widget))

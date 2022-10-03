@@ -1,5 +1,5 @@
 from tab import Tab
-from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox
+from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget
 import qtpy.QtGui as QtGui
 import qtpy.QtCore as QtCore
 from napari.qt.threading import thread_worker
@@ -20,7 +20,7 @@ class InitializeAcquisitionTab(Tab):
             :param cfg: config object from instrument
             :param instrument: instrument bing used"""
 
-        self.wavelengths = wavelengths
+        self.imaging_wavelengths = wavelengths
         self.possible_wavelengths = possible_wavelengths
         self.viewer = viewer
         self.cfg = cfg
@@ -30,11 +30,14 @@ class InitializeAcquisitionTab(Tab):
         self.wavelength_selection = {}
         self.live_view = {}
         self.waveform = {}
+        self.selected = {}
+        self.laser_dock = {}
         self.wavelength_select_widget = None
         self.colors = None
         self.livestream_worker = None
         self.stage_position = None
         self.data_line = None
+        self.selected_wl_layout = None
 
     def live_view_widget(self):
 
@@ -94,8 +97,8 @@ class InitializeAcquisitionTab(Tab):
 
     def update_layer(self, image):
 
-        if self.live_view['autocontrast'].isChecked():
-            image = self.instrument.apply_contrast(image)
+        # if self.live_view['autocontrast'].isChecked():
+        #     image = self.instrument.apply_contrast(image)
         if self.live_view['rotate'].isChecked():
             image = np.rot90(image, -1)
 
@@ -103,8 +106,8 @@ class InitializeAcquisitionTab(Tab):
             self.viewer.layers['Live View'].data = image
         except KeyError:
             self.viewer.add_image(image, name='Live View', scale=(1, 1))
-            vert_line = np.array([[0, 0], [2048, 0]])
-            horz_line = np.array([[0, 0], [0, 2048]])
+            vert_line = np.array([[0, 0], [self.cfg.column_count_px, 0]])
+            horz_line = np.array([[0, 0], [0, self.cfg.row_count_px]])
             lines = [vert_line, horz_line]
             color = ['blue', 'green']
             shapes_layer = self.viewer.add_shapes(
@@ -118,12 +121,13 @@ class InitializeAcquisitionTab(Tab):
                 yield
                 # on move
                 while event.type == 'mouse_move':
-                    layer.data = [[[0, event.position[1]], [2048, event.position[1]]], layer.data[1]]
-                    if val == (0, None) and 2048 >= event.position[1] >= 0:  # Conditions for vert_line
-                        layer.data = [[[0, event.position[1]], [2048, event.position[1]]], layer.data[1]]
+                    if val == (0, None) and self.cfg.column_count_px >= event.position[1] >= 0:  # Conditions for vert_line
+                        layer.data = [[[0, event.position[1]], [self.cfg.column_count_px, event.position[1]]], layer.data[1]]
+                        layer.data = [layer.data[0], [[event.position[0], 0], [event.position[0], self.cfg.row_count_px]]]
                         yield
-                    elif val == (1, None) and 2048 >= event.position[0] >= 0:  # Conditions for horz_line
-                        layer.data = [layer.data[0], [[event.position[0], 0], [event.position[0], 2048]]]
+                    elif val == (1, None) and self.cfg.row_count_px >= event.position[0] >= 0:  # Conditions for horz_line
+                        layer.data = [[[0, event.position[1]], [self.cfg.column_count_px, event.position[1]]], layer.data[1]]
+                        layer.data = [layer.data[0], [[event.position[0], 0], [event.position[0], self.cfg.row_count_px]]]
                         yield
                     else:
                         yield
@@ -159,41 +163,50 @@ class InitializeAcquisitionTab(Tab):
 
         directions = ['X', 'Y', 'Z']
         self.pos_widget = {}
-        self.stage_position = self.instrument.sample_pose.get_position()
+        self.stage_position = self.instrument.get_sample_position()
         for direction in directions:
-            self.pos_widget[direction + 'label'], self.pos_widget[direction] = self.stage_indicator(direction)
-            # self.pos_widget[direction].valueChanged.connect(self.stage_position_changed)
+            self.pos_widget[direction + 'label'], self.pos_widget[direction] = \
+                self.create_widget(self.stage_position[direction], QSpinBox, f'{direction}:')
+            self.pos_widget[direction].valueChanged.connect(self.stage_position_changed)
 
         return self.create_layout(struct='H', **self.pos_widget)
 
-    def stage_indicator(self, direction):
-
-        """Creates label and indicators for sample stage position"""
-
-        pos_label = QLabel()
-        pos_label.setText(direction + ' position: ')
-        f = pos_label.font()
-        f.setPointSize(7)
-        pos_label.setFont(f)
-        pos_value = QSpinBox()
-        pos_value.setValue(self.stage_position[direction])
-        #pos_value.setFixedWidth(20)
-        return pos_label, pos_value
+    def update_sample_pos(self, sample_pos:dict):
+        """Update position widgets for volumetric imaging or manually moving"""
+        for direction, value in sample_pos.items():
+            if direction in self.pos_widget:
+                self.pos_widget[direction].setValue(value)
+    def stage_position_changed(self):
+        self.instrument.move_sample_relative(self.pos_widget['X'].value(), self.pos_widget['Y'].value(), self.pos_widget['Z'].value() )
 
     def volumeteric_imaging_button(self):
 
         volumetric_image = {'start': QPushButton('Start Volumetric Imaging')}
         volumetric_image['start'].clicked.connect(self.start_volumetric_imaging)
-        #volumetric_image['overwrite'] = QCheckBox('Overwrite Data')
-        #volumetric_image['overwrite'].setChecked(True)
+        # volumetric_image['overwrite'] = QCheckBox('Overwrite Data')
+        # volumetric_image['overwrite'].setChecked(True)
 
         return self.create_layout(struct='H', **volumetric_image)
 
     def start_volumetric_imaging(self):
 
-        self.instrument.run_from_config()
+        self.sample_pos_worker = self._sample_pos_worker()
+        self.sample_pos_worker.yielded.connect(self.update_sample_pos)
+        self.sample_pos_worker.start()
+
+        self.volumetric_worker = self._volumetric_worker()
+        self.volumetric_worker.start()
         # overwrite=self.volumetric_image['overwrite'].isChecked()
 
+    @thread_worker
+    def _volumetric_worker(self):
+
+        self.instrument.run_from_config()
+
+    @thread_worker
+    def _sample_pos_worker(self):
+        while self.instrument.volumetric_imaging.is_set():
+            yield self.instrument.get_sample_position()
     def waveform_graph(self):
 
         """Generate a graph of waveform for sanity check"""
@@ -215,8 +228,8 @@ class InitializeAcquisitionTab(Tab):
             self.viewer.window.add_dock_widget(self.waveform['graph'])
         except:
             for index, ao_name in enumerate(self.cfg.daq_ao_names_to_channels.keys()):
-                #self.waveform['graph'].setFixedWidth(500)
-                #self.waveform['graph'].setFixedHeight(250)
+                # self.waveform['graph'].setFixedWidth(500)
+                # self.waveform['graph'].setFixedHeight(250)
                 self.waveform['graph'].setTitle("Waveforms One Image Capture Sequence", color="w", size="10pt")
                 self.waveform['graph'].setLabel('bottom', 'Time (s)')
                 self.waveform['graph'].setLabel('left', 'Amplitude (V)')
@@ -233,52 +246,65 @@ class InitializeAcquisitionTab(Tab):
         wavelength, click on the resultant label"""
 
         self.wavelength_selection['unselected'] = QComboBox()
-        remaining_wavelengths = [wavelength for wavelength in self.possible_wavelengths if
-                                 not wavelength in self.wavelengths]
-        rem_wl_str = [str(x) for x in remaining_wavelengths]
-        rem_wl_str.insert(0, '')
-        self.wavelength_selection['unselected'].addItems(rem_wl_str)
-        self.wavelength_selection['unselected'].activated.connect(self.add_selected_wl)
-        self.wavelength_selection['selected'] = self.selected_wv_label(self.wavelengths)
-        self.wavelength_select_widget = self.create_layout('H', **self.wavelength_selection)
-        self.viewer.window.add_dock_widget(self.wavelength_select_widget, name='Selected Laser Wavelengths')
+        remaining_wavelengths = [str(wavelength) for wavelength in self.possible_wavelengths if
+                                 not wavelength in self.imaging_wavelengths]
 
-    def selected_wv_label(self, selected_wl):
-        selected_wl_labels = [QPushButton(str(wavelength)) for wavelength in selected_wl]
-        selected_labels_dict = {}
-        i = 0
-        for labels, wavelengths in zip(selected_wl_labels, selected_wl):
-            labels.setStyleSheet('QPushButton { background-color:' +
-                                 self.cfg.laser_specs[str(wavelengths)]['color'] +
-                                 '; color : black; }')
+        remaining_wavelengths.insert(0, '')
+        self.wavelength_selection['unselected'].addItems(remaining_wavelengths)
+        self.wavelength_selection['unselected'].activated.connect(self.unhide_labels)
+        # Adds a 'label' (QPushButton) for every possible wavelength then hides the unselected ones.
+        # Pushing labels should hide them and selecting QComboBox should unhide them
+        self.wavelength_selection['selected'] = self.selected_wv_label()
+        return self.create_layout('H', **self.wavelength_selection)
 
-            labels.clicked.connect(lambda clicked=None, widget=labels: self.remove_selected_wl(clicked, widget))
-            selected_labels_dict[str(wavelengths)] = labels
-            i += 1
+    def selected_wv_label(self):
 
-        return self.create_layout(struct='H', **selected_labels_dict)
+        """Adds labels for all possible wavelengths"""
 
-    def add_selected_wl(self):
+        for wavelengths in self.possible_wavelengths:
+            wavelengths = str(wavelengths)
+            self.selected[wavelengths] = QPushButton(wavelengths)
+            color = self.cfg.laser_specs[wavelengths]
+            self.selected[wavelengths].setStyleSheet('QPushButton { background-color:' + color['color'] + '; color : '
+                                                                                                          'black; }')
+            self.selected[wavelengths].clicked.connect(lambda clicked=None, widget=self.selected[wavelengths]:
+                                                       self.hide_labels(clicked, widget))
+            if int(wavelengths) not in self.imaging_wavelengths:
+                self.selected[wavelengths].setHidden(True)
+        self.selected_wl_layout = self.create_layout(struct='H', **self.selected)
+        return self.selected_wl_layout
 
-        """If unselected wavelengths are pressed, the selected wavelength labels are updated"""
+    def hide_labels(self, clicked, widget):
+        widget_wavelength = widget.text()
+        widget.setHidden(True)
+        self.laser_dock[widget_wavelength].setHidden(True)
+        self.imaging_wavelengths.remove(int(widget_wavelength))
+        self.wavelength_selection['unselected'].addItem(widget.text())
 
+    def unhide_labels(self):
         index = self.wavelength_selection['unselected'].currentIndex()
         if index != 0:
-            self.viewer.window.remove_dock_widget(self.wavelength_select_widget)
-            self.wavelengths.append(int(self.wavelength_selection['unselected'].currentText()))
-            self.wavelength_selection['selected'] = self.selected_wv_label(self.wavelengths)
+            widget_wavelength = self.wavelength_selection['unselected'].currentText()
+            self.imaging_wavelengths.append(int(widget_wavelength))
             self.wavelength_selection['unselected'].removeItem(index)
+            self.selected[widget_wavelength].setHidden(False)
+            self.laser_dock[widget_wavelength].setHidden(False)
 
-            self.wavelength_select_widget = self.create_layout('H', **self.wavelength_selection)
-            self.viewer.window.add_dock_widget(self.wavelength_select_widget, name='Selected Laser Wavelengths')
+    def adding_wavelength_tabs(self, imaging_dock):
+        for wavelength in self.possible_wavelengths:
+            wavelength = str(wavelength)
+            main_dock = QDockWidget()
+            main_dock.setWindowTitle('Laser ' + wavelength)
+            main_dock = self.scan_wavelength_params(wavelength)
+            self.laser_dock[wavelength] = self.viewer.window.add_dock_widget(main_dock, name='Wavelength ' + wavelength)
+            self.viewer.window._qt_window.tabifyDockWidget(imaging_dock, self.laser_dock[wavelength])
+            if int(wavelength) not in self.imaging_wavelengths:
+                self.laser_dock[wavelength].setHidden(True)
 
-    def remove_selected_wl(self, clicked, widget):
+    def scan_wavelength_params(self, wavelength: str):
+        """Scans config for relevant laser wavelength parameters
+        :param wavelength: the wavelength of the laser"""
 
-        """If laser wavelength labels are clicked they are removed from config and gui"""
-
-        self.viewer.window.remove_dock_widget(self.wavelength_select_widget)
-        self.wavelength_selection['unselected'].addItem(widget.text())
-        self.wavelengths.remove(int(widget.text()))
-        self.wavelength_selection['selected'] = self.selected_wv_label(self.wavelengths)
-        self.wavelength_select_widget = self.create_layout('H', **self.wavelength_selection)
-        self.viewer.window.add_dock_widget(self.wavelength_select_widget, name='Selected Laser Wavelengths')
+        laser_specs_wavelength = self.cfg.laser_specs[wavelength]
+        tab_widget_wl = self.scan(laser_specs_wavelength, 'laser_specs', wl=wavelength, subdict=True)
+        return self.create_layout(struct='V', **tab_widget_wl)

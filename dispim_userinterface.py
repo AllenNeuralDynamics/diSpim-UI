@@ -41,8 +41,8 @@ class UserInterface:
         self.imaging_dock_params = self.viewer.window.add_dock_widget(dock['Imaging Specs'],
                                                                       name='Acquisition Parameters', area='left')
 
-        laser_wavelength_params = LaserWavelengthParamTabs(self.cfg, self.instrument, self.viewer)
-        laser_wavelength_params.adding_wavelength_tabs(self.wavelengths, dock, self.imaging_dock)
+        self.general_imaging.adding_wavelength_tabs(self.imaging_dock)
+
 
         self.viewer.scale_bar.visible = True
         self.viewer.scale_bar.unit = "um"
@@ -61,15 +61,16 @@ class UserInterface:
         imaging = QDockWidget()
         imaging.setWindowTitle('Imaging')
 
-        general_imaging = InitializeAcquisitionTab(self.wavelengths, self.possible_wavelengths, self.viewer, self.cfg,
+        self.general_imaging = InitializeAcquisitionTab(self.wavelengths, self.possible_wavelengths, self.viewer, self.cfg,
                                                    self.instrument)
-        general_imaging_tab = {'live_view': general_imaging.live_view_widget(),
-                               'screenshot': general_imaging.screenshot_button(),
-                               #'position': general_imaging.sample_stage_position(),
-                               'volumetric_image': general_imaging.volumeteric_imaging_button(),
-                               'waveform': general_imaging.waveform_graph()}
-        general_imaging.laser_wl_select()
-        general_imaging_tab_widget = general_imaging.create_layout(struct='V', **general_imaging_tab)
+        general_imaging_tab = {'live_view': self.general_imaging.live_view_widget(),
+                               'screenshot': self.general_imaging.screenshot_button(),
+                               'position': self.general_imaging.sample_stage_position(),
+                               'volumetric_image': self.general_imaging.volumeteric_imaging_button(),
+                               'waveform': self.general_imaging.waveform_graph(),
+                               'wavelength_select': self.general_imaging.laser_wl_select()}
+
+        general_imaging_tab_widget = self.general_imaging.create_layout(struct='V', **general_imaging_tab)
         imaging.setWidget(general_imaging_tab_widget)
         return imaging
 

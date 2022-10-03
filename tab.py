@@ -48,7 +48,7 @@ class Tab:
 
                 new_key = f'{prev_key}_{keys}' if keys in QDictionary or subdict else keys
                 QDictionary[new_key + '_label'], QDictionary[new_key] = self.create_widget(
-                    dictionary[keys], keys, input_type, label=new_key)
+                    dictionary[keys], input_type, label=new_key)
                 QDictionary[new_key].editingFinished.connect((lambda widget=QDictionary[new_key], kw=keys:
                                                               self.config_change(widget, attr, kw, wl)))
 
@@ -180,18 +180,14 @@ class Tab:
         label = " ".join(label)
         return label
 
-    def create_widget(self, value, attr, Qtype, label: str = None):
+    def create_widget(self, value, Qtype, label):
 
         """Create a label and input box for a variable
-         :param label: optional variable to create unique label
+         :param label: variable to create unique label
          :param value: value to preset input widget value
-         :param attr: the variable name of the attribute referenced
          :param Qtype: type of QWidget """
 
-        if label is None:
-            label = self.label_maker(attr)
-        else:
-            label = self.label_maker(label)
+        label = self.label_maker(label)
 
         widget_label = QLabel(label)
         widget_input = Qtype()
