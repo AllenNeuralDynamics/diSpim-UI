@@ -8,7 +8,7 @@ import numpy as np
 from skimage.io import imsave
 from pyqtgraph import PlotWidget, mkPen
 from dispim.compute_waveforms import generate_waveforms
-
+from clickable_spin_box import ClickableSpinBox
 
 class InitializeAcquisitionTab(Tab):
 
@@ -121,13 +121,17 @@ class InitializeAcquisitionTab(Tab):
                 yield
                 # on move
                 while event.type == 'mouse_move':
-                    if val == (0, None) and self.cfg.column_count_px >= event.position[1] >= 0:  # Conditions for vert_line
-                        layer.data = [[[0, event.position[1]], [self.cfg.column_count_px, event.position[1]]], layer.data[1]]
-                        layer.data = [layer.data[0], [[event.position[0], 0], [event.position[0], self.cfg.row_count_px]]]
+                    if val == (0, None) and self.cfg.column_count_px >= event.position[1] >= 0:  #vert_line
+                        layer.data = [[[0, event.position[1]], [self.cfg.column_count_px, event.position[1]]],
+                                      layer.data[1]]
+                        layer.data = [layer.data[0],
+                                      [[event.position[0], 0], [event.position[0], self.cfg.row_count_px]]]
                         yield
-                    elif val == (1, None) and self.cfg.row_count_px >= event.position[0] >= 0:  # Conditions for horz_line
-                        layer.data = [[[0, event.position[1]], [self.cfg.column_count_px, event.position[1]]], layer.data[1]]
-                        layer.data = [layer.data[0], [[event.position[0], 0], [event.position[0], self.cfg.row_count_px]]]
+                    elif val == (1, None) and self.cfg.row_count_px >= event.position[0] >= 0:  #horz_line
+                        layer.data = [[[0, event.position[1]], [self.cfg.column_count_px, event.position[1]]],
+                                      layer.data[1]]
+                        layer.data = [layer.data[0],
+                                      [[event.position[0], 0], [event.position[0], self.cfg.row_count_px]]]
                         yield
                     else:
                         yield
@@ -166,18 +170,24 @@ class InitializeAcquisitionTab(Tab):
         self.stage_position = self.instrument.get_sample_position()
         for direction in directions:
             self.pos_widget[direction + 'label'], self.pos_widget[direction] = \
-                self.create_widget(self.stage_position[direction], QSpinBox, f'{direction}:')
+                self.create_widget(self.stage_position[direction], ClickableSpinBox, f'{direction}:')
             self.pos_widget[direction].valueChanged.connect(self.stage_position_changed)
+            self.pos_widget[direction].clicked.connect(self.update_sample_pos)
+
 
         return self.create_layout(struct='H', **self.pos_widget)
 
-    def update_sample_pos(self, sample_pos:dict):
+    def update_sample_pos(self):
         """Update position widgets for volumetric imaging or manually moving"""
+        print('clicked')
+        sample_pos = self.instrument.get_sample_position()
         for direction, value in sample_pos.items():
             if direction in self.pos_widget:
                 self.pos_widget[direction].setValue(value)
+
     def stage_position_changed(self):
-        self.instrument.move_sample_relative(self.pos_widget['X'].value(), self.pos_widget['Y'].value(), self.pos_widget['Z'].value() )
+        self.instrument.move_sample_relative(self.pos_widget['X'].value(), self.pos_widget['Y'].value(),
+                                             self.pos_widget['Z'].value())
 
     def volumeteric_imaging_button(self):
 
@@ -207,6 +217,7 @@ class InitializeAcquisitionTab(Tab):
     def _sample_pos_worker(self):
         while self.instrument.volumetric_imaging.is_set():
             yield self.instrument.get_sample_position()
+
     def waveform_graph(self):
 
         """Generate a graph of waveform for sanity check"""

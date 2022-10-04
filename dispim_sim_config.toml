@@ -9,12 +9,12 @@ z_step_size_um = 0.25
 volume_x_um = 2305
 volume_y_um = 2305
 volume_z_um = 1000
-laser_wavelengths = [ 561, 405, 638,]
-possible_wavelengths = [ 488, 638, 405, 561,]
+laser_wavelengths = [ 638, 561,]
+possible_wavelengths = [ 405, 488, 561, 638,]
 
 [tile_specs]
-x_field_of_view_um = 2304
-y_field_of_view_um = 2304
+x_field_of_view_um = 2304.0
+y_field_of_view_um = 2304.0
 row_count_pixels = 2304
 column_count_pixels = 2304
 data_type = "uint16"
@@ -107,7 +107,7 @@ camy = 2304
 [camera_specs.camera_left]
 row_interval = 5.867e-6
 scan_direction = "BACKWARD"
-offset = 0.5
+offset = 0.0
 camx = 2304
 camy = 2304
 

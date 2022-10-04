@@ -1,8 +1,6 @@
-from qtpy.QtWidgets import QMessageBox, QLineEdit, QVBoxLayout, QWidget, \
-    QHBoxLayout, QLabel, QDoubleSpinBox, QScrollArea
 from PyQt5.QtCore import Qt
-from qtpy.QtWidgets import QPushButton, QMessageBox, QLineEdit, QCheckBox, QVBoxLayout, QDockWidget, QWidget, \
-    QHBoxLayout, QLabel, QComboBox, QDoubleSpinBox, QSpinBox, QScrollArea
+from qtpy.QtWidgets import  QMessageBox, QLineEdit, QVBoxLayout, QWidget, \
+    QHBoxLayout, QLabel, QDoubleSpinBox,  QScrollArea, QFrame
 
 
 class Tab:
@@ -158,11 +156,11 @@ class Tab:
 
     def create_layout(self, struct: str, **kwargs):
 
-        """Creates a either a horizontal or vertical layout populated with widgets
+        """Creates either a horizontal or vertical layout populated with widgets
         :param struct: specifies whether the layout will be horizontal or vertical
         :param kwargs: all widgets contained in layout"""
 
-        widget = QWidget()
+        widget = QFrame()
         if struct == 'H':
             layout = QHBoxLayout()
         else:

@@ -1,6 +1,6 @@
 import napari
 from qtpy.QtWidgets import QPushButton, QMessageBox, QLineEdit, QCheckBox, QVBoxLayout, QDockWidget, QWidget, \
-    QHBoxLayout, QLabel, QComboBox, QDoubleSpinBox, QSpinBox, QScrollArea
+    QHBoxLayout, QLabel, QComboBox, QDoubleSpinBox, QSpinBox, QScrollArea, QFrame
 import dispim.dispim as dispim
 import logging
 from dispim.compute_waveforms import generate_waveforms
@@ -63,14 +63,14 @@ class UserInterface:
 
         self.general_imaging = InitializeAcquisitionTab(self.wavelengths, self.possible_wavelengths, self.viewer, self.cfg,
                                                    self.instrument)
-        general_imaging_tab = {'live_view': self.general_imaging.live_view_widget(),
+        qframes = {'live_view': self.general_imaging.live_view_widget(),
                                'screenshot': self.general_imaging.screenshot_button(),
                                'position': self.general_imaging.sample_stage_position(),
                                'volumetric_image': self.general_imaging.volumeteric_imaging_button(),
                                'waveform': self.general_imaging.waveform_graph(),
                                'wavelength_select': self.general_imaging.laser_wl_select()}
 
-        general_imaging_tab_widget = self.general_imaging.create_layout(struct='V', **general_imaging_tab)
+        general_imaging_tab_widget = self.general_imaging.create_layout(struct='V', **qframes)
         imaging.setWidget(general_imaging_tab_widget)
         return imaging
 
