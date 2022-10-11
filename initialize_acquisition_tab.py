@@ -10,6 +10,7 @@ from pyqtgraph import PlotWidget, mkPen
 from dispim.compute_waveforms import generate_waveforms
 from clickable_spin_box import ClickableSpinBox
 
+
 class InitializeAcquisitionTab(Tab):
 
     def __init__(self, wavelengths: list, possible_wavelengths: list, viewer, cfg, instrument):
@@ -38,6 +39,7 @@ class InitializeAcquisitionTab(Tab):
         self.stage_position = None
         self.data_line = None
         self.selected_wl_layout = None
+        self.layer_index = 0
 
     def live_view_widget(self):
 
@@ -46,6 +48,21 @@ class InitializeAcquisitionTab(Tab):
 
         self.live_view['start'] = QPushButton('Start Live View')
         self.live_view['start'].clicked.connect(self.start_live_view)
+
+        self.live_view['0'] = QPushButton('Camera 0')
+        self.live_view['0'].setStyleSheet("background-color : gray")
+        self.live_view['0'].setHidden(True)
+        self.live_view['0'].pressed.connect(lambda stream_id=0: self.camera_view(stream_id))
+
+        self.live_view['1'] = QPushButton('Camera 1')
+        self.live_view['1'].setStyleSheet("background-color : green")
+        self.live_view['1'].setHidden(True)
+        self.live_view['1'].pressed.connect(lambda stream_id=1: self.camera_view(stream_id))
+
+        self.live_view['overlay'] = QPushButton('Overlay Camera Views')
+        self.live_view['overlay'].setStyleSheet("background-color : gray")
+        self.live_view['overlay'].setHidden(True)
+        self.live_view['overlay'].clicked.connect(self.blending_set)
 
         wv_strs = [str(x) for x in self.possible_wavelengths]
         self.live_view['wavelength'] = QComboBox()
@@ -66,12 +83,39 @@ class InitializeAcquisitionTab(Tab):
 
         return self.create_layout(struct='H', **self.live_view)
 
+    def camera_view(self, stream_id):
+        # TODO: conside using isdown or ischeckable properties here
+
+        not_id = (stream_id + 1) % 2
+        key = f"Video {stream_id}"
+        not_key = f"Video {not_id}"
+
+        self.viewer.layers[key].opacity = 1
+        self.viewer.layers[not_key].opacity = 0
+        self.live_view[str(stream_id)].setStyleSheet("background-color : green")
+        self.live_view[str(not_id)].setStyleSheet("background-color : gray")
+        self.live_view['overlay'].setStyleSheet("background-color : gray")
+
+
+
+    def blending_set(self):
+
+        self.viewer.layers[f"Video 1"].blending = self.viewer.layers[f"Video 0"].blending = 'additive'
+        self.viewer.layers[f"Video 1"].opacity = self.viewer.layers[f"Video 0"].opacity = 1.0
+
+        self.live_view['0'].setStyleSheet("background-color : gray")
+        self.live_view['1'].setStyleSheet("background-color : gray")
+        self.live_view['overlay'].setStyleSheet("background-color : green")
+
     def start_live_view(self):
 
         if self.live_view['start'].text() == 'Start Live View':
             self.live_view['start'].setText('Stop Live View')
             self.live_view['start'].clicked.disconnect(self.start_live_view)
             self.live_view['start'].clicked.connect(self.stop_live_view)
+            self.live_view['overlay'].setHidden(False)
+            self.live_view['1'].setHidden(False)
+            self.live_view['0'].setHidden(False)
 
         self.instrument.start_livestream(int(self.live_view['wavelength'].currentText()))
         self.livestream_worker = self._livestream_worker()
@@ -84,6 +128,9 @@ class InitializeAcquisitionTab(Tab):
         self.live_view['start'].setText('Start Live View')
         self.live_view['start'].clicked.disconnect(self.stop_live_view)
         self.live_view['start'].clicked.connect(self.start_live_view)
+        self.live_view['overlay'].setHidden(True)
+        self.live_view['1'].setHidden(True)
+        self.live_view['0'].setHidden(True)
 
     @thread_worker
     def _livestream_worker(self):
@@ -102,39 +149,47 @@ class InitializeAcquisitionTab(Tab):
         if self.live_view['rotate'].isChecked():
             image = np.rot90(image, -1)
 
+        key = f"Video {self.instrument.stream_id}"
         try:
-            self.viewer.layers['Live View'].data = image
-        except KeyError:
-            self.viewer.add_image(image, name='Live View', scale=(1, 1))
-            vert_line = np.array([[0, 0], [self.cfg.column_count_px, 0]])
-            horz_line = np.array([[0, 0], [0, self.cfg.row_count_px]])
-            lines = [vert_line, horz_line]
-            color = ['blue', 'green']
-            shapes_layer = self.viewer.add_shapes(
-                lines, shape_type='line', edge_width=20, edge_color=color)
-            shapes_layer.mode = 'select'
 
-            @shapes_layer.mouse_drag_callbacks.append
-            def click_drag(layer, event):
-                data_coordinates = layer.world_to_data(event.position)
-                val = layer.get_value(data_coordinates)
-                yield
-                # on move
-                while event.type == 'mouse_move':
-                    if val == (0, None) and self.cfg.column_count_px >= event.position[1] >= 0:  #vert_line
-                        layer.data = [[[0, event.position[1]], [self.cfg.column_count_px, event.position[1]]],
-                                      layer.data[1]]
-                        layer.data = [layer.data[0],
-                                      [[event.position[0], 0], [event.position[0], self.cfg.row_count_px]]]
-                        yield
-                    elif val == (1, None) and self.cfg.row_count_px >= event.position[0] >= 0:  #horz_line
-                        layer.data = [[[0, event.position[1]], [self.cfg.column_count_px, event.position[1]]],
-                                      layer.data[1]]
-                        layer.data = [layer.data[0],
-                                      [[event.position[0], 0], [event.position[0], self.cfg.row_count_px]]]
-                        yield
-                    else:
-                        yield
+            layer = self.viewer.layers[key]
+            layer._slice.image._view = image
+            layer.events.set_data()
+
+        except KeyError:
+            self.viewer.add_image(image, name=f"Video {self.instrument.stream_id}")
+            self.layer_index += 1
+
+            if self.layer_index == 2:
+                vert_line = np.array([[0, 0], [self.cfg.column_count_px, 0]])
+                horz_line = np.array([[0, 0], [0, self.cfg.row_count_px]])
+                lines = [vert_line, horz_line]
+                color = ['blue', 'green']
+                shapes_layer = self.viewer.add_shapes(
+                    lines, shape_type='line', edge_width=20, edge_color=color)
+                shapes_layer.mode = 'select'
+
+                @shapes_layer.mouse_drag_callbacks.append
+                def click_drag(layer, event):
+                    data_coordinates = layer.world_to_data(event.position)
+                    val = layer.get_value(data_coordinates)
+                    yield
+                    # on move
+                    while event.type == 'mouse_move':
+                        if val == (0, None) and self.cfg.column_count_px >= event.position[1] >= 0:  # vert_line
+                            layer.data = [[[0, event.position[1]], [self.cfg.column_count_px, event.position[1]]],
+                                          layer.data[1]]
+                            layer.data = [layer.data[0],
+                                          [[event.position[0], 0], [event.position[0], self.cfg.row_count_px]]]
+                            yield
+                        elif val == (1, None) and self.cfg.row_count_px >= event.position[0] >= 0:  # horz_line
+                            layer.data = [[[0, event.position[1]], [self.cfg.column_count_px, event.position[1]]],
+                                          layer.data[1]]
+                            layer.data = [layer.data[0],
+                                          [[event.position[0], 0], [event.position[0], self.cfg.row_count_px]]]
+                            yield
+                        else:
+                            yield
 
     def color_change(self):
         wavelength = int(self.live_view['wavelength'].currentText())
@@ -173,7 +228,6 @@ class InitializeAcquisitionTab(Tab):
                 self.create_widget(self.stage_position[direction], ClickableSpinBox, f'{direction}:')
             self.pos_widget[direction].valueChanged.connect(self.stage_position_changed)
             self.pos_widget[direction].clicked.connect(self.update_sample_pos)
-
 
         return self.create_layout(struct='H', **self.pos_widget)
 

@@ -68,7 +68,7 @@ class Tab:
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setWidgetResizable(True)
         scroll.setWidget(widget)
-        scroll.setMinimumHeight(300)
+        #scroll.setMinimumHeight(300)
         return scroll
 
     def adding_tabs(self, dock: dict, viewer):
