@@ -8,7 +8,6 @@ import numpy as np
 from skimage.io import imsave
 from pyqtgraph import PlotWidget, mkPen
 from dispim.compute_waveforms import generate_waveforms
-from clickable_spin_box import ClickableSpinBox
 
 
 class InitializeAcquisitionTab(Tab):
@@ -96,8 +95,6 @@ class InitializeAcquisitionTab(Tab):
         self.live_view[str(not_id)].setStyleSheet("background-color : gray")
         self.live_view['overlay'].setStyleSheet("background-color : gray")
 
-
-
     def blending_set(self):
 
         self.viewer.layers[f"Video 1"].blending = self.viewer.layers[f"Video 0"].blending = 'additive'
@@ -137,7 +134,7 @@ class InitializeAcquisitionTab(Tab):
         while True:
             try:
                 sleep(1 / 16)
-                yield self.instrument.get_latest_img()
+                yield self.instrument.get_latest_img()  # only return if there is a new image
 
             except IndexError:
                 pass
@@ -223,17 +220,18 @@ class InitializeAcquisitionTab(Tab):
         directions = ['X', 'Y', 'Z']
         self.pos_widget = {}
         self.stage_position = self.instrument.get_sample_position()
+
         for direction in directions:
             self.pos_widget[direction + 'label'], self.pos_widget[direction] = \
-                self.create_widget(self.stage_position[direction], ClickableSpinBox, f'{direction}:')
+                self.create_widget(self.stage_position[direction], QSpinBox, f'{direction}:')
             self.pos_widget[direction].valueChanged.connect(self.stage_position_changed)
-            self.pos_widget[direction].clicked.connect(self.update_sample_pos)
+            # self.pos_widget[direction].clicked.connect(self.update_sample_pos)
 
         return self.create_layout(struct='H', **self.pos_widget)
 
     def update_sample_pos(self):
         """Update position widgets for volumetric imaging or manually moving"""
-        print('clicked')
+
         sample_pos = self.instrument.get_sample_position()
         for direction, value in sample_pos.items():
             if direction in self.pos_widget:
@@ -242,6 +240,7 @@ class InitializeAcquisitionTab(Tab):
     def stage_position_changed(self):
         self.instrument.move_sample_relative(self.pos_widget['X'].value(), self.pos_widget['Y'].value(),
                                              self.pos_widget['Z'].value())
+        print(self.instrument.get_sample_position())
 
     def volumeteric_imaging_button(self):
 

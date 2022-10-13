@@ -1,6 +1,6 @@
 from PyQt5.QtCore import Qt
 from qtpy.QtWidgets import  QMessageBox, QLineEdit, QVBoxLayout, QWidget, \
-    QHBoxLayout, QLabel, QDoubleSpinBox,  QScrollArea, QFrame
+    QHBoxLayout, QLabel, QDoubleSpinBox,  QScrollArea, QFrame, QSpinBox
 
 
 class Tab:
@@ -195,5 +195,10 @@ class Tab:
 
         elif isinstance(widget_input, QLineEdit):
             widget_input.setText(str(value))
+
+        elif isinstance(widget_input, QSpinBox):
+            widget_input.setMinimum(-100000)
+            widget_input.setValue(value)
+
 
         return widget_label, widget_input
