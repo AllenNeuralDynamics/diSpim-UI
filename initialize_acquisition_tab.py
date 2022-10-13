@@ -134,7 +134,7 @@ class InitializeAcquisitionTab(Tab):
         while True:
             try:
                 sleep(1 / 16)
-                yield self.instrument.get_latest_img()  # only return if there is a new image
+                yield self.instrument.im  # only return if there is a new image
 
             except IndexError:
                 pass

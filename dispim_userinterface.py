@@ -1,20 +1,9 @@
 import napari
-from qtpy.QtWidgets import QPushButton, QMessageBox, QLineEdit, QCheckBox, QVBoxLayout, QDockWidget, QWidget, \
-    QHBoxLayout, QLabel, QComboBox, QDoubleSpinBox, QSpinBox, QScrollArea, QFrame
+from qtpy.QtWidgets import QDockWidget
 import dispim.dispim as dispim
-import logging
-from dispim.compute_waveforms import generate_waveforms
-import numpy as np
 from acquisition_params_tab import AcquisitionParamsTab
 from initialize_acquisition_tab import InitializeAcquisitionTab
-from laser_wavelength_param_tabs import LaserWavelengthParamTabs
-from coloredlogs import ColoredFormatter
-import ctypes
 import logging
-import argparse
-import os
-import sys
-
 
 class UserInterface:
 
