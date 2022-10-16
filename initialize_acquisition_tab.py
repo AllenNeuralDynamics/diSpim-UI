@@ -38,7 +38,13 @@ class InitializeAcquisitionTab(Tab):
         self.stage_position = None
         self.data_line = None
         self.selected_wl_layout = None
+
         self.layer_index = 0
+        # Start and end points for lines
+        self.vert_start = 0
+        self.vert_end = 2048
+        self.horz_start = 0
+        self.horz_end = 2048
 
     def live_view_widget(self):
 
@@ -75,10 +81,8 @@ class InitializeAcquisitionTab(Tab):
             i += 1
         self.live_view['wavelength'].setStyleSheet(
             'QComboBox { background-color:' + self.cfg.laser_specs[wv_strs[0]]['color'] + '; color : black; }')
-        self.live_view['autocontrast'] = QCheckBox('Autocontrast')
-        self.live_view['autocontrast'].setChecked(True)
         self.live_view['rotate'] = QCheckBox('Rotate')
-        self.live_view['rotate'].setChecked(True)
+        self.live_view['rotate'].clicked.connect(self.rotate_view)
 
         return self.create_layout(struct='H', **self.live_view)
 
@@ -115,7 +119,7 @@ class InitializeAcquisitionTab(Tab):
             self.live_view['0'].setHidden(False)
 
         self.instrument.start_livestream(int(self.live_view['wavelength'].currentText()))
-        self.livestream_worker = self._livestream_worker()
+        self.livestream_worker = self.instrument._livestream_worker()
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
 
@@ -129,22 +133,32 @@ class InitializeAcquisitionTab(Tab):
         self.live_view['1'].setHidden(True)
         self.live_view['0'].setHidden(True)
 
-    @thread_worker
-    def _livestream_worker(self):
-        while True:
-            try:
-                sleep(1 / 16)
-                yield self.instrument.im  # only return if there is a new image
+    def rotate_view(self):
 
-            except IndexError:
-                pass
+        if self.live_view['rotate'].isChecked():
+
+            center = self.viewer.camera.center
+            self.viewer.camera.center = (0, center[1] - self.cfg.sensor_row_count, center[2])
+            self.viewer.layers['Video 0'].rotate = 90
+            self.viewer.layers['Video 1'].rotate = 90
+
+            self.vert_start += -self.cfg.sensor_column_count
+            self.vert_end += -self.cfg.sensor_column_count
+            self.horz_start += -self.cfg.sensor_row_count
+            self.horz_end += -self.cfg.sensor_row_count
+
+        else:
+            center = self.viewer.camera.center
+            self.viewer.camera.center = (0, center[1] + self.cfg.sensor_row_count, center[2])
+            self.viewer.layers['Video 0'].rotate = 0
+            self.viewer.layers['Video 1'].rotate = 0
+
+            self.vert_start += self.cfg.sensor_column_count
+            self.vert_end += self.cfg.sensor_column_count
+            self.horz_start += self.cfg.sensor_row_count
+            self.horz_end += self.cfg.sensor_row_count
 
     def update_layer(self, image):
-
-        # if self.live_view['autocontrast'].isChecked():
-        #     image = self.instrument.apply_contrast(image)
-        if self.live_view['rotate'].isChecked():
-            image = np.rot90(image, -1)
 
         key = f"Video {self.instrument.stream_id}"
         try:
@@ -173,17 +187,23 @@ class InitializeAcquisitionTab(Tab):
                     yield
                     # on move
                     while event.type == 'mouse_move':
-                        if val == (0, None) and self.cfg.column_count_px >= event.position[1] >= 0:  # vert_line
-                            layer.data = [[[0, event.position[1]], [self.cfg.column_count_px, event.position[1]]],
-                                          layer.data[1]]
+                        if val == (0, None) and 2048 >= event.position[1] >= 0:  # vert_line
+                            layer.data = [
+                                [[self.vert_start, event.position[1]], [self.vert, event.position[1]]],
+                                layer.data[1]]
+
                             layer.data = [layer.data[0],
-                                          [[event.position[0], 0], [event.position[0], self.cfg.row_count_px]]]
+                                          [[event.position[0], 0], [event.position[0], 2048]]]
+
                             yield
-                        elif val == (1, None) and self.cfg.row_count_px >= event.position[0] >= 0:  # horz_line
-                            layer.data = [[[0, event.position[1]], [self.cfg.column_count_px, event.position[1]]],
-                                          layer.data[1]]
+                        elif val == (1, None) and self.horz_end >= event.position[
+                            0] >= self.horz_start:  # horz_line
+                            layer.data = [
+                                [[self.vert_start, event.position[1]], [self.vert_end, event.position[1]]],
+                                layer.data[1]]
+
                             layer.data = [layer.data[0],
-                                          [[event.position[0], 0], [event.position[0], self.cfg.row_count_px]]]
+                                          [[event.position[0], 0], [event.position[0], 2048]]]
                             yield
                         else:
                             yield
