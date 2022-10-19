@@ -189,7 +189,7 @@ class InitializeAcquisitionTab(Tab):
                     yield
                     # on move
                     while event.type == 'mouse_move':
-                        if val == (0, None) and 2048 >= event.position[1] >= 0:  # vert_line
+                        if val == (0, None) and self.cfg.column_count_px >= event.position[1] >= 0:  # vert_line
                             layer.data = [
                                 [[self.vert_start, event.position[1]], [self.vert, event.position[1]]],
                                 layer.data[1]]
@@ -205,7 +205,7 @@ class InitializeAcquisitionTab(Tab):
                                 layer.data[1]]
 
                             layer.data = [layer.data[0],
-                                          [[event.position[0], 0], [event.position[0], 2048]]]
+                                          [[event.position[0], 0], [event.position[0], self.cfg.row_count_px]]]
                             yield
                         else:
                             yield
@@ -265,7 +265,8 @@ class InitializeAcquisitionTab(Tab):
     def volumeteric_imaging_button(self):
 
         volumetric_image = {'start': QPushButton('Start Volumetric Imaging')}
-        volumetric_image['start'].clicked.connect( self.instrument.run_from_config())
+        volumetric_image['start'].clicked.connect(self.instrument.run_from_config())
+
         return self.create_layout(struct='H', **volumetric_image)
 
     def waveform_graph(self):

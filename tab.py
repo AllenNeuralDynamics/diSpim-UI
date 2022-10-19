@@ -5,7 +5,7 @@ from qtpy.QtWidgets import  QMessageBox, QLineEdit, QVBoxLayout, QWidget, \
 
 class Tab:
 
-    def config_change(self, widget, attribute, kw, specify = None, repeat = False):
+    def config_change(self, widget, attribute, kw, specify = None):
 
         """Changes instrument config when a changed value is entered
         :param widget: the widget which input changed
@@ -21,7 +21,8 @@ class Tab:
         path = path + self.pathFind(dictionary, kw, path, True) if path is not None else self.pathFind(dictionary, kw)
         if self.pathGet(dictionary, path) - value != 0:
             self.pathSet(dictionary, path, value)
-            self.instrument._setup_waveform_hardware(specify)
+            self.instrument._setup_waveform_hardware(specify, live = True)
+
 
     def scan(self, dictionary: dict, attr: str, prev_key: str = None, QDictionary: dict = None,
              WindowDictionary: dict = None, wl: str = None, input_type: str = QLineEdit, subdict: bool = False):
@@ -197,7 +198,8 @@ class Tab:
             widget_input.setText(str(value))
 
         elif isinstance(widget_input, QSpinBox):
-            widget_input.setMinimum(-100000)
+            widget_input.setMaximum(2147483647)
+            widget_input.setMinimum(-2147483648)
             widget_input.setValue(value)
 
 
