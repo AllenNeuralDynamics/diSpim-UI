@@ -21,11 +21,7 @@ if __name__ == '__main__':
             args.config_path = r'C:\Users\micah.woodard\PycharmProjects\diSpim-UI\dispim_sim_config.toml'
         else:
             args.config_path = r'C:\Users\Administrator\Projects\dispim-control\examples\config.toml'
-    try:
 
         run = UserInterface(config_filepath=args.config_path,
                             console_output_level=args.log_level,
                             simulated=args.simulated)
-    finally:
-        traceback.print_exc()
-        run.close_instrument()

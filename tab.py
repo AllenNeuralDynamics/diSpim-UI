@@ -1,7 +1,7 @@
 from PyQt5.QtCore import Qt
 from qtpy.QtWidgets import  QMessageBox, QLineEdit, QVBoxLayout, QWidget, \
-    QHBoxLayout, QLabel, QDoubleSpinBox,  QScrollArea, QFrame, QSpinBox
-
+    QHBoxLayout, QLabel, QDoubleSpinBox,  QScrollArea, QFrame, QSpinBox, QSlider
+import qtpy.QtCore as QtCore
 
 class Tab:
 
@@ -202,5 +202,7 @@ class Tab:
             widget_input.setMinimum(-2147483648)
             widget_input.setValue(value)
 
+        elif isinstance(widget_input, QSlider):
+            widget_input = QSlider(QtCore.Qt.Horizontal)
 
         return widget_label, widget_input

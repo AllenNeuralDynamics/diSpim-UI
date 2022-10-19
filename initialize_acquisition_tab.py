@@ -8,7 +8,7 @@ import numpy as np
 from skimage.io import imsave
 from pyqtgraph import PlotWidget, mkPen
 from dispim.compute_waveforms import generate_waveforms
-from oxxius_laser import Cmd
+from oxxius_laser import Cmd, Query
 
 
 class InitializeAcquisitionTab(Tab):
@@ -249,25 +249,25 @@ class InitializeAcquisitionTab(Tab):
 
         return self.create_layout(struct='H', **self.pos_widget)
 
-    def update_sample_pos(self):
-        """Update position widgets for volumetric imaging or manually moving"""
-
-        sample_pos = self.instrument.get_sample_position()
-        for direction, value in sample_pos.items():
-            if direction in self.pos_widget:
-                self.pos_widget[direction].setValue(value)
-
-    def stage_position_changed(self):
-        self.instrument.move_sample_absolute(self.pos_widget['X'].value(), self.pos_widget['Y'].value(),
-                                             self.pos_widget['Z'].value())
-        print(self.instrument.get_sample_position())
-
-    def volumeteric_imaging_button(self):
-
-        volumetric_image = {'start': QPushButton('Start Volumetric Imaging')}
-        volumetric_image['start'].clicked.connect(self.instrument.run_from_config())
-
-        return self.create_layout(struct='H', **volumetric_image)
+    # def update_sample_pos(self):
+    #     """Update position widgets for volumetric imaging or manually moving"""
+    #
+    #     sample_pos = self.instrument.get_sample_position()
+    #     for direction, value in sample_pos.items():
+    #         if direction in self.pos_widget:
+    #             self.pos_widget[direction].setValue(value)
+    #
+    # def stage_position_changed(self):
+    #     self.instrument.move_sample_absolute(self.pos_widget['X'].value(), self.pos_widget['Y'].value(),
+    #                                          self.pos_widget['Z'].value())
+    #     print(self.instrument.get_sample_position())
+    #
+    # def volumeteric_imaging_button(self):
+    #
+    #     volumetric_image = {'start': QPushButton('Start Volumetric Imaging')}
+    #     volumetric_image['start'].clicked.connect(self.instrument.run_from_config())
+    #
+    #     return self.create_layout(struct='H', **volumetric_image)
 
     def waveform_graph(self):
 
@@ -351,7 +351,7 @@ class InitializeAcquisitionTab(Tab):
             self.wavelength_selection['unselected'].removeItem(index)
             self.selected[widget_wavelength].setHidden(False)
             self.laser_dock[widget_wavelength].setHidden(False)
-            self.laser_power[int(widget_wavelength)].setHidden(False)
+            self.laser_power[widget_wavelength].setHidden(False)
 
     def adding_wavelength_tabs(self, imaging_dock):
         for wavelength in self.possible_wavelengths:
@@ -375,11 +375,23 @@ class InitializeAcquisitionTab(Tab):
     def laser_power_slider(self, lasers: dict):
 
         for wl in lasers:
-            self.laser_power[wl] = QSlider(QtCore.Qt.Horizontal)
-            self.laser_power[wl].setMinimum(0)
-            self.laser_power[wl].setMaximum(100)
-            self.laser_power[wl].sliderReleased.connect(lambda laser=lasers[wl], value = self.laser_power[wl].value():
-                                                        laser.set(Cmd.LaserCurrent, str(value)))
+            wls = str(wl)
+            self.laser_power[f'{wls} label'],self.laser_power[wls] = self.create_widget(
+                                                                        value=lasers[wl].get(Query.LaserCurrentSetting),
+                                                                        Qtype=QSlider,
+                                                                        label=wls)
+            self.laser_power[wls].TicksBothSides()
+            self.laser_power[wls].setTickInterval(10)
+            self.laser_power[wls].setMinimum(0)
+            self.laser_power[wls].setMaximum(100)
+            self.laser_power[wls].sliderReleased.connect(lambda laser=lasers[wl], wl = wl:
+                                                         self.laser_power(laser, wl))
             if wl not in self.imaging_wavelengths:
                 self.laser_power[wl].setHidden(True)
 
+        return self.create_layout(struct='V', **self.laser_power)
+
+    def laser_power(self, laser, wl):
+
+        value = self.laser_power[wls].value()
+        laser.set(Cmd.LaserCurrent, str(value))
