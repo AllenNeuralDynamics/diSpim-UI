@@ -1,5 +1,5 @@
 from tab import Tab
-from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget
+from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, QSlider
 import qtpy.QtGui as QtGui
 import qtpy.QtCore as QtCore
 from napari.qt.threading import thread_worker
@@ -8,6 +8,7 @@ import numpy as np
 from skimage.io import imsave
 from pyqtgraph import PlotWidget, mkPen
 from dispim.compute_waveforms import generate_waveforms
+from oxxius_laser import Cmd
 
 
 class InitializeAcquisitionTab(Tab):
@@ -32,6 +33,7 @@ class InitializeAcquisitionTab(Tab):
         self.waveform = {}
         self.selected = {}
         self.laser_dock = {}
+        self.laser_power = {}
         self.wavelength_select_widget = None
         self.colors = None
         self.livestream_worker = None
@@ -87,7 +89,7 @@ class InitializeAcquisitionTab(Tab):
         return self.create_layout(struct='H', **self.live_view)
 
     def camera_view(self, stream_id):
-        # TODO: conside using isdown or ischeckable properties here
+        # TODO: consider using isdown or ischeckable properties here
 
         not_id = (stream_id + 1) % 2
         key = f"Video {stream_id}"
@@ -235,7 +237,6 @@ class InitializeAcquisitionTab(Tab):
     def sample_stage_position(self):
 
         """Creates labels and boxs to indicate sample position"""
-        # TODO: Get this working at all and also figure out which coordinates field it represents
 
         directions = ['X', 'Y', 'Z']
         self.pos_widget = {}
@@ -245,7 +246,6 @@ class InitializeAcquisitionTab(Tab):
             self.pos_widget[direction + 'label'], self.pos_widget[direction] = \
                 self.create_widget(self.stage_position[direction], QSpinBox, f'{direction}:')
             self.pos_widget[direction].valueChanged.connect(self.stage_position_changed)
-            # self.pos_widget[direction].clicked.connect(self.update_sample_pos)
 
         return self.create_layout(struct='H', **self.pos_widget)
 
@@ -258,7 +258,7 @@ class InitializeAcquisitionTab(Tab):
                 self.pos_widget[direction].setValue(value)
 
     def stage_position_changed(self):
-        self.instrument.move_sample_relative(self.pos_widget['X'].value(), self.pos_widget['Y'].value(),
+        self.instrument.move_sample_absolute(self.pos_widget['X'].value(), self.pos_widget['Y'].value(),
                                              self.pos_widget['Z'].value())
         print(self.instrument.get_sample_position())
 
@@ -351,6 +351,7 @@ class InitializeAcquisitionTab(Tab):
             self.wavelength_selection['unselected'].removeItem(index)
             self.selected[widget_wavelength].setHidden(False)
             self.laser_dock[widget_wavelength].setHidden(False)
+            self.laser_power[int(widget_wavelength)].setHidden(False)
 
     def adding_wavelength_tabs(self, imaging_dock):
         for wavelength in self.possible_wavelengths:
@@ -370,3 +371,15 @@ class InitializeAcquisitionTab(Tab):
         laser_specs_wavelength = self.cfg.laser_specs[wavelength]
         tab_widget_wl = self.scan(laser_specs_wavelength, 'laser_specs', wl=wavelength, subdict=True)
         return self.create_layout(struct='V', **tab_widget_wl)
+
+    def laser_power_slider(self, lasers: dict):
+
+        for wl in lasers:
+            self.laser_power[wl] = QSlider(QtCore.Qt.Horizontal)
+            self.laser_power[wl].setMinimum(0)
+            self.laser_power[wl].setMaximum(100)
+            self.laser_power[wl].sliderReleased.connect(lambda laser=lasers[wl], value = self.laser_power[wl].value():
+                                                        laser.set(Cmd.LaserCurrent, str(value)))
+            if wl not in self.imaging_wavelengths:
+                self.laser_power[wl].setHidden(True)
+
