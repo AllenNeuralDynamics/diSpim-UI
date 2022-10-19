@@ -376,22 +376,26 @@ class InitializeAcquisitionTab(Tab):
 
         for wl in lasers:
             wls = str(wl)
-            self.laser_power[f'{wls} label'],self.laser_power[wls] = self.create_widget(
-                                                                        value=lasers[wl].get(Query.LaserCurrentSetting),
-                                                                        Qtype=QSlider,
-                                                                        label=wls)
-            self.laser_power[wls].TicksBothSides()
+            self.laser_power[f'{wls} label'], self.laser_power[wls] = self.create_widget(
+                value=lasers[wl].get(Query.LaserCurrentSetting),
+                Qtype=QSlider,
+                label=wls)
+            self.laser_power[wls].setTickPosition(QSlider.TicksBothSides)
             self.laser_power[wls].setTickInterval(10)
             self.laser_power[wls].setMinimum(0)
             self.laser_power[wls].setMaximum(100)
-            self.laser_power[wls].sliderReleased.connect(lambda laser=lasers[wl], wl = wl:
-                                                         self.laser_power(laser, wl))
+            # self.laser_power[wls].sliderReleased.connect(
+            #     lambda command=Cmd.LaserCurrent, value=str(self.laser_power[wls].value()):
+            #     lasers[wl].set(command, value))
+            self.laser_power[wls].sliderMoved.connect(
+                lambda value=self.laser_power[wls].value(), wl=wls: self.laser_power_label(value, wl))
+
             if wl not in self.imaging_wavelengths:
-                self.laser_power[wl].setHidden(True)
+                self.laser_power[wls].setHidden(True)
 
-        return self.create_layout(struct='V', **self.laser_power)
+        return self.create_layout(struct='H', **self.laser_power)
 
-    def laser_power(self, laser, wl):
+    def laser_power_label(self, value, wl):
+        self.laser_power[f'{wl} label'].setText(f'{wl}: {value}')
 
-        value = self.laser_power[wls].value()
-        laser.set(Cmd.LaserCurrent, str(value))
+

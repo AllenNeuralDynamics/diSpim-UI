@@ -5,6 +5,7 @@ import dispim.dispim as dispim
 from acquisition_params_tab import AcquisitionParamsTab
 from initialize_acquisition_tab import InitializeAcquisitionTab
 import logging
+import traceback
 
 class UserInterface:
 
@@ -42,12 +43,11 @@ class UserInterface:
             napari.run()
 
         finally:
+            traceback.print_exc()
             self.instrument.close()
-            with napari.gui_qt() as app:
-                time_in_msec = 1000
-                QTimer().singleShot(time_in_msec, app.quit)
+            napari.
             self.viewer.close()
-            print("end")
+
 
     def imaging_specs_tab(self):
         imaging_tab = AcquisitionParamsTab()

@@ -203,6 +203,6 @@ class Tab:
             widget_input.setValue(value)
 
         elif isinstance(widget_input, QSlider):
-            widget_input = QSlider(QtCore.Qt.Horizontal)
+            widget_input.setOrientation(QtCore.Qt.Horizontal)
 
         return widget_label, widget_input
