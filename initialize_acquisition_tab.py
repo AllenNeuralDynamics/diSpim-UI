@@ -187,7 +187,7 @@ class InitializeAcquisitionTab(Tab):
                     yield
                     # on move
                     while event.type == 'mouse_move':
-                        if val == (0, None) and 2048 >= event.position[1] >= 0:  # vert_line
+                        if val == (0, None) and self.cfg.column_count_px >= event.position[1] >= 0:  # vert_line
                             layer.data = [
                                 [[self.vert_start, event.position[1]], [self.vert, event.position[1]]],
                                 layer.data[1]]
@@ -203,7 +203,7 @@ class InitializeAcquisitionTab(Tab):
                                 layer.data[1]]
 
                             layer.data = [layer.data[0],
-                                          [[event.position[0], 0], [event.position[0], 2048]]]
+                                          [[event.position[0], 0], [event.position[0], self.cfg.row_count_px]]]
                             yield
                         else:
                             yield
@@ -265,31 +265,9 @@ class InitializeAcquisitionTab(Tab):
     def volumeteric_imaging_button(self):
 
         volumetric_image = {'start': QPushButton('Start Volumetric Imaging')}
-        volumetric_image['start'].clicked.connect(self.start_volumetric_imaging)
-        # volumetric_image['overwrite'] = QCheckBox('Overwrite Data')
-        # volumetric_image['overwrite'].setChecked(True)
+        volumetric_image['start'].clicked.connect(self.instrument.run_from_config())
 
         return self.create_layout(struct='H', **volumetric_image)
-
-    def start_volumetric_imaging(self):
-
-        self.sample_pos_worker = self._sample_pos_worker()
-        self.sample_pos_worker.yielded.connect(self.update_sample_pos)
-        self.sample_pos_worker.start()
-
-        self.volumetric_worker = self._volumetric_worker()
-        self.volumetric_worker.start()
-        # overwrite=self.volumetric_image['overwrite'].isChecked()
-
-    @thread_worker
-    def _volumetric_worker(self):
-
-        self.instrument.run_from_config()
-
-    @thread_worker
-    def _sample_pos_worker(self):
-        while self.instrument.volumetric_imaging.is_set():
-            yield self.instrument.get_sample_position()
 
     def waveform_graph(self):
 
