@@ -21,6 +21,7 @@ class Tab:
         path = path + self.pathFind(dictionary, kw, path, True) if path is not None else self.pathFind(dictionary, kw)
         if self.pathGet(dictionary, path) - value != 0:
             self.pathSet(dictionary, path, value)
+            print(specify)
             self.instrument._setup_waveform_hardware(specify, live = True)
 
 
@@ -204,5 +205,9 @@ class Tab:
 
         elif isinstance(widget_input, QSlider):
             widget_input.setOrientation(QtCore.Qt.Horizontal)
+            try:
+                widget_input.setValue(value)
+            except:
+                pass
 
         return widget_label, widget_input

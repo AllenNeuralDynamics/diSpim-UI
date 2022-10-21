@@ -24,7 +24,6 @@ class UserInterface:
                                             simulated=simulated)
 
             self.cfg = self.instrument.cfg
-            self.wavelengths = self.cfg.imaging_specs['laser_wavelengths']
             self.possible_wavelengths = self.cfg.cfg['imaging_specs']['possible_wavelengths']
 
             self.imaging, self.laser_slider = self.imaging_tab()
@@ -73,7 +72,7 @@ class UserInterface:
         imaging = QDockWidget()
         imaging.setWindowTitle('Imaging')
 
-        self.general_imaging = InitializeAcquisitionTab(self.wavelengths, self.possible_wavelengths, self.viewer, self.cfg,
+        self.general_imaging = InitializeAcquisitionTab(self.viewer, self.cfg,
                                                    self.instrument)
         qframes = {'live_view': self.general_imaging.live_view_widget(),
                                'screenshot': self.general_imaging.screenshot_button(),
