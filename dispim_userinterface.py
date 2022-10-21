@@ -27,15 +27,23 @@ class UserInterface:
             self.wavelengths = self.cfg.imaging_specs['laser_wavelengths']
             self.possible_wavelengths = self.cfg.cfg['imaging_specs']['possible_wavelengths']
 
-            dock = {'Imaging': self.imaging_tab(),
-                    'Imaging Specs': self.imaging_specs_tab()}
+            self.imaging, self.laser_slider = self.imaging_tab()
+            self.imaging_specs, self.slit_width, self.exposure_time = self.imaging_specs_tab()
+            dock = {'Imaging': self.imaging,
+                    'Laser Slider': self.laser_slider,
+                    'Imaging Specs': self.imaging_specs,
+                    'Slit Width': self.slit_width,
+                    'Exposure Time': self.exposure_time}
+
             self.imaging_dock = self.viewer.window.add_dock_widget(dock['Imaging'], name='Imaging')
             self.imaging_dock_params = self.viewer.window.add_dock_widget(dock['Imaging Specs'],
                                                                           name='Acquisition Parameters', area='left')
+            self.viewer.window.add_dock_widget(dock['Slit Width'], name='Slit Width', area='left')
+            self.viewer.window.add_dock_widget(dock['Exposure Time'], name='Exposure Time', area='left')
+            self.viewer.window.add_dock_widget(dock['Laser Slider'], name="Laser Current", area='bottom')
 
             self.general_imaging.adding_wavelength_tabs(self.imaging_dock)
-            self.viewer.window.add_dock_widget(self.general_imaging.laser_power_slider(self.instrument.lasers),
-                                               name ="Laser Current", area ='bottom')
+
 
 
             self.viewer.scale_bar.visible = True
@@ -45,18 +53,21 @@ class UserInterface:
         finally:
             traceback.print_exc()
             self.instrument.close()
-            napari.
             self.viewer.close()
 
 
     def imaging_specs_tab(self):
-        imaging_tab = AcquisitionParamsTab()
+        imaging_tab = AcquisitionParamsTab(self.instrument.frame_grabber, self.cfg.sensor_column_count)
         imaging_specs = imaging_tab.scan_config(self.cfg)
         acquisition_widget = imaging_tab.imaging_specs_container(imaging_specs)
         scroll_box = imaging_tab.scroll_box(acquisition_widget)
         imaging_specs_dock = QDockWidget()
         imaging_specs_dock.setWidget(scroll_box)
-        return imaging_specs_dock
+
+        slit_width = imaging_tab.frame_grabber_exposure_time()
+        exposure_time = imaging_tab.frame_grabber_line_interval()
+
+        return imaging_specs_dock, slit_width, exposure_time
 
     def imaging_tab(self):
         imaging = QDockWidget()
@@ -73,7 +84,10 @@ class UserInterface:
 
         general_imaging_tab_widget = self.general_imaging.create_layout(struct='V', **qframes)
         imaging.setWidget(general_imaging_tab_widget)
-        return imaging
+
+        laser_slider = self.general_imaging.laser_power_slider(self.instrument.lasers)
+
+        return imaging, laser_slider
 
     def close_instrument(self):
         self.instrument.cfg.save()
