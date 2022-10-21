@@ -13,7 +13,7 @@ from oxxius_laser import Cmd, Query
 
 class InitializeAcquisitionTab(Tab):
 
-    def __init__(self, wavelengths: list, possible_wavelengths: list, viewer, cfg, instrument):
+    def __init__(self,viewer, cfg, instrument):
 
         """ :param wavelengths: current list of wavelengths used in acqusistion
             :param possible_wavelengths: all possible laser wavelengths in instrument
@@ -21,10 +21,10 @@ class InitializeAcquisitionTab(Tab):
             :param cfg: config object from instrument
             :param instrument: instrument bing used"""
 
-        self.imaging_wavelengths = wavelengths
-        self.possible_wavelengths = possible_wavelengths
-        self.viewer = viewer
         self.cfg = cfg
+        self.possible_wavelengths = self.cfg.cfg['imaging_specs']['possible_wavelengths']
+        self.imaging_wavelengths = self.cfg.imaging_specs['laser_wavelengths']
+        self.viewer = viewer
         self.instrument = instrument
 
         self.pos_widget = {}
@@ -82,7 +82,7 @@ class InitializeAcquisitionTab(Tab):
                                                      QtCore.Qt.BackgroundRole)
             i += 1
         self.live_view['wavelength'].setStyleSheet(
-            'QComboBox { background-color:' + self.cfg.laser_specs[wv_strs[0]]['color'] + '; color : black; }')
+            f'QComboBox {{ background-color:{self.cfg.laser_specs[wv_strs[0]]["color"]}; color : black; }}')
         self.live_view['rotate'] = QCheckBox('Rotate')
         self.live_view['rotate'].clicked.connect(self.rotate_view)
 
@@ -160,9 +160,9 @@ class InitializeAcquisitionTab(Tab):
             self.horz_start += self.cfg.sensor_row_count
             self.horz_end += self.cfg.sensor_row_count
 
-    def update_layer(self, image):
-
-        key = f"Video {self.instrument.stream_id}"
+    def update_layer(self, args):
+        (image, stream_id) = args
+        key = f"Video {stream_id}"
         try:
 
             layer = self.viewer.layers[key]
@@ -170,7 +170,7 @@ class InitializeAcquisitionTab(Tab):
             layer.events.set_data()
 
         except KeyError:
-            self.viewer.add_image(image, name=f"Video {self.instrument.stream_id}")
+            self.viewer.add_image(image, name=f"Video {stream_id}")
             self.layer_index += 1
 
             if self.layer_index == 2:
@@ -213,7 +213,7 @@ class InitializeAcquisitionTab(Tab):
     def color_change(self):
         wavelength = int(self.live_view['wavelength'].currentText())
         self.live_view['wavelength'].setStyleSheet(
-            'QComboBox { background-color:' + self.cfg.laser_specs[str(wavelength)]['color'] + '; color : black; }')
+            f'QComboBox {{ background-color:{self.cfg.laser_specs[str(wavelength)]["color"]}; color : black; }}')
 
     def screenshot_button(self):
 
@@ -295,7 +295,7 @@ class InitializeAcquisitionTab(Tab):
                 self.waveform['graph'].setTitle("Waveforms One Image Capture Sequence", color="w", size="10pt")
                 self.waveform['graph'].setLabel('bottom', 'Time (s)')
                 self.waveform['graph'].setLabel('left', 'Amplitude (V)')
-                self.waveform['graph'].setXRange(0, .03)
+                #self.waveform['graph'].setXRange(0, .03)
                 self.data_line = self.waveform['graph'].plot(t, voltages_t[index], name=ao_name,
                                                              pen=mkPen(color=self.colors[index], width=3))
                 self.waveform['graph'].addLegend(offset=(365, .5), horSpacing=20, verSpacing=0, labelTextSize='8pt')
@@ -327,8 +327,8 @@ class InitializeAcquisitionTab(Tab):
             wavelengths = str(wavelengths)
             self.selected[wavelengths] = QPushButton(wavelengths)
             color = self.cfg.laser_specs[wavelengths]
-            self.selected[wavelengths].setStyleSheet('QPushButton { background-color:' + color['color'] + '; color : '
-                                                                                                          'black; }')
+            self.selected[wavelengths].setStyleSheet(f'QPushButton {{ background-color:{color["color"]}; color '
+                                                     f':black; }}')
             self.selected[wavelengths].clicked.connect(lambda clicked=None, widget=self.selected[wavelengths]:
                                                        self.hide_labels(clicked, widget))
             if int(wavelengths) not in self.imaging_wavelengths:
@@ -340,6 +340,8 @@ class InitializeAcquisitionTab(Tab):
         widget_wavelength = widget.text()
         widget.setHidden(True)
         self.laser_dock[widget_wavelength].setHidden(True)
+        self.laser_power[widget_wavelength].setHidden(True)
+        self.laser_power[f'{widget_wavelength} label'].setHidden(True)
         self.imaging_wavelengths.remove(int(widget_wavelength))
         self.wavelength_selection['unselected'].addItem(widget.text())
 
@@ -352,6 +354,7 @@ class InitializeAcquisitionTab(Tab):
             self.selected[widget_wavelength].setHidden(False)
             self.laser_dock[widget_wavelength].setHidden(False)
             self.laser_power[widget_wavelength].setHidden(False)
+            self.laser_power[f'{widget_wavelength} label'].setHidden(False)
 
     def adding_wavelength_tabs(self, imaging_dock):
         for wavelength in self.possible_wavelengths:
@@ -373,29 +376,51 @@ class InitializeAcquisitionTab(Tab):
         return self.create_layout(struct='V', **tab_widget_wl)
 
     def laser_power_slider(self, lasers: dict):
-
+        self.lasers = lasers
+        laser_power_layout = {}
         for wl in lasers:
             wls = str(wl)
+
+            if wl == 561:
+                command = Cmd.LaserPower
+                set_value = float(lasers[wl].get(Query.LaserPowerSetting))
+                slider_label = f'{wl}: {set_value}mW'
+            else:
+                command = Cmd.LaserCurrent
+                set_value = float(lasers[wl].get(Query.LaserCurrentSetting))
+
             self.laser_power[f'{wls} label'], self.laser_power[wls] = self.create_widget(
-                value=lasers[wl].get(Query.LaserCurrentSetting),
+                value=int(set_value),
                 Qtype=QSlider,
-                label=wls)
-            self.laser_power[wls].setTickPosition(QSlider.TicksBothSides)
-            self.laser_power[wls].setTickInterval(10)
+                label=f'{wl}: {set_value}mW' if wl == 561 else f'{wl}: {set_value}%' )
+
+            self.laser_power[wls].setTickPosition(QSlider.TickPosition.TicksBothSides)
+            self.laser_power[wls].setStyleSheet(
+                f"QSlider::sub-page:horizontal{{ background-color:{self.cfg.laser_specs[wls]['color']}; }}")
             self.laser_power[wls].setMinimum(0)
-            self.laser_power[wls].setMaximum(100)
-            # self.laser_power[wls].sliderReleased.connect(
-            #     lambda command=Cmd.LaserCurrent, value=str(self.laser_power[wls].value()):
-            #     lasers[wl].set(command, value))
+            self.laser_power[wls].setMaximum(float(lasers[wl].get(Query.MaximumLaserPower))) \
+                if wl == 561 else self.laser_power[wls].setMaximum(100)
+            self.laser_power[wls].sliderReleased.connect(
+                lambda value=self.laser_power[wls].value(), wl=wls, released = True, command=command:
+                self.laser_power_label(command, wl, released, command))
             self.laser_power[wls].sliderMoved.connect(
                 lambda value=self.laser_power[wls].value(), wl=wls: self.laser_power_label(value, wl))
 
             if wl not in self.imaging_wavelengths:
                 self.laser_power[wls].setHidden(True)
+                self.laser_power[f'{wls} label'].setHidden(True)
+            laser_power_layout[wls] = self.create_layout(struct='H', label=self.laser_power[f'{wls} label'],
+                                                            text=self.laser_power[wls])
 
-        return self.create_layout(struct='H', **self.laser_power)
+        return self.create_layout(struct='V', **laser_power_layout)
 
-    def laser_power_label(self, value, wl):
-        self.laser_power[f'{wl} label'].setText(f'{wl}: {value}')
+    def laser_power_label(self, value, wl, released = False, command = None):
+
+        text = f'{wl}: {value}mW' if wl == str(561) else f'{wl}: {value}%'
+        self.laser_power[f'{wl} label'].setText(text)
+
+        if released:
+            self.lasers[int(wl)].set(command, self.laser_power[wl].value())
+
 
 
