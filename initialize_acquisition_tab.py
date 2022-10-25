@@ -119,7 +119,7 @@ class InitializeAcquisitionTab(Tab):
             measure.profile_line(image, line[0], line[1], mode='reflect').mean()
             for line in shape_layer.data
         ]
-        print(profile_data)
+
         return profile_data
 
     def start_live_view(self):
@@ -156,6 +156,10 @@ class InitializeAcquisitionTab(Tab):
             layer._slice.image._view = image
             layer.events.set_data()
 
+            profile_data = self.profile_lines(
+                 self.viewer.layers[f'Video {self.camera_id[self.stream_id]}'].data, self.viewer.layers['lines'])
+            self.viewer.layers['lines'].features = {'line_profile': [profile_data[0], profile_data[1]], }
+
         except KeyError:
             self.viewer.add_image(image, name=f"Video {self.camera_id[stream_id]}")
             self.layer_index += 1
@@ -175,7 +179,7 @@ class InitializeAcquisitionTab(Tab):
                         'color': 'white'}
 
                 shapes_layer = self.viewer.add_shapes(
-                    lines, shape_type='line', edge_width=20, edge_color=color, features=features, text=text)
+                    lines, shape_type='line', edge_width=20, edge_color=color, features=features, text=text, name='lines')
                 shapes_layer.mode = 'select'
 
                 @shapes_layer.mouse_drag_callbacks.append
@@ -192,11 +196,6 @@ class InitializeAcquisitionTab(Tab):
 
                             layer.data = [layer.data[0],
                                           [[event.position[0], 0], [event.position[0], self.cfg.sensor_row_count]]]
-                            self.profile_lines(self.viewer.layers[f'Video {self.camera_id[self.stream_id]}'].data,
-                                               layer)
-                            profile_data = self.profile_lines(
-                                              self.viewer.layers[f'Video {self.camera_id[self.stream_id]}'].data, layer)
-                            layer.features = {'line_profile': [profile_data[0],profile_data[1]],}
                             yield
                         elif val == (1, None) and self.horz_end >= event.position[0] >= self.horz_start:  # horz_line
                             layer.data = [
@@ -205,9 +204,6 @@ class InitializeAcquisitionTab(Tab):
 
                             layer.data = [layer.data[0],
                                           [[event.position[0], 0], [event.position[0], self.cfg.sensor_row_count]]]
-                            profile_data = self.profile_lines(
-                                self.viewer.layers[f'Video {self.camera_id[self.stream_id]}'].data, layer)
-                            layer.features = {'line_profile': [profile_data[0], profile_data[1]], }
                             yield
                         else:
                             yield
