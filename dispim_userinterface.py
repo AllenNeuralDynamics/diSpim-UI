@@ -26,8 +26,8 @@ class UserInterface:
             self.cfg = self.instrument.cfg
             self.possible_wavelengths = self.cfg.cfg['imaging_specs']['possible_wavelengths']
 
-            self.imaging, self.laser_slider = self.imaging_tab()
-            self.imaging_specs, self.slit_width, self.exposure_time = self.imaging_specs_tab()
+            self.imaging, self.laser_slider = self.imaging_tab(simulated)
+            self.imaging_specs, self.slit_width, self.exposure_time = self.imaging_specs_tab(simulated)
             #self.imaging_specs = self.imaging_specs_tab()
             dock = {'Imaging': self.imaging,
                     'Laser Slider': self.laser_slider,
@@ -52,12 +52,12 @@ class UserInterface:
 
         finally:
             traceback.print_exc()
-            self.instrument.close()
+            self.close_instrument()
             self.viewer.close()
 
 
-    def imaging_specs_tab(self):
-        imaging_tab = AcquisitionParamsTab(self.instrument.frame_grabber, self.cfg.sensor_column_count)
+    def imaging_specs_tab(self, simulated):
+        imaging_tab = AcquisitionParamsTab(self.instrument.frame_grabber, self.cfg.sensor_column_count, simulated)
         imaging_specs = imaging_tab.scan_config(self.cfg)
         acquisition_widget = imaging_tab.imaging_specs_container(imaging_specs)
         scroll_box = imaging_tab.scroll_box(acquisition_widget)
@@ -69,12 +69,12 @@ class UserInterface:
 
         return imaging_specs_dock, slit_width, exposure_time
 
-    def imaging_tab(self):
+    def imaging_tab(self, simulated):
         imaging = QDockWidget()
         imaging.setWindowTitle('Imaging')
 
         self.general_imaging = InitializeAcquisitionTab(self.viewer, self.cfg,
-                                                   self.instrument)
+                                                   self.instrument, simulated)
         qframes = {'live_view': self.general_imaging.live_view_widget(),
                                'screenshot': self.general_imaging.screenshot_button(),
                                #'position': self.general_imaging.sample_stage_position(),

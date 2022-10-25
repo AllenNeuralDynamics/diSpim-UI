@@ -14,9 +14,11 @@ def get_dict_attr(class_def, attr):
 
 class AcquisitionParamsTab(Tab):
 
-    def __init__(self, frame_grabber, column_pixels):
+    def __init__(self, frame_grabber, column_pixels, simulated):
+
         self.frame_grabber = frame_grabber
         self.column_pixels = column_pixels
+        self.simulated = simulated
 
         self.slit_width = {}
         self.exposure_time_cpx = {}
@@ -62,10 +64,11 @@ class AcquisitionParamsTab(Tab):
         """Setting CPX exposure time based on slit_width"""
 
         for stream_id in range(0, 2):
+
+            value = self.frame_grabber.get_exposure_time(stream_id)/self.frame_grabber.get_line_interval(stream_id) \
+                if not self.simulated else 1
             self.slit_width[f'{stream_id}label'], self.slit_width[f'{stream_id}widget'] = \
-                self.create_widget(self.frame_grabber.get_exposure_time(stream_id)/
-                                   self.frame_grabber.get_line_interval(stream_id),
-                                   QLineEdit, f'Slit Width {self.camera_id[stream_id]}')
+                self.create_widget(value, QLineEdit, f'Slit Width {self.camera_id[stream_id]}')
             validator = QIntValidator(1, 999)
             self.slit_width[f'{stream_id}widget'].setValidator(validator)
             self.slit_width[f'{stream_id}widget'].editingFinished.connect(lambda stream=stream_id:
@@ -83,9 +86,9 @@ class AcquisitionParamsTab(Tab):
         """Setting CPX line interval based on exposure time and linerate"""
 
         for stream_id in range(0, 2):
+            value = self.frame_grabber.get_line_interval(stream_id) * self.column_pixels if not self.simulated else 1
             self.exposure_time_cpx[f'{stream_id}label'], self.exposure_time_cpx[f'{stream_id}widget'] = \
-                self.create_widget(self.frame_grabber.get_line_interval(stream_id) * self.column_pixels,QLineEdit,
-                                   f'Exposure Time {self.camera_id[stream_id]}')
+                self.create_widget(value, QLineEdit, f'Exposure Time {self.camera_id[stream_id]}')
             self.exposure_time_cpx[f'{stream_id}widget'].editingFinished.connect(lambda stream=stream_id:
                                                                                  self.set_line_interval(stream))
         return self.create_layout(struct='H', **self.exposure_time_cpx)

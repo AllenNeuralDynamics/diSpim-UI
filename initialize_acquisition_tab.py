@@ -13,7 +13,7 @@ from oxxius_laser import Cmd, Query
 
 class InitializeAcquisitionTab(Tab):
 
-    def __init__(self,viewer, cfg, instrument):
+    def __init__(self,viewer, cfg, instrument, simulated):
 
         """ :param wavelengths: current list of wavelengths used in acqusistion
             :param possible_wavelengths: all possible laser wavelengths in instrument
@@ -26,6 +26,7 @@ class InitializeAcquisitionTab(Tab):
         self.imaging_wavelengths = self.cfg.imaging_specs['laser_wavelengths']
         self.viewer = viewer
         self.instrument = instrument
+        self.simulated = simulated
 
         self.pos_widget = {}
         self.wavelength_selection = {}
@@ -49,6 +50,11 @@ class InitializeAcquisitionTab(Tab):
         self.horz_start = 0
         self.horz_end =  self.cfg.sensor_row_count
         self.camera_id = ['Right', 'Left']
+
+        self.vert_start = -self.cfg.sensor_column_count
+        self.vert_end = 0
+        self.horz_start = -self.cfg.sensor_row_count
+        self.horz_end = 0
 
 
     def live_view_widget(self):
@@ -86,8 +92,6 @@ class InitializeAcquisitionTab(Tab):
             i += 1
         self.live_view['wavelength'].setStyleSheet(
             f'QComboBox {{ background-color:{self.cfg.laser_specs[wv_strs[0]]["color"]}; color : black; }}')
-        self.live_view['rotate'] = QCheckBox('Rotate')
-        self.live_view['rotate'].clicked.connect(self.rotate_view)
 
         return self.create_layout(struct='H', **self.live_view)
 
@@ -138,31 +142,6 @@ class InitializeAcquisitionTab(Tab):
         self.live_view['1'].setHidden(True)
         self.live_view['0'].setHidden(True)
 
-    def rotate_view(self):
-
-        if self.live_view['rotate'].isChecked():
-
-            center = self.viewer.camera.center
-            self.viewer.camera.center = (0, center[1] - self.cfg.sensor_row_count, center[2])
-            self.viewer.layers['Video Right'].rotate = 90
-            self.viewer.layers['Video Left'].rotate = 90
-
-            self.vert_start += -self.cfg.sensor_column_count
-            self.vert_end += -self.cfg.sensor_column_count
-            self.horz_start += -self.cfg.sensor_row_count
-            self.horz_end += -self.cfg.sensor_row_count
-
-        else:
-            center = self.viewer.camera.center
-            self.viewer.camera.center = (0, center[1] + self.cfg.sensor_row_count, center[2])
-            self.viewer.layers['Video Right'].rotate = 0
-            self.viewer.layers['Video Left'].rotate = 0
-
-            self.vert_start += self.cfg.sensor_column_count
-            self.vert_end += self.cfg.sensor_column_count
-            self.horz_start += self.cfg.sensor_row_count
-            self.horz_end += self.cfg.sensor_row_count
-
     def update_layer(self, args):
         (image, stream_id) = args
         key = f"Video {self.camera_id[stream_id]}"
@@ -177,8 +156,12 @@ class InitializeAcquisitionTab(Tab):
             self.layer_index += 1
 
             if self.layer_index == 2:
-                vert_line = np.array([[0, 0], [self.cfg.column_count_px, 0]])
-                horz_line = np.array([[0, 0], [0, self.cfg.row_count_px]])
+
+                self.viewer.layers['Video Right'].rotate = 90
+                self.viewer.layers['Video Left'].rotate = 90
+
+                vert_line = np.array([[self.vert_start, 0], [self.vert_end, 0]])
+                horz_line = np.array([[0, 0], [0, self.cfg.sensor_row_count]])
                 lines = [vert_line, horz_line]
                 color = ['blue', 'green']
                 shapes_layer = self.viewer.add_shapes(
@@ -192,23 +175,23 @@ class InitializeAcquisitionTab(Tab):
                     yield
                     # on move
                     while event.type == 'mouse_move':
-                        if val == (0, None) and self.cfg.column_count_px >= event.position[1] >= 0:  # vert_line
-                            layer.data = [
-                                [[self.vert_start, event.position[1]], [self.vert, event.position[1]]],
-                                layer.data[1]]
-
-                            layer.data = [layer.data[0],
-                                          [[event.position[0], 0], [event.position[0], 2048]]]
-
-                            yield
-                        elif val == (1, None) and self.horz_end >= event.position[
-                            0] >= self.horz_start:  # horz_line
+                        if val == (0, None) and self.cfg.sensor_column_count >= event.position[1] >= 0:  # vert_line
                             layer.data = [
                                 [[self.vert_start, event.position[1]], [self.vert_end, event.position[1]]],
                                 layer.data[1]]
 
                             layer.data = [layer.data[0],
-                                          [[event.position[0], 0], [event.position[0], self.cfg.row_count_px]]]
+                                          [[event.position[0], 0], [event.position[0], self.cfg.sensor_row_count]]]
+
+                            yield
+                        elif val == (1, None) and self.horz_end >= event.position[0] >= self.horz_start:  # horz_line
+                            layer.data = [
+                                [[self.vert_start, event.position[1]], [self.vert_end, event.position[1]]],
+                                layer.data[1]]
+
+                            layer.data = [layer.data[0],
+                                          [[event.position[0], 0], [event.position[0], self.cfg.sensor_row_count]]]
+
                             yield
                         else:
                             yield
@@ -386,11 +369,11 @@ class InitializeAcquisitionTab(Tab):
 
             if wl == 561:
                 command = Cmd.LaserPower
-                set_value = float(lasers[wl].get(Query.LaserPowerSetting))
+                set_value = float(lasers[wl].get(Query.LaserPowerSetting)) if not self.simulated else 15
                 slider_label = f'{wl}: {set_value}mW'
             else:
                 command = Cmd.LaserCurrent
-                set_value = float(lasers[wl].get(Query.LaserCurrentSetting))
+                set_value = float(lasers[wl].get(Query.LaserCurrentSetting)) if not self.simulated else 15
 
             self.laser_power[f'{wls} label'], self.laser_power[wls] = self.create_widget(
                 value=int(set_value),
@@ -402,7 +385,7 @@ class InitializeAcquisitionTab(Tab):
                 f"QSlider::sub-page:horizontal{{ background-color:{self.cfg.laser_specs[wls]['color']}; }}")
             self.laser_power[wls].setMinimum(0)
             self.laser_power[wls].setMaximum(float(lasers[wl].get(Query.MaximumLaserPower))) \
-                if wl == 561 else self.laser_power[wls].setMaximum(100)
+                if wl == 561 and not self.simulated else self.laser_power[wls].setMaximum(100)
             self.laser_power[wls].sliderReleased.connect(
                 lambda value=self.laser_power[wls].value(), wl=wls, released = True, command=command:
                 self.laser_power_label(command, wl, released, command))
