@@ -9,7 +9,7 @@ from skimage.io import imsave
 from pyqtgraph import PlotWidget, mkPen
 from dispim.compute_waveforms import generate_waveforms
 from oxxius_laser import Cmd, Query
-
+from skimage import data, measure
 
 class InitializeAcquisitionTab(Tab):
 
@@ -43,18 +43,14 @@ class InitializeAcquisitionTab(Tab):
         self.selected_wl_layout = None
 
         self.layer_index = 0
+        self.stream_id = 1
         # Start and end points for lines
-
-        self.vert_start = 0
-        self.vert_end = self.cfg.sensor_column_count
-        self.horz_start = 0
-        self.horz_end =  self.cfg.sensor_row_count
-        self.camera_id = ['Right', 'Left']
-
         self.vert_start = -self.cfg.sensor_column_count
         self.vert_end = 0
         self.horz_start = -self.cfg.sensor_row_count
         self.horz_end = 0
+
+        self.camera_id = ['Right', 'Left']
 
 
     def live_view_widget(self):
@@ -96,9 +92,10 @@ class InitializeAcquisitionTab(Tab):
         return self.create_layout(struct='H', **self.live_view)
 
     def camera_view(self, stream_id):
-        # TODO: consider using isdown or ischeckable properties here
 
+        self.stream_id = stream_id
         not_id = (stream_id + 1) % 2
+
         key = f"Video {self.camera_id[stream_id]}"
         not_key = f"Video {self.camera_id[not_id]}"
 
@@ -116,6 +113,14 @@ class InitializeAcquisitionTab(Tab):
         self.live_view['0'].setStyleSheet("background-color : gray")
         self.live_view['1'].setStyleSheet("background-color : gray")
         self.live_view['overlay'].setStyleSheet("background-color : green")
+
+    def profile_lines(self, image, shape_layer):
+        profile_data = [
+            measure.profile_line(image, line[0], line[1], mode='reflect').mean()
+            for line in shape_layer.data
+        ]
+        print(profile_data)
+        return profile_data
 
     def start_live_view(self):
 
@@ -163,9 +168,14 @@ class InitializeAcquisitionTab(Tab):
                 vert_line = np.array([[self.vert_start, 0], [self.vert_end, 0]])
                 horz_line = np.array([[0, 0], [0, self.cfg.sensor_row_count]])
                 lines = [vert_line, horz_line]
+
+                features = {'line_profile': [0,0],}
                 color = ['blue', 'green']
+                text = {'string': '{line_profile:0.1f}%','anchor': 'upper_right', 'translation': [0, 300], 'size': 8,
+                        'color': 'white'}
+
                 shapes_layer = self.viewer.add_shapes(
-                    lines, shape_type='line', edge_width=20, edge_color=color)
+                    lines, shape_type='line', edge_width=20, edge_color=color, features=features, text=text)
                 shapes_layer.mode = 'select'
 
                 @shapes_layer.mouse_drag_callbacks.append
@@ -182,7 +192,11 @@ class InitializeAcquisitionTab(Tab):
 
                             layer.data = [layer.data[0],
                                           [[event.position[0], 0], [event.position[0], self.cfg.sensor_row_count]]]
-
+                            self.profile_lines(self.viewer.layers[f'Video {self.camera_id[self.stream_id]}'].data,
+                                               layer)
+                            profile_data = self.profile_lines(
+                                              self.viewer.layers[f'Video {self.camera_id[self.stream_id]}'].data, layer)
+                            layer.features = {'line_profile': [profile_data[0],profile_data[1]],}
                             yield
                         elif val == (1, None) and self.horz_end >= event.position[0] >= self.horz_start:  # horz_line
                             layer.data = [
@@ -191,7 +205,9 @@ class InitializeAcquisitionTab(Tab):
 
                             layer.data = [layer.data[0],
                                           [[event.position[0], 0], [event.position[0], self.cfg.sensor_row_count]]]
-
+                            profile_data = self.profile_lines(
+                                self.viewer.layers[f'Video {self.camera_id[self.stream_id]}'].data, layer)
+                            layer.features = {'line_profile': [profile_data[0], profile_data[1]], }
                             yield
                         else:
                             yield
