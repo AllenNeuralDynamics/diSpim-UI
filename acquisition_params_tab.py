@@ -16,12 +16,12 @@ class AcquisitionParamsTab(Tab):
 
     def __init__(self, frame_grabber, column_pixels):
         self.frame_grabber = frame_grabber
-        self.exposure_time = self.frame_grabber.exposure_time
-        self.linerate = self.frame_grabber.line_interval
         self.column_pixels = column_pixels
 
         self.slit_width = {}
         self.exposure_time_cpx = {}
+
+        self.camera_id = ['Right', 'Left']
 
     def scan_config(self, config: object):
 
@@ -63,7 +63,9 @@ class AcquisitionParamsTab(Tab):
 
         for stream_id in range(0, 2):
             self.slit_width[f'{stream_id}label'], self.slit_width[f'{stream_id}widget'] = \
-                self.create_widget(self.exposure_time(stream_id)/self.linerate(stream_id), QLineEdit, f'Slit Width {stream_id}')
+                self.create_widget(self.frame_grabber.get_exposure_time(stream_id)/
+                                   self.frame_grabber.get_line_interval(stream_id),
+                                   QLineEdit, f'Slit Width {self.camera_id[stream_id]}')
             validator = QIntValidator(1, 999)
             self.slit_width[f'{stream_id}widget'].setValidator(validator)
             self.slit_width[f'{stream_id}widget'].editingFinished.connect(lambda stream=stream_id:
@@ -82,11 +84,12 @@ class AcquisitionParamsTab(Tab):
 
         for stream_id in range(0, 2):
             self.exposure_time_cpx[f'{stream_id}label'], self.exposure_time_cpx[f'{stream_id}widget'] = \
-                self.create_widget(self.linerate * self.column_pixels,QLineEdit, f'Exposure Time {stream_id}')
+                self.create_widget(self.frame_grabber.get_line_interval(stream_id) * self.column_pixels,QLineEdit,
+                                   f'Exposure Time {self.camera_id[stream_id]}')
             self.exposure_time_cpx[f'{stream_id}widget'].editingFinished.connect(lambda stream=stream_id:
                                                                                  self.set_line_interval(stream))
         return self.create_layout(struct='H', **self.exposure_time_cpx)
 
     def set_line_interval(self, stream_id):
 
-        self.frame_grabber.line_interval(stream_id,self.frame_grabber.exposure_time(stream_id) / self.column_pixels)
+        self.frame_grabber.set_line_interval(stream_id,self.frame_grabber.exposure_time(stream_id) / self.column_pixels)

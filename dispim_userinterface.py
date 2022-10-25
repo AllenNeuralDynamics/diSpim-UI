@@ -28,6 +28,7 @@ class UserInterface:
 
             self.imaging, self.laser_slider = self.imaging_tab()
             self.imaging_specs, self.slit_width, self.exposure_time = self.imaging_specs_tab()
+            #self.imaging_specs = self.imaging_specs_tab()
             dock = {'Imaging': self.imaging,
                     'Laser Slider': self.laser_slider,
                     'Imaging Specs': self.imaging_specs,
@@ -44,7 +45,7 @@ class UserInterface:
             self.general_imaging.adding_wavelength_tabs(self.imaging_dock)
 
 
-
+            #self.viewer.grid.enabled = True
             self.viewer.scale_bar.visible = True
             self.viewer.scale_bar.unit = "um"
             napari.run()

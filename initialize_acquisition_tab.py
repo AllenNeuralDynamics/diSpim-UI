@@ -43,10 +43,13 @@ class InitializeAcquisitionTab(Tab):
 
         self.layer_index = 0
         # Start and end points for lines
+
         self.vert_start = 0
-        self.vert_end = 2048
+        self.vert_end = self.cfg.sensor_column_count
         self.horz_start = 0
-        self.horz_end = 2048
+        self.horz_end =  self.cfg.sensor_row_count
+        self.camera_id = ['Right', 'Left']
+
 
     def live_view_widget(self):
 
@@ -56,12 +59,12 @@ class InitializeAcquisitionTab(Tab):
         self.live_view['start'] = QPushButton('Start Live View')
         self.live_view['start'].clicked.connect(self.start_live_view)
 
-        self.live_view['0'] = QPushButton('Camera 0')
+        self.live_view['0'] = QPushButton('Right Camera')
         self.live_view['0'].setStyleSheet("background-color : gray")
         self.live_view['0'].setHidden(True)
         self.live_view['0'].pressed.connect(lambda stream_id=0: self.camera_view(stream_id))
 
-        self.live_view['1'] = QPushButton('Camera 1')
+        self.live_view['1'] = QPushButton('Left Camera')
         self.live_view['1'].setStyleSheet("background-color : green")
         self.live_view['1'].setHidden(True)
         self.live_view['1'].pressed.connect(lambda stream_id=1: self.camera_view(stream_id))
@@ -92,8 +95,8 @@ class InitializeAcquisitionTab(Tab):
         # TODO: consider using isdown or ischeckable properties here
 
         not_id = (stream_id + 1) % 2
-        key = f"Video {stream_id}"
-        not_key = f"Video {not_id}"
+        key = f"Video {self.camera_id[stream_id]}"
+        not_key = f"Video {self.camera_id[not_id]}"
 
         self.viewer.layers[key].opacity = 1
         self.viewer.layers[not_key].opacity = 0
@@ -103,8 +106,8 @@ class InitializeAcquisitionTab(Tab):
 
     def blending_set(self):
 
-        self.viewer.layers[f"Video 1"].blending = self.viewer.layers[f"Video 0"].blending = 'additive'
-        self.viewer.layers[f"Video 1"].opacity = self.viewer.layers[f"Video 0"].opacity = 1.0
+        self.viewer.layers[f"Video Left"].blending = self.viewer.layers[f"Video Right"].blending = 'additive'
+        self.viewer.layers[f"Video Left"].opacity = self.viewer.layers[f"Video Right"].opacity = 1.0
 
         self.live_view['0'].setStyleSheet("background-color : gray")
         self.live_view['1'].setStyleSheet("background-color : gray")
@@ -141,8 +144,8 @@ class InitializeAcquisitionTab(Tab):
 
             center = self.viewer.camera.center
             self.viewer.camera.center = (0, center[1] - self.cfg.sensor_row_count, center[2])
-            self.viewer.layers['Video 0'].rotate = 90
-            self.viewer.layers['Video 1'].rotate = 90
+            self.viewer.layers['Video Right'].rotate = 90
+            self.viewer.layers['Video Left'].rotate = 90
 
             self.vert_start += -self.cfg.sensor_column_count
             self.vert_end += -self.cfg.sensor_column_count
@@ -152,8 +155,8 @@ class InitializeAcquisitionTab(Tab):
         else:
             center = self.viewer.camera.center
             self.viewer.camera.center = (0, center[1] + self.cfg.sensor_row_count, center[2])
-            self.viewer.layers['Video 0'].rotate = 0
-            self.viewer.layers['Video 1'].rotate = 0
+            self.viewer.layers['Video Right'].rotate = 0
+            self.viewer.layers['Video Left'].rotate = 0
 
             self.vert_start += self.cfg.sensor_column_count
             self.vert_end += self.cfg.sensor_column_count
@@ -162,7 +165,7 @@ class InitializeAcquisitionTab(Tab):
 
     def update_layer(self, args):
         (image, stream_id) = args
-        key = f"Video {stream_id}"
+        key = f"Video {self.camera_id[stream_id]}"
         try:
 
             layer = self.viewer.layers[key]
@@ -170,7 +173,7 @@ class InitializeAcquisitionTab(Tab):
             layer.events.set_data()
 
         except KeyError:
-            self.viewer.add_image(image, name=f"Video {stream_id}")
+            self.viewer.add_image(image, name=f"Video {self.camera_id[stream_id]}")
             self.layer_index += 1
 
             if self.layer_index == 2:
