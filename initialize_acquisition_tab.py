@@ -1,5 +1,5 @@
 from tab import Tab
-from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, QSlider
+from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, QSlider, QLineEdit
 import qtpy.QtGui as QtGui
 import qtpy.QtCore as QtCore
 from napari.qt.threading import thread_worker
@@ -10,6 +10,7 @@ from pyqtgraph import PlotWidget, mkPen
 from dispim.compute_waveforms import generate_waveforms
 from oxxius_laser import Cmd, Query
 from skimage import data, measure
+from math import ceil
 
 class InitializeAcquisitionTab(Tab):
 
@@ -33,6 +34,7 @@ class InitializeAcquisitionTab(Tab):
         self.live_view = {}
         self.waveform = {}
         self.selected = {}
+        self.grid = {}
         self.laser_dock = {}
         self.laser_power = {}
         self.wavelength_select_widget = None
@@ -51,6 +53,9 @@ class InitializeAcquisitionTab(Tab):
         self.horz_end = 0
 
         self.camera_id = ['Right', 'Left']
+        self.scale = [405.504/self.cfg.sensor_row_count,
+                      405.504/self.cfg.sensor_column_count]
+        #TODO:change to config params
 
 
     def live_view_widget(self):
@@ -161,10 +166,16 @@ class InitializeAcquisitionTab(Tab):
             self.viewer.layers['lines'].features = {'line_profile': [profile_data[0], profile_data[1]], }
 
         except KeyError:
-            self.viewer.add_image(image, name=f"Video {self.camera_id[stream_id]}")
+            self.viewer.add_image(
+                image,
+                name=f"Video {self.camera_id[stream_id]}",
+                scale = self.scale)
             self.layer_index += 1
 
             if self.layer_index == 2:
+
+                # center = self.viewer.camera.center
+                # self.viewer.camera.center = (0, center[1] - self.cfg.sensor_row_count, center[2])
 
                 self.viewer.layers['Video Right'].rotate = 90
                 self.viewer.layers['Video Left'].rotate = 90
@@ -179,7 +190,14 @@ class InitializeAcquisitionTab(Tab):
                         'color': 'white'}
 
                 shapes_layer = self.viewer.add_shapes(
-                    lines, shape_type='line', edge_width=20, edge_color=color, features=features, text=text, name='lines')
+                    lines,
+                    shape_type='line',
+                    edge_width=20,
+                    edge_color=color,
+                    features=features,
+                    text=text,
+                    name='lines',
+                    scale = self.scale)
                 shapes_layer.mode = 'select'
 
                 @shapes_layer.mouse_drag_callbacks.append
@@ -212,6 +230,54 @@ class InitializeAcquisitionTab(Tab):
         wavelength = int(self.live_view['wavelength'].currentText())
         self.live_view['wavelength'].setStyleSheet(
             f'QComboBox {{ background-color:{self.cfg.laser_specs[str(wavelength)]["color"]}; color : black; }}')
+
+        if self.instrument.livestream_enabled.is_set():
+            self.instrument.setup_imaging_for_laser(wavelength, True)
+
+    def grid_widget(self):
+
+        self.grid['label'], self.grid['widget'] = self.create_widget(2, QSpinBox, 'Grid Lines: ')
+        self.grid['widget'].setValue(2)
+        self.grid['widget'].setMinimum(2)
+        self.grid['widget'].valueChanged.connect(self.create_grid)
+
+        self.grid['pixel label'], self.grid['pixel widget'] = self.create_widget(
+            f'{self.cfg.sensor_row_count}x{self.cfg.sensor_column_count}', QLineEdit, 'um per Area:')
+
+        return self.create_layout(struct = 'H', **self.grid)
+
+    def create_grid(self, n):
+        try:
+            self.viewer.layers.remove(self.viewer.layers['grid'])
+        except:
+            pass
+            # center = self.viewer.camera.center
+            # self.viewer.camera.center = (0, center[1] - self.cfg.sensor_row_count, center[2])
+
+        dim = [self.cfg.sensor_row_count, self.cfg.sensor_column_count]  # rows
+        vert = [None] * n
+        horz = [None] * n
+        vert[0] = np.array([[0, 0], [dim[0], 0]])
+        horz[0] = np.array([[0, 0], [0, dim[1]]])
+        v_coord = ceil((dim[1] / (n - 1)))
+        h_coord = ceil((dim[0] / (n - 1)))
+        for i in range(0, n - 1):
+            vert[i] = np.array([[0, v_coord*i], [dim[0], v_coord*i]])
+            horz[i] = np.array([[h_coord*i, 0], [h_coord*i, dim[1]]])
+
+        vert[n - 1] = np.array([[0, dim[1]], [dim[0], dim[1]]])
+        horz[n - 1] = np.array([[dim[0], 0], [dim[0], dim[1]]])
+        lines = vert + horz
+        self.viewer.add_shapes(
+            lines,
+            shape_type='line',
+            name='grid',
+            edge_width=10,
+            edge_color= 'white',
+            scale = self.scale)
+
+        self.grid['pixel widget'].setText(f'{v_coord*self.scale[0]}x{h_coord*self.scale[1]}')
+        self.viewer.layers['grid'].rotate = 90
 
     def screenshot_button(self):
 

@@ -75,12 +75,14 @@ class UserInterface:
 
         self.general_imaging = InitializeAcquisitionTab(self.viewer, self.cfg,
                                                    self.instrument, simulated)
-        qframes = {'live_view': self.general_imaging.live_view_widget(),
-                               'screenshot': self.general_imaging.screenshot_button(),
-                               #'position': self.general_imaging.sample_stage_position(),
-                               #'volumetric_image': self.general_imaging.volumeteric_imaging_button(),
-                               'waveform': self.general_imaging.waveform_graph(),
-                               'wavelength_select': self.general_imaging.laser_wl_select(),}
+        qframes = {
+                        'live_view': self.general_imaging.live_view_widget(),
+                        'grid' : self.general_imaging.grid_widget(),
+                        'screenshot': self.general_imaging.screenshot_button(),
+                        #'position': self.general_imaging.sample_stage_position(),
+                        #'volumetric_image': self.general_imaging.volumeteric_imaging_button(),
+                        'waveform': self.general_imaging.waveform_graph(),
+                        'wavelength_select': self.general_imaging.laser_wl_select(),}
 
         general_imaging_tab_widget = self.general_imaging.create_layout(struct='V', **qframes)
         imaging.setWidget(general_imaging_tab_widget)
