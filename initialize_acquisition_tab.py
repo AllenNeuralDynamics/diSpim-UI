@@ -40,22 +40,24 @@ class InitializeAcquisitionTab(Tab):
         self.wavelength_select_widget = None
         self.colors = None
         self.livestream_worker = None
+        self.profile_lines_worker = None
         self.stage_position = None
         self.data_line = None
         self.selected_wl_layout = None
 
+        self.scale = [405.504 / self.cfg.sensor_row_count,
+                      405.504 / self.cfg.sensor_column_count]
+        # TODO:change to config params
         self.layer_index = 0
         self.stream_id = 1
         # Start and end points for lines
-        self.vert_start = -self.cfg.sensor_column_count
+        self.vert_start = -self.cfg.sensor_column_count * self.scale[0]
         self.vert_end = 0
-        self.horz_start = -self.cfg.sensor_row_count
-        self.horz_end = 0
+        self.horz_start = -self.cfg.sensor_row_count * self.scale[1]
+        self.horz_end = self.cfg.sensor_row_count * self.scale[1]
 
         self.camera_id = ['Right', 'Left']
-        self.scale = [405.504/self.cfg.sensor_row_count,
-                      405.504/self.cfg.sensor_column_count]
-        #TODO:change to config params
+
 
 
     def live_view_widget(self):
@@ -127,6 +129,21 @@ class InitializeAcquisitionTab(Tab):
 
         return profile_data
 
+    @thread_worker
+    def _profile_lines_worker(self):
+
+        while self.instrument.livestream_enabled.is_set():
+            sleep(.5)
+            try:
+                profile_data = self.profile_lines(
+                    self.viewer.layers[f'Video {self.camera_id[self.stream_id]}'].data,
+                    self.viewer.layers['lines'])
+
+                self.viewer.layers['lines'].features = {
+                    'line_profile': [profile_data[0], profile_data[1]], }
+            except:
+                pass
+
     def start_live_view(self):
 
         if self.live_view['start'].text() == 'Start Live View':
@@ -142,9 +159,13 @@ class InitializeAcquisitionTab(Tab):
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
 
+        self.profile_lines_worker = self._profile_lines_worker()
+        self.profile_lines_worker.start()
+
     def stop_live_view(self):
         self.instrument.stop_livestream()
         self.livestream_worker.quit()
+        self.profile_lines_worker.quit()
         self.live_view['start'].setText('Start Live View')
         self.live_view['start'].clicked.disconnect(self.stop_live_view)
         self.live_view['start'].clicked.connect(self.start_live_view)
@@ -161,10 +182,6 @@ class InitializeAcquisitionTab(Tab):
             layer._slice.image._view = image
             layer.events.set_data()
 
-            profile_data = self.profile_lines(
-                 self.viewer.layers[f'Video {self.camera_id[self.stream_id]}'].data, self.viewer.layers['lines'])
-            self.viewer.layers['lines'].features = {'line_profile': [profile_data[0], profile_data[1]], }
-
         except KeyError:
             self.viewer.add_image(
                 image,
@@ -174,30 +191,27 @@ class InitializeAcquisitionTab(Tab):
 
             if self.layer_index == 2:
 
-                # center = self.viewer.camera.center
-                # self.viewer.camera.center = (0, center[1] - self.cfg.sensor_row_count, center[2])
+                center = self.viewer.camera.center
+                self.viewer.camera.center = (0, center[1] + self.horz_start, center[2])
 
                 self.viewer.layers['Video Right'].rotate = 90
                 self.viewer.layers['Video Left'].rotate = 90
 
                 vert_line = np.array([[self.vert_start, 0], [self.vert_end, 0]])
-                horz_line = np.array([[0, 0], [0, self.cfg.sensor_row_count]])
+                horz_line = np.array([[0, 0], [0, self.horz_end]])
                 lines = [vert_line, horz_line]
 
                 features = {'line_profile': [0,0],}
                 color = ['blue', 'green']
-                text = {'string': '{line_profile:0.1f}%','anchor': 'upper_right', 'translation': [0, 300], 'size': 8,
+                text = {'string': '{line_profile:0.1f}','anchor': 'upper_right', 'translation': [0, 25], 'size': 8,
                         'color': 'white'}
 
-                shapes_layer = self.viewer.add_shapes(
-                    lines,
-                    shape_type='line',
-                    edge_width=20,
-                    edge_color=color,
-                    features=features,
-                    text=text,
-                    name='lines',
-                    scale = self.scale)
+                shapes_layer = self.viewer.add_shapes(lines, shape_type='line',
+                                                      edge_width=3,edge_color=color,
+                                                      name='lines',
+                                                      features=features,
+                                                      text=text)
+
                 shapes_layer.mode = 'select'
 
                 @shapes_layer.mouse_drag_callbacks.append
@@ -213,15 +227,18 @@ class InitializeAcquisitionTab(Tab):
                                 layer.data[1]]
 
                             layer.data = [layer.data[0],
-                                          [[event.position[0], 0], [event.position[0], self.cfg.sensor_row_count]]]
+                                          [[event.position[0], 0], [event.position[0], self.horz_end]]]
+
                             yield
                         elif val == (1, None) and self.horz_end >= event.position[0] >= self.horz_start:  # horz_line
+
                             layer.data = [
                                 [[self.vert_start, event.position[1]], [self.vert_end, event.position[1]]],
                                 layer.data[1]]
 
                             layer.data = [layer.data[0],
-                                          [[event.position[0], 0], [event.position[0], self.cfg.sensor_row_count]]]
+                                          [[event.position[0], 0], [event.position[0], self.horz_end]]]
+
                             yield
                         else:
                             yield
@@ -242,7 +259,8 @@ class InitializeAcquisitionTab(Tab):
         self.grid['widget'].valueChanged.connect(self.create_grid)
 
         self.grid['pixel label'], self.grid['pixel widget'] = self.create_widget(
-            f'{self.cfg.sensor_row_count}x{self.cfg.sensor_column_count}', QLineEdit, 'um per Area:')
+            f'{ceil(self.cfg.sensor_row_count*self.scale[0])}x'
+            f'{ceil(self.cfg.sensor_column_count*self.scale[1])}', QLineEdit, 'um per Area:')
 
         return self.create_layout(struct = 'H', **self.grid)
 
@@ -251,8 +269,6 @@ class InitializeAcquisitionTab(Tab):
             self.viewer.layers.remove(self.viewer.layers['grid'])
         except:
             pass
-            # center = self.viewer.camera.center
-            # self.viewer.camera.center = (0, center[1] - self.cfg.sensor_row_count, center[2])
 
         dim = [self.cfg.sensor_row_count, self.cfg.sensor_column_count]  # rows
         vert = [None] * n
@@ -276,7 +292,8 @@ class InitializeAcquisitionTab(Tab):
             edge_color= 'white',
             scale = self.scale)
 
-        self.grid['pixel widget'].setText(f'{v_coord*self.scale[0]}x{h_coord*self.scale[1]}')
+        self.grid['pixel widget'].setText(f'{ceil(v_coord*self.scale[0])}x'
+                                          f'{ceil(h_coord*self.scale[1])}')
         self.viewer.layers['grid'].rotate = 90
 
     def screenshot_button(self):
@@ -313,19 +330,21 @@ class InitializeAcquisitionTab(Tab):
 
         return self.create_layout(struct='H', **self.pos_widget)
 
-    # def update_sample_pos(self):
-    #     """Update position widgets for volumetric imaging or manually moving"""
-    #
-    #     sample_pos = self.instrument.get_sample_position()
-    #     for direction, value in sample_pos.items():
-    #         if direction in self.pos_widget:
-    #             self.pos_widget[direction].setValue(value)
-    #
-    # def stage_position_changed(self):
-    #     self.instrument.move_sample_absolute(self.pos_widget['X'].value(), self.pos_widget['Y'].value(),
-    #                                          self.pos_widget['Z'].value())
-    #     print(self.instrument.get_sample_position())
-    #
+    def update_sample_pos(self):
+        """Update position widgets for volumetric imaging or manually moving"""
+
+        sample_pos = self.instrument.get_sample_position()
+        for direction, value in sample_pos.items():
+            if direction in self.pos_widget:
+                self.pos_widget[direction].setValue(value)
+
+    def stage_position_changed(self):
+        self.instrument.move_sample_absolute(self.pos_widget['X'].value(), self.pos_widget['Y'].value(),
+                                             self.pos_widget['Z'].value())
+
+
+        print(self.instrument.get_sample_position())
+
     # def volumeteric_imaging_button(self):
     #
     #     volumetric_image = {'start': QPushButton('Start Volumetric Imaging')}

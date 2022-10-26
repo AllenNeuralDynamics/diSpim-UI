@@ -78,15 +78,15 @@ class AcquisitionParamsTab(Tab):
 
     def set_exposure_time(self, stream_id):
 
-        self.frame_grabber.set_exposure_time(stream_id, int(self.slit_width['widget'].text())*
-                                             self.frame_grabber.line_interval(stream_id))
+        self.frame_grabber.set_exposure_time(stream_id, int(self.slit_width[f'{stream_id}widget'].text())*
+                                             self.frame_grabber.get_line_interval(stream_id))
 
     def frame_grabber_line_interval(self):
 
         """Setting CPX line interval based on exposure time and linerate"""
 
         for stream_id in range(0, 2):
-            value = self.frame_grabber.get_line_interval(stream_id) * self.column_pixels if not self.simulated else 1
+            value = self.frame_grabber.get_line_interval(stream_id) * self.column_pixels if not self.simulated else 1 #TODO: make sure the pixels are right
             self.exposure_time_cpx[f'{stream_id}label'], self.exposure_time_cpx[f'{stream_id}widget'] = \
                 self.create_widget(value, QLineEdit, f'Exposure Time {self.camera_id[stream_id]}')
             self.exposure_time_cpx[f'{stream_id}widget'].editingFinished.connect(lambda stream=stream_id:
@@ -95,4 +95,4 @@ class AcquisitionParamsTab(Tab):
 
     def set_line_interval(self, stream_id):
 
-        self.frame_grabber.set_line_interval(stream_id,self.frame_grabber.exposure_time(stream_id) / self.column_pixels)
+        self.frame_grabber.set_line_interval(stream_id,int(self.exposure_time_cpx[f'{stream_id}widget'].text()) / self.column_pixels)
