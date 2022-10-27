@@ -50,31 +50,28 @@ class AcquisitionParamsTab(Tab):
 
                     imaging_specs_widgets[attr] = self.create_layout(struct='H', label=imaging_specs[attr, '_label'],
                                                                      text=imaging_specs[attr])
-        return imaging_specs_widgets
-
-    def imaging_specs_container(self, widget_dict: dict):
-
-        """Creates a container widget for all config attribute label/input widget pairs
-        :param widget_dict: dictionary containing config attribute label/input widget pairs """
-
-        return self.create_layout(struct='V', **widget_dict)
+        return self.create_layout(struct='V', **imaging_specs_widgets)
 
     def frame_grabber_exposure_time(self):
 
         """Setting CPX exposure time based on slit_width"""
+
+        slit_widths = {}
 
         for stream_id in range(0, 2):
 
             value = self.frame_grabber.get_exposure_time(stream_id)/self.frame_grabber.get_line_interval(stream_id) \
                 if not self.simulated else 1
             self.slit_width[f'{stream_id}label'], self.slit_width[f'{stream_id}widget'] = \
-                self.create_widget(value, QLineEdit, f'Slit Width {self.camera_id[stream_id]}')
+                self.create_widget(value, QLineEdit, f'Slit Width {self.camera_id[stream_id]}:')
             validator = QIntValidator(1, 999)
             self.slit_width[f'{stream_id}widget'].setValidator(validator)
             self.slit_width[f'{stream_id}widget'].editingFinished.connect(lambda stream=stream_id:
                                                                           self.set_exposure_time(stream))
+            slit_widths[str(stream_id)] = self.create_layout(struct='H', label=self.slit_width[f'{stream_id}label'],
+                                                             text=self.slit_width[f'{stream_id}widget'])
 
-        return self.create_layout(struct='H', **self.slit_width)
+        return self.create_layout(struct='V', **slit_widths)
 
     def set_exposure_time(self, stream_id):
 
@@ -85,13 +82,17 @@ class AcquisitionParamsTab(Tab):
 
         """Setting CPX line interval based on exposure time and linerate"""
 
+        exposure_times = {}
+
         for stream_id in range(0, 2):
             value = self.frame_grabber.get_line_interval(stream_id) * self.column_pixels if not self.simulated else 1 #TODO: make sure the pixels are right
             self.exposure_time_cpx[f'{stream_id}label'], self.exposure_time_cpx[f'{stream_id}widget'] = \
-                self.create_widget(value, QLineEdit, f'Exposure Time {self.camera_id[stream_id]}')
+                self.create_widget(value, QLineEdit, f'Exposure Time {self.camera_id[stream_id]}:')
             self.exposure_time_cpx[f'{stream_id}widget'].editingFinished.connect(lambda stream=stream_id:
                                                                                  self.set_line_interval(stream))
-        return self.create_layout(struct='H', **self.exposure_time_cpx)
+            exposure_times[str(stream_id)] = self.create_layout(struct='H', label=self.exposure_time_cpx[f'{stream_id}label'],
+                                                             text=self.exposure_time_cpx[f'{stream_id}widget'])
+        return self.create_layout(struct='V', **exposure_times)
 
     def set_line_interval(self, stream_id):
 

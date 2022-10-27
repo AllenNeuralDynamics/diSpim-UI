@@ -27,19 +27,19 @@ class UserInterface:
             self.possible_wavelengths = self.cfg.cfg['imaging_specs']['possible_wavelengths']
 
             self.imaging, self.laser_slider = self.imaging_tab(simulated)
-            self.imaging_specs, self.slit_width, self.exposure_time = self.imaging_specs_tab(simulated)
-            #self.imaging_specs = self.imaging_specs_tab()
+            self.imaging_specs = self.imaging_specs_tab(simulated)
+
             dock = {'Imaging': self.imaging,
                     'Laser Slider': self.laser_slider,
                     'Imaging Specs': self.imaging_specs,
-                    'Slit Width': self.slit_width,
-                    'Exposure Time': self.exposure_time}
+                    }
+
+
+
 
             self.imaging_dock = self.viewer.window.add_dock_widget(dock['Imaging'], name='Imaging')
             self.imaging_dock_params = self.viewer.window.add_dock_widget(dock['Imaging Specs'],
                                                                           name='Acquisition Parameters', area='left')
-            self.viewer.window.add_dock_widget(dock['Slit Width'], name='Slit Width', area='left')
-            self.viewer.window.add_dock_widget(dock['Exposure Time'], name='Exposure Time', area='left')
             self.viewer.window.add_dock_widget(dock['Laser Slider'], name="Laser Current", area='bottom')
 
             self.general_imaging.adding_wavelength_tabs(self.imaging_dock)
@@ -48,6 +48,8 @@ class UserInterface:
             #self.viewer.grid.enabled = True
             self.viewer.scale_bar.visible = True
             self.viewer.scale_bar.unit = "um"
+            self.viewer.window.qt_viewer.dockLayerControls.setVisible(False)
+
             napari.run()
 
         finally:
@@ -58,16 +60,17 @@ class UserInterface:
 
     def imaging_specs_tab(self, simulated):
         imaging_tab = AcquisitionParamsTab(self.instrument.frame_grabber, self.cfg.sensor_column_count, simulated)
-        imaging_specs = imaging_tab.scan_config(self.cfg)
-        acquisition_widget = imaging_tab.imaging_specs_container(imaging_specs)
+        instument_params = imaging_tab.scan_config(self.cfg)
+        cpx_exposure_widget = imaging_tab.frame_grabber_exposure_time()
+        cpx_line_interval_widget = imaging_tab.frame_grabber_line_interval()
+        acquisition_widget = imaging_tab.create_layout('V', exp = cpx_exposure_widget,
+                                                       line = cpx_line_interval_widget,
+                                                       params = instument_params)
         scroll_box = imaging_tab.scroll_box(acquisition_widget)
         imaging_specs_dock = QDockWidget()
         imaging_specs_dock.setWidget(scroll_box)
 
-        slit_width = imaging_tab.frame_grabber_exposure_time()
-        exposure_time = imaging_tab.frame_grabber_line_interval()
-
-        return imaging_specs_dock, slit_width, exposure_time
+        return imaging_specs_dock
 
     def imaging_tab(self, simulated):
         imaging = QDockWidget()

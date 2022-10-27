@@ -166,6 +166,8 @@ class Tab:
             layout = QHBoxLayout()
         else:
             layout = QVBoxLayout()
+
+        layout.setContentsMargins(0, 0, 0, 0)
         for arg in kwargs.values():
             layout.addWidget(arg)
         widget.setLayout(layout)

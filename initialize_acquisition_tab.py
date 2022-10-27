@@ -51,7 +51,7 @@ class InitializeAcquisitionTab(Tab):
         self.layer_index = 0
         self.stream_id = 1
         # Start and end points for lines
-        self.vert_start = -self.cfg.sensor_column_count * self.scale[0]
+        self.vert_start = -self.cfg.sensor_column_count * self.scale[0] #I can just change this to um in field of view
         self.vert_end = 0
         self.horz_start = -self.cfg.sensor_row_count * self.scale[1]
         self.horz_end = self.cfg.sensor_row_count * self.scale[1]
@@ -68,20 +68,23 @@ class InitializeAcquisitionTab(Tab):
         self.live_view['start'] = QPushButton('Start Live View')
         self.live_view['start'].clicked.connect(self.start_live_view)
 
-        self.live_view['0'] = QPushButton('Right Camera')
-        self.live_view['0'].setStyleSheet("background-color : gray")
+        self.live_view['0'] = QPushButton('Right')
         self.live_view['0'].setHidden(True)
         self.live_view['0'].pressed.connect(lambda stream_id=0: self.camera_view(stream_id))
 
-        self.live_view['1'] = QPushButton('Left Camera')
-        self.live_view['1'].setStyleSheet("background-color : green")
+        self.live_view['1'] = QPushButton('Left')
         self.live_view['1'].setHidden(True)
         self.live_view['1'].pressed.connect(lambda stream_id=1: self.camera_view(stream_id))
 
-        self.live_view['overlay'] = QPushButton('Overlay Camera Views')
-        self.live_view['overlay'].setStyleSheet("background-color : gray")
+        self.live_view['overlay'] = QPushButton('Blend')
         self.live_view['overlay'].setHidden(True)
         self.live_view['overlay'].clicked.connect(self.blending_set)
+
+        self.live_view['grid'] = QPushButton('Both')
+        self.live_view['grid'].setHidden(True)
+        self.live_view['grid'].clicked.connect(self.grid_layer_display)
+
+        self.camera_button_change('1')
 
         wv_strs = [str(x) for x in self.possible_wavelengths]
         self.live_view['wavelength'] = QComboBox()
@@ -98,6 +101,15 @@ class InitializeAcquisitionTab(Tab):
 
         return self.create_layout(struct='H', **self.live_view)
 
+    def camera_button_change(self, pressed:str):
+
+        for kw in self.live_view:
+            if kw == 'wavelength':
+                continue
+            else:
+                color = 'green' if kw == pressed else 'gray'
+                self.live_view[kw].setStyleSheet(f"background-color : {color}")
+
     def camera_view(self, stream_id):
 
         self.stream_id = stream_id
@@ -105,21 +117,33 @@ class InitializeAcquisitionTab(Tab):
 
         key = f"Video {self.camera_id[stream_id]}"
         not_key = f"Video {self.camera_id[not_id]}"
-
+        self.viewer.layers[-1].visible = True
+        self.viewer.grid.enabled = False
         self.viewer.layers[key].opacity = 1
         self.viewer.layers[not_key].opacity = 0
-        self.live_view[str(stream_id)].setStyleSheet("background-color : green")
-        self.live_view[str(not_id)].setStyleSheet("background-color : gray")
-        self.live_view['overlay'].setStyleSheet("background-color : gray")
+        self.camera_button_change(str(self.stream_id))
+
 
     def blending_set(self):
 
+        self.viewer.grid.enabled = False
+        self.viewer.layers[-1].visible = True
         self.viewer.layers[f"Video Left"].blending = self.viewer.layers[f"Video Right"].blending = 'additive'
         self.viewer.layers[f"Video Left"].opacity = self.viewer.layers[f"Video Right"].opacity = 1.0
+        self.camera_button_change('overlay')
 
-        self.live_view['0'].setStyleSheet("background-color : gray")
-        self.live_view['1'].setStyleSheet("background-color : gray")
-        self.live_view['overlay'].setStyleSheet("background-color : green")
+    def grid_layer_display(self):
+
+        try:
+            self.viewer.layers.remove(self.viewer.layers['grid'])
+        except:
+            pass
+        self.viewer.layers[f"Video Left"].opacity = self.viewer.layers[f"Video Right"].opacity = 1.0
+        self.camera_button_change('grid')
+        self.viewer.grid.enabled = True
+        self.viewer.layers[-1].visible = False
+        self.viewer.grid.shape = (1, 4)
+        self.viewer.camera.zoom = .35
 
     def profile_lines(self, image, shape_layer):
         profile_data = [
@@ -153,6 +177,7 @@ class InitializeAcquisitionTab(Tab):
             self.live_view['overlay'].setHidden(False)
             self.live_view['1'].setHidden(False)
             self.live_view['0'].setHidden(False)
+            self.live_view['grid'].setHidden(False)
 
         self.instrument.start_livestream(int(self.live_view['wavelength'].currentText()))
         self.livestream_worker = self.instrument._livestream_worker()
@@ -172,6 +197,7 @@ class InitializeAcquisitionTab(Tab):
         self.live_view['overlay'].setHidden(True)
         self.live_view['1'].setHidden(True)
         self.live_view['0'].setHidden(True)
+        self.live_view['grid'].setHidden(True)
 
     def update_layer(self, args):
         (image, stream_id) = args
@@ -183,6 +209,7 @@ class InitializeAcquisitionTab(Tab):
             layer.events.set_data()
 
         except KeyError:
+
             self.viewer.add_image(
                 image,
                 name=f"Video {self.camera_id[stream_id]}",
@@ -261,6 +288,7 @@ class InitializeAcquisitionTab(Tab):
         self.grid['pixel label'], self.grid['pixel widget'] = self.create_widget(
             f'{ceil(self.cfg.sensor_row_count*self.scale[0])}x'
             f'{ceil(self.cfg.sensor_column_count*self.scale[1])}', QLineEdit, 'um per Area:')
+        self.grid['pixel widget'].setReadOnly(True)
 
         return self.create_layout(struct = 'H', **self.grid)
 
@@ -445,7 +473,10 @@ class InitializeAcquisitionTab(Tab):
             main_dock = QDockWidget()
             main_dock.setWindowTitle('Laser ' + wavelength)
             main_dock = self.scan_wavelength_params(wavelength)
-            self.laser_dock[wavelength] = self.viewer.window.add_dock_widget(main_dock, name='Wavelength ' + wavelength)
+            scroll_box = self.scroll_box(main_dock)
+            scrollable_dock = QDockWidget()
+            scrollable_dock.setWidget(scroll_box)
+            self.laser_dock[wavelength] = self.viewer.window.add_dock_widget(scrollable_dock, name='Wavelength ' + wavelength)
             self.viewer.window._qt_window.tabifyDockWidget(imaging_dock, self.laser_dock[wavelength])
             if int(wavelength) not in self.imaging_wavelengths:
                 self.laser_dock[wavelength].setHidden(True)
@@ -498,7 +529,7 @@ class InitializeAcquisitionTab(Tab):
         return self.create_layout(struct='V', **laser_power_layout)
 
     def laser_power_label(self, value, wl, released = False, command = None):
-
+        value = self.laser_power[wl].value()
         text = f'{wl}: {value}mW' if wl == str(561) else f'{wl}: {value}%'
         self.laser_power[f'{wl} label'].setText(text)
 
