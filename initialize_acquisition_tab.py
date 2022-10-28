@@ -117,7 +117,8 @@ class InitializeAcquisitionTab(Tab):
 
         key = f"Video {self.camera_id[stream_id]}"
         not_key = f"Video {self.camera_id[not_id]}"
-        self.viewer.layers[-1].visible = True
+        self.viewer.layers['lines'].visible = True
+        self.viewer.layers['lines'].mode = 'select'
         self.viewer.grid.enabled = False
         self.viewer.layers[key].opacity = 1
         self.viewer.layers[not_key].opacity = 0
@@ -127,7 +128,8 @@ class InitializeAcquisitionTab(Tab):
     def blending_set(self):
 
         self.viewer.grid.enabled = False
-        self.viewer.layers[-1].visible = True
+        self.viewer.layers['lines'].visible = True
+        self.viewer.layers['lines'].mode = 'select'
         self.viewer.layers[f"Video Left"].blending = self.viewer.layers[f"Video Right"].blending = 'additive'
         self.viewer.layers[f"Video Left"].opacity = self.viewer.layers[f"Video Right"].opacity = 1.0
         self.camera_button_change('overlay')

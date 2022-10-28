@@ -39,7 +39,7 @@ class UserInterface:
 
             self.imaging_dock = self.viewer.window.add_dock_widget(dock['Imaging'], name='Imaging')
             self.imaging_dock_params = self.viewer.window.add_dock_widget(dock['Imaging Specs'],
-                                                                          name='Acquisition Parameters', area='left')
+                                                                          name='Config Inputs', area='left')
             self.viewer.window.add_dock_widget(dock['Laser Slider'], name="Laser Current", area='bottom')
 
             self.general_imaging.adding_wavelength_tabs(self.imaging_dock)
