@@ -35,10 +35,12 @@ class AcquisitionParamsTab(Tab):
 
         for attr in dir(config):
             value = getattr(config, attr)
+
             if isinstance(value, list):
                 continue
             elif isinstance(getattr(type(config), attr, None), property):
                 prop_obj = get_dict_attr(config, attr)
+
                 if prop_obj.fset is not None and prop_obj.fget is not None:
                     imaging_specs[attr, '_label'], imaging_specs[attr] = \
                         self.create_widget(getattr(config, attr), QLineEdit, label=attr)

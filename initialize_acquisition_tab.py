@@ -375,12 +375,16 @@ class InitializeAcquisitionTab(Tab):
 
         print(self.instrument.get_sample_position())
 
-    # def volumeteric_imaging_button(self):
-    #
-    #     volumetric_image = {'start': QPushButton('Start Volumetric Imaging')}
-    #     volumetric_image['start'].clicked.connect(self.instrument.run_from_config())
-    #
-    #     return self.create_layout(struct='H', **volumetric_image)
+    def volumeteric_imaging_button(self):
+
+        volumetric_image = {'start': QPushButton('Start Volumetric Imaging')}
+        volumetric_image['start'].clicked.connect(self.run_volumeteric_imaging)
+
+        return self.create_layout(struct='H', **volumetric_image)
+
+    def run_volumeteric_imaging(self):
+
+        self.instrument.run_from_config()
 
     def waveform_graph(self):
 

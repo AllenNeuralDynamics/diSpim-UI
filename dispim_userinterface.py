@@ -44,8 +44,6 @@ class UserInterface:
 
             self.general_imaging.adding_wavelength_tabs(self.imaging_dock)
 
-
-            #self.viewer.grid.enabled = True
             self.viewer.scale_bar.visible = True
             self.viewer.scale_bar.unit = "um"
             self.viewer.window.qt_viewer.dockLayerControls.setVisible(False)
