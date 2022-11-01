@@ -33,10 +33,6 @@ class UserInterface:
                     'Laser Slider': self.laser_slider,
                     'Imaging Specs': self.imaging_specs,
                     }
-
-
-
-
             self.imaging_dock = self.viewer.window.add_dock_widget(dock['Imaging'], name='Imaging')
             self.imaging_dock_params = self.viewer.window.add_dock_widget(dock['Imaging Specs'],
                                                                           name='Config Inputs', area='left')
@@ -47,7 +43,7 @@ class UserInterface:
             self.viewer.scale_bar.visible = True
             self.viewer.scale_bar.unit = "um"
             self.viewer.window.qt_viewer.dockLayerControls.setVisible(False)
-
+            self.viewer.add_shapes(name='hist')
             napari.run()
 
         finally:
@@ -61,9 +57,9 @@ class UserInterface:
         instument_params = imaging_tab.scan_config(self.cfg)
         cpx_exposure_widget = imaging_tab.frame_grabber_exposure_time()
         cpx_line_interval_widget = imaging_tab.frame_grabber_line_interval()
-        acquisition_widget = imaging_tab.create_layout('V', exp = cpx_exposure_widget,
-                                                       line = cpx_line_interval_widget,
-                                                       params = instument_params)
+        acquisition_widget = imaging_tab.create_layout('V', exp=cpx_exposure_widget,
+                                                       line=cpx_line_interval_widget,
+                                                       params=instument_params)
         scroll_box = imaging_tab.scroll_box(acquisition_widget)
         imaging_specs_dock = QDockWidget()
         imaging_specs_dock.setWidget(scroll_box)

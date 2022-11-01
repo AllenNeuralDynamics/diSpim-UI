@@ -44,9 +44,12 @@ class InitializeAcquisitionTab(Tab):
         self.stage_position = None
         self.data_line = None
         self.selected_wl_layout = None
+        self.event_position = [0,0]
+        self.x_fov = self.cfg.cfg['tile_specs']['x_field_of_view_um']
+        self.y_fov = self.cfg.cfg['tile_specs']['y_field_of_view_um']
 
-        self.scale = [405.504 / self.cfg.sensor_row_count,
-                      405.504 / self.cfg.sensor_column_count]
+        self.scale = [self.cfg.cfg['tile_specs']['x_field_of_view_um'] / self.cfg.sensor_row_count,
+                      self.cfg.cfg['tile_specs']['y_field_of_view_um'] / self.cfg.sensor_column_count]
         # TODO:change to config params
         self.layer_index = 0
         self.stream_id = 1
@@ -147,28 +150,57 @@ class InitializeAcquisitionTab(Tab):
         self.viewer.grid.shape = (1, 4)
         self.viewer.camera.zoom = .35
 
-    def profile_lines(self, image, shape_layer):
-        profile_data = [
-            measure.profile_line(image, line[0], line[1], mode='reflect').mean()
-            for line in shape_layer.data
-        ]
+    def line_profile(self):
+            #TODO: Need to account for image not being smae size in x and y pixels
+            #TODO:shorten somehow? Make function for rectangle creation
+            #TODO: make thread so it can constantly update
 
-        return profile_data
-
-    @thread_worker
-    def _profile_lines_worker(self):
-
-        while self.instrument.livestream_enabled.is_set():
-            sleep(.5)
             try:
-                profile_data = self.profile_lines(
-                    self.viewer.layers[f'Video {self.camera_id[self.stream_id]}'].data,
-                    self.viewer.layers['lines'])
-
-                self.viewer.layers['lines'].features = {
-                    'line_profile': [profile_data[0], profile_data[1]], }
+                im = self.viewer.layers[f'Video {self.camera_id[self.stream_id]}'].data
             except:
-                pass
+                im = np.array([[0, 0],[0,0]])
+            pixel_row = ceil(self.event_position[0]*(1/self.scale[0]))
+            pixel_col = ceil(self.event_position[1]*(1/self.scale[1]))
+            freq_v, bins = np.histogram(im[:, pixel_col],
+                                        bins=9, range=[np.min(im), np.max(im)])
+            freq_h, bins = np.histogram(im[pixel_row, :],
+                                        bins=9, range=[np.min(im), np.max(im)])
+            freq_v = (-freq_v*.05) + -self.x_fov
+            freq_h = (-freq_h*.05)
+            mid = 4
+            half = self.x_fov / 2
+            start = -self.x_fov
+
+            rect_vert = [None] * 9
+            rect_horz = [None] * 9
+            start = -self.x_fov
+            rect_vert[mid] = np.array([[freq_v[mid], half-5], [start, half-5],
+                                       [start, half+5], [freq_v[mid], half + 5]])
+            rect_horz[mid] = np.array([[-half-5,freq_h[mid]], [-half-5, 0],
+                                       [-half+5, 0], [-half+5, freq_h[mid]]])
+
+            for i in range(1, mid + 1):
+                rect_vert[mid-i] = np.array(
+                    [[freq_v[mid-i], half-5*(i+1)], [start, half-5*(i+1)], [start, half-5*i],
+                     [freq_v[mid-i], half-5*i]])
+                rect_vert[mid+i] = np.array(
+                    [[freq_v[mid+i], half+5*i], [start,half+5 * i], [start,half+5*(i+1)],
+                     [freq_v[mid+i], half+5*(i+1)]])
+
+                rect_horz[mid-i] = np.array(
+                    [[-half-5*(i+1),freq_h[mid-i]], [-half-5*(i+1),0], [-half-5*i, 0],
+                     [-half-5*i,freq_h[mid-i]]])
+                rect_horz[mid+i] = np.array(
+                    [[-half+5*i,freq_h[mid+i]], [-half+5*i, 0],[-half+5*(i+1), 0],
+                     [-half+5*(i+1),freq_h[mid+i]]])
+            rect = rect_vert + rect_horz
+            self.viewer.layers['hist'].data = rect
+            #return rect_vert + rect_horz
+
+
+    def _line_profile_worker(self):
+        while self.instrument.livestream_enabled.is_set():
+            yield self.line_profile()
 
     def start_live_view(self):
 
@@ -186,13 +218,11 @@ class InitializeAcquisitionTab(Tab):
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
 
-        self.profile_lines_worker = self._profile_lines_worker()
-        self.profile_lines_worker.start()
+
 
     def stop_live_view(self):
         self.instrument.stop_livestream()
         self.livestream_worker.quit()
-        self.profile_lines_worker.quit()
         self.live_view['start'].setText('Start Live View')
         self.live_view['start'].clicked.disconnect(self.stop_live_view)
         self.live_view['start'].clicked.connect(self.start_live_view)
@@ -219,7 +249,6 @@ class InitializeAcquisitionTab(Tab):
             self.layer_index += 1
 
             if self.layer_index == 2:
-
                 center = self.viewer.camera.center
                 self.viewer.camera.center = (0, center[1] + self.horz_start, center[2])
 
@@ -229,18 +258,11 @@ class InitializeAcquisitionTab(Tab):
                 vert_line = np.array([[self.vert_start, 0], [self.vert_end, 0]])
                 horz_line = np.array([[0, 0], [0, self.horz_end]])
                 lines = [vert_line, horz_line]
-
-                features = {'line_profile': [0,0],}
                 color = ['blue', 'green']
-                text = {'string': '{line_profile:0.1f}','anchor': 'upper_right', 'translation': [0, 25], 'size': 8,
-                        'color': 'white'}
 
                 shapes_layer = self.viewer.add_shapes(lines, shape_type='line',
                                                       edge_width=3,edge_color=color,
-                                                      name='lines',
-                                                      features=features,
-                                                      text=text)
-
+                                                      name='lines')
                 shapes_layer.mode = 'select'
 
                 @shapes_layer.mouse_drag_callbacks.append
@@ -251,23 +273,25 @@ class InitializeAcquisitionTab(Tab):
                     # on move
                     while event.type == 'mouse_move':
                         if val == (0, None) and self.cfg.sensor_column_count >= event.position[1] >= 0:  # vert_line
+                            self.event_position = event.position
                             layer.data = [
                                 [[self.vert_start, event.position[1]], [self.vert_end, event.position[1]]],
                                 layer.data[1]]
 
                             layer.data = [layer.data[0],
                                           [[event.position[0], 0], [event.position[0], self.horz_end]]]
+                            self.line_profile()
 
                             yield
                         elif val == (1, None) and self.horz_end >= event.position[0] >= self.horz_start:  # horz_line
-
+                            self.event_position = event.position
                             layer.data = [
                                 [[self.vert_start, event.position[1]], [self.vert_end, event.position[1]]],
                                 layer.data[1]]
 
                             layer.data = [layer.data[0],
                                           [[event.position[0], 0], [event.position[0], self.horz_end]]]
-
+                            self.line_profile()
                             yield
                         else:
                             yield
