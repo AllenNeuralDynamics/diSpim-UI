@@ -16,7 +16,8 @@ class UserInterface:
                  simulated: bool = False):
         # TODO: Create logger tab at bottom of napari viewer
         try:
-            self.log = logging.getLogger("dispim")
+
+           #self.log = logging.getLogger("dispim")
 
             self.viewer = napari.Viewer(title='diSPIM control', ndisplay=2, axis_labels=('x', 'y'))
 
@@ -47,7 +48,8 @@ class UserInterface:
             self.viewer.scale_bar.visible = True
             self.viewer.scale_bar.unit = "um"
             self.viewer.window.qt_viewer.dockLayerControls.setVisible(False)
-
+            logging.basicConfig(level=5)
+            logging.getLogger().setLevel(5)
             napari.run()
 
         finally:
@@ -59,11 +61,12 @@ class UserInterface:
     def imaging_specs_tab(self, simulated):
         imaging_tab = AcquisitionParamsTab(self.instrument.frame_grabber, self.cfg.sensor_column_count, simulated)
         instument_params = imaging_tab.scan_config(self.cfg)
-        cpx_exposure_widget = imaging_tab.frame_grabber_exposure_time()
-        cpx_line_interval_widget = imaging_tab.frame_grabber_line_interval()
-        acquisition_widget = imaging_tab.create_layout('V', exp = cpx_exposure_widget,
-                                                       line = cpx_line_interval_widget,
-                                                       params = instument_params)
+        # cpx_exposure_widget = imaging_tab.frame_grabber_exposure_time()
+        # cpx_line_interval_widget = imaging_tab.frame_grabber_line_interval()
+        # acquisition_widget = imaging_tab.create_layout('V', exp = cpx_exposure_widget,
+        #                                                line = cpx_line_interval_widget,
+        #                                                params = instument_params)
+        acquisition_widget = imaging_tab.create_layout('V', params = instument_params)
         scroll_box = imaging_tab.scroll_box(acquisition_widget)
         imaging_specs_dock = QDockWidget()
         imaging_specs_dock.setWidget(scroll_box)
@@ -81,7 +84,7 @@ class UserInterface:
                         'grid' : self.general_imaging.grid_widget(),
                         'screenshot': self.general_imaging.screenshot_button(),
                         'position': self.general_imaging.sample_stage_position(),
-                        #'volumetric_image': self.general_imaging.volumeteric_imaging_button(),
+                        'volumetric_image': self.general_imaging.volumeteric_imaging_button(),
                         'waveform': self.general_imaging.waveform_graph(),
                         'wavelength_select': self.general_imaging.laser_wl_select(),}
 

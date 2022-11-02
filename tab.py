@@ -15,11 +15,12 @@ class Tab:
         :param repeat = signals if there are multiple variables with the same kw in the dictionary
         """
 
-        value = float(widget.text())
         dictionary = getattr(self.cfg, attribute)
         path = self.pathFind(dictionary, specify)
         path = path + self.pathFind(dictionary, kw, path, True) if path is not None else self.pathFind(dictionary, kw)
-        if self.pathGet(dictionary, path) - value != 0:
+        cfg_value = self.pathGet(dictionary, path)
+        value = float(widget.text()) if type(cfg_value) != str else widget.text()
+        if cfg_value != value:
             self.pathSet(dictionary, path, value)
             self.instrument._setup_waveform_hardware(specify, live = True)
 

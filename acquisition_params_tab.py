@@ -98,4 +98,4 @@ class AcquisitionParamsTab(Tab):
 
     def set_line_interval(self, stream_id):
 
-        self.frame_grabber.set_line_interval(stream_id,int(self.exposure_time_cpx[f'{stream_id}widget'].text()) / self.column_pixels)
+        self.frame_grabber.set_line_interval(stream_id,float(self.exposure_time_cpx[f'{stream_id}widget'].text()) / self.column_pixels)

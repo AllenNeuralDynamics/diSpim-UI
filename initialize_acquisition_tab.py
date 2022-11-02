@@ -358,10 +358,15 @@ class InitializeAcquisitionTab(Tab):
                 self.create_widget(self.stage_position[direction], QSpinBox, f'{direction}:')
             self.pos_widget[direction].valueChanged.connect(self.stage_position_changed)
 
+        self.pos_widget['update'] = QPushButton()
+        self.pos_widget['update'].setText('Update')
+        self.pos_widget['update'].clicked.connect(self.update_sample_pos)
+
+
         return self.create_layout(struct='H', **self.pos_widget)
 
     def update_sample_pos(self):
-        """Update position widgets for volumetric imaging or manually moving"""
+        """Update position widgets values"""
 
         sample_pos = self.instrument.get_sample_position()
         for direction, value in sample_pos.items():
