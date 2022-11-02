@@ -22,7 +22,7 @@ class Tab:
         value = float(widget.text()) if type(cfg_value) != str else widget.text()
         if cfg_value != value:
             self.pathSet(dictionary, path, value)
-            self.instrument._setup_waveform_hardware(specify, live = True)
+            self.instrument._setup_waveform_hardware(self.instrument.active_laser, live = True)
 
 
     def scan(self, dictionary: dict, attr: str, prev_key: str = None, QDictionary: dict = None,

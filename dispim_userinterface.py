@@ -59,14 +59,15 @@ class UserInterface:
 
 
     def imaging_specs_tab(self, simulated):
-        imaging_tab = AcquisitionParamsTab(self.instrument.frame_grabber, self.cfg.sensor_column_count, simulated)
+        imaging_tab = AcquisitionParamsTab(self.instrument.frame_grabber, self.cfg.sensor_column_count, simulated,
+                                           self.instrument, self.cfg)
         instument_params = imaging_tab.scan_config(self.cfg)
-        # cpx_exposure_widget = imaging_tab.frame_grabber_exposure_time()
-        # cpx_line_interval_widget = imaging_tab.frame_grabber_line_interval()
-        # acquisition_widget = imaging_tab.create_layout('V', exp = cpx_exposure_widget,
-        #                                                line = cpx_line_interval_widget,
-        #                                                params = instument_params)
-        acquisition_widget = imaging_tab.create_layout('V', params = instument_params)
+        cpx_exposure_widget = imaging_tab.slit_width_widget()
+        cpx_line_interval_widget = imaging_tab.exposure_time_widget()
+        acquisition_widget = imaging_tab.create_layout('V', exp = cpx_exposure_widget,
+                                                       line = cpx_line_interval_widget,
+                                                       params = instument_params)
+        #acquisition_widget = imaging_tab.create_layout('V', params = instument_params)
         scroll_box = imaging_tab.scroll_box(acquisition_widget)
         imaging_specs_dock = QDockWidget()
         imaging_specs_dock.setWidget(scroll_box)
