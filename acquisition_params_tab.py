@@ -36,13 +36,13 @@ class AcquisitionParamsTab(Tab):
 
         for attr in dir(config):
             value = getattr(config, attr)
-
             if isinstance(value, list):
                 continue
             elif isinstance(getattr(type(config), attr, None), property):
                 prop_obj = get_dict_attr(config, attr)
 
-                if prop_obj.fset is not None and prop_obj.fget is not None:
+                if prop_obj.fset is not None and prop_obj.fget is not None \
+                        and attr != 'exposure_time' and attr != 'slit_width':
                     imaging_specs[attr, '_label'], imaging_specs[attr] = \
                         self.create_widget(getattr(config, attr), QLineEdit, label=attr)
 
@@ -94,7 +94,7 @@ class AcquisitionParamsTab(Tab):
         value = self.cfg.exposure_time
         #TODO: make sure the pixels are right
         self.exposure_time['label'], self.exposure_time['widget'] = \
-            self.create_widget(value, QLineEdit, 'Exposure Time (s):')
+            self.create_widget(value, QLineEdit, 'Exposure Time (ms):')
         self.exposure_time['widget'].editingFinished.connect(self.set_cpx_line_interval)
 
         return self.create_layout(struct='H', **self.exposure_time)
@@ -104,9 +104,8 @@ class AcquisitionParamsTab(Tab):
         """Setting CPX line interval based on gui exposure time and column pix"""
 
         self.frame_grabber.set_line_interval(
-            (float(self.exposure_time['widget'].text())*1000000) /
-            self.column_pixels,
-            live = self.instrument.live_status)
+            (float(self.exposure_time['widget'].text())*1000000) / self.column_pixels,
+                                             live = self.instrument.live_status)
 
         self.cfg.exposure_time = float(self.exposure_time['widget'].text())
 

@@ -372,6 +372,7 @@ class InitializeAcquisitionTab(Tab):
         for direction, value in sample_pos.items():
             if direction in self.pos_widget:
                 self.pos_widget[direction].setValue(value)
+        print(self.instrument.get_sample_position())
 
     def stage_position_changed(self):
         self.instrument.move_sample_absolute(self.pos_widget['X'].value(), self.pos_widget['Y'].value(),
