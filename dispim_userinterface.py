@@ -57,9 +57,10 @@ class UserInterface:
         instument_params = imaging_tab.scan_config(self.cfg)
         cpx_exposure_widget = imaging_tab.frame_grabber_exposure_time()
         cpx_line_interval_widget = imaging_tab.frame_grabber_line_interval()
-        acquisition_widget = imaging_tab.create_layout('V', exp=cpx_exposure_widget,
-                                                       line=cpx_line_interval_widget,
-                                                       params=instument_params)
+        # acquisition_widget = imaging_tab.create_layout('V', exp=cpx_exposure_widget,
+        #                                                line=cpx_line_interval_widget,
+        #                                                params=instument_params)
+        acquisition_widget = imaging_tab.create_layout('V', params=instument_params)
         scroll_box = imaging_tab.scroll_box(acquisition_widget)
         imaging_specs_dock = QDockWidget()
         imaging_specs_dock.setWidget(scroll_box)
