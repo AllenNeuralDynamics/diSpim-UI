@@ -47,7 +47,7 @@ class UserInterface:
 
             self.viewer.scale_bar.visible = True
             self.viewer.scale_bar.unit = "um"
-            self.viewer.window.qt_viewer.dockLayerControls.setVisible(False)
+            #self.viewer.window.qt_viewer.dockLayerControls.setVisible(False)
             # logging.basicConfig(level=5)
             # logging.getLogger().setLevel(5)
             napari.run()

@@ -62,8 +62,7 @@ class InitializeAcquisitionTab(Tab):
 
     def live_view_widget(self):
 
-        """Contains button to activate livestream as well as selection of laser, autocontrast and rotation of
-        liveview """
+        """Contains button to activate livestream as well as selection of laser """
 
         self.live_view['start'] = QPushButton('Start Live View')
         self.live_view['start'].clicked.connect(self.start_live_view)
@@ -147,29 +146,6 @@ class InitializeAcquisitionTab(Tab):
         self.viewer.grid.shape = (1, 4)
         self.viewer.camera.zoom = .35
 
-    def profile_lines(self, image, shape_layer):
-        profile_data = [
-            measure.profile_line(image, line[0], line[1], mode='reflect').mean()
-            for line in shape_layer.data
-        ]
-
-        return profile_data
-
-    @thread_worker
-    def _profile_lines_worker(self):
-
-        while self.instrument.livestream_enabled.is_set():
-            sleep(.5)
-            try:
-                profile_data = self.profile_lines(
-                    self.viewer.layers[f'Video {self.camera_id[self.stream_id]}'].data,
-                    self.viewer.layers['lines'])
-
-                self.viewer.layers['lines'].features = {
-                    'line_profile': [profile_data[0], profile_data[1]], }
-            except:
-                pass
-
     def start_live_view(self):
 
         if self.live_view['start'].text() == 'Start Live View':
@@ -186,13 +162,9 @@ class InitializeAcquisitionTab(Tab):
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
 
-        self.profile_lines_worker = self._profile_lines_worker()
-        self.profile_lines_worker.start()
-
     def stop_live_view(self):
         self.instrument.stop_livestream()
         self.livestream_worker.quit()
-        self.profile_lines_worker.quit()
         self.live_view['start'].setText('Start Live View')
         self.live_view['start'].clicked.disconnect(self.stop_live_view)
         self.live_view['start'].clicked.connect(self.start_live_view)
@@ -216,6 +188,7 @@ class InitializeAcquisitionTab(Tab):
                 image,
                 name=f"Video {self.camera_id[stream_id]}",
                 scale = self.scale)
+
             self.layer_index += 1
 
             if self.layer_index == 2:
@@ -229,18 +202,11 @@ class InitializeAcquisitionTab(Tab):
                 vert_line = np.array([[self.vert_start, 0], [self.vert_end, 0]])
                 horz_line = np.array([[0, 0], [0, self.horz_end]])
                 lines = [vert_line, horz_line]
-
-                features = {'line_profile': [0,0],}
                 color = ['blue', 'green']
-                text = {'string': '{line_profile:0.1f}','anchor': 'upper_right', 'translation': [0, 25], 'size': 8,
-                        'color': 'white'}
 
                 shapes_layer = self.viewer.add_shapes(lines, shape_type='line',
                                                       edge_width=3,edge_color=color,
-                                                      name='lines',
-                                                      features=features,
-                                                      text=text)
-
+                                                      name='lines',)
                 shapes_layer.mode = 'select'
 
                 @shapes_layer.mouse_drag_callbacks.append
@@ -406,6 +372,8 @@ class InitializeAcquisitionTab(Tab):
 
     def waveform_update(self):
         t, voltages_t = generate_waveforms(self.cfg, int(self.live_view['wavelength'].currentText()))
+        print(self.cfg.daq_ao_names_to_channels.keys())
+        print(voltages_t.shape)
         try:
             for index, ao_name in enumerate(self.cfg.daq_ao_names_to_channels.keys()):
                 self.data_line.setData(t, voltages_t[index], name=ao_name, pen=mkPen(color=self.colors[index]))
