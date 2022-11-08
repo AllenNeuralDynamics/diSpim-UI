@@ -1,4 +1,4 @@
-from tab import Tab
+from widgets.widget_base import WidgetBase
 from qtpy.QtWidgets import QLineEdit, QVBoxLayout, QWidget, \
     QHBoxLayout, QLabel, QDoubleSpinBox
 from qtpy.QtGui import QIntValidator
@@ -12,7 +12,7 @@ def get_dict_attr(class_def, attr):
     raise AttributeError
 
 
-class AcquisitionParamsTab(Tab):
+class InstrumentParameters(WidgetBase):
 
     def __init__(self, frame_grabber, column_pixels, simulated):
 

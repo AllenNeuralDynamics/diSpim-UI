@@ -3,7 +3,7 @@ from qtpy.QtWidgets import  QMessageBox, QLineEdit, QVBoxLayout, QWidget, \
     QHBoxLayout, QLabel, QDoubleSpinBox,  QScrollArea, QFrame, QSpinBox, QSlider
 import qtpy.QtCore as QtCore
 
-class Tab:
+class WidgetBase:
 
     def config_change(self, widget, attribute, kw, specify = None):
 
