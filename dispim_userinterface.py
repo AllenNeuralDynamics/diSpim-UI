@@ -30,9 +30,9 @@ class UserInterface:
             main_window = QDockWidget()
             main_window.setWindowTitle('Main')
             main_widgets = {
-                'acquisition_block': self.volumeteric_acquisition(),
-                'livestream_block': self.livestream_widget()
-            }
+                                'livestream_block': self.livestream_widget(),
+                                'acquisition_block': self.volumeteric_acquisition(),
+                            }
             main_window.setWidget(self.vol_acq_params.create_layout(struct='V', **main_widgets))
             # Set up laser sliders and tabs
             self.laser_widget()
@@ -47,7 +47,6 @@ class UserInterface:
 
             self.viewer.scale_bar.visible = True
             self.viewer.scale_bar.unit = "um"
-            self.viewer.window.qt_viewer.dockLayerControls.setVisible(False)
             self.viewer.add_shapes(name='hist')
             napari.run()
 
@@ -58,10 +57,10 @@ class UserInterface:
 
     def instrument_params(self):
         instrument_params = InstrumentParameters(self.instrument.frame_grabber, self.cfg.sensor_column_count,
-                                                 self.simulated)
+                                                 self.simulated, self.instrument, self.cfg)
         config_properties = instrument_params.scan_config(self.cfg)
-        cpx_exposure_widget = instrument_params.frame_grabber_exposure_time()
-        cpx_line_interval_widget = instrument_params.frame_grabber_line_interval()
+        cpx_exposure_widget = instrument_params.slit_width_widget()
+        cpx_line_interval_widget = instrument_params.exposure_time_widget()
         instrument_params_widget = instrument_params.create_layout('V', exp=cpx_exposure_widget,
                                                                    line=cpx_line_interval_widget,
                                                                    prop=config_properties)

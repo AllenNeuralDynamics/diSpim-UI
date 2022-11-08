@@ -14,14 +14,15 @@ def get_dict_attr(class_def, attr):
 
 class InstrumentParameters(WidgetBase):
 
-    def __init__(self, frame_grabber, column_pixels, simulated):
+    def __init__(self, frame_grabber, column_pixels, simulated, instrument, config):
 
         self.frame_grabber = frame_grabber
         self.column_pixels = column_pixels
         self.simulated = simulated
-
+        self.instrument = instrument
+        self.cfg = config
         self.slit_width = {}
-        self.exposure_time_cpx = {}
+        self.exposure_time = {}
 
         self.camera_id = ['Right', 'Left']
 
@@ -41,7 +42,8 @@ class InstrumentParameters(WidgetBase):
             elif isinstance(getattr(type(config), attr, None), property):
                 prop_obj = get_dict_attr(config, attr)
 
-                if prop_obj.fset is not None and prop_obj.fget is not None:
+                if prop_obj.fset is not None and prop_obj.fget is not None \
+                        and attr != 'exposure_time' and attr != 'slit_width' and attr != 'line_time':
                     imaging_specs[attr, '_label'], imaging_specs[attr] = \
                         self.create_widget(getattr(config, attr), QLineEdit, label=attr)
 
@@ -54,48 +56,63 @@ class InstrumentParameters(WidgetBase):
                                                                      text=imaging_specs[attr])
         return self.create_layout(struct='V', **imaging_specs_widgets)
 
-    def frame_grabber_exposure_time(self):
+    def slit_width_widget(self):
 
         """Setting CPX exposure time based on slit_width"""
 
-        slit_widths = {}
+        value = self.cfg.slit_width
+        self.slit_width['label'], self.slit_width['widget'] = \
+            self.create_widget(int(value), QLineEdit, 'Slit Width:')
+        validator = QIntValidator()
+        self.slit_width['widget'].setValidator(validator)
+        self.slit_width['widget'].editingFinished.connect(self.set_cpx_exposure_time)
 
-        for stream_id in range(0, 2):
+        return self.create_layout(struct='H', **self.slit_width)
 
-            value = self.frame_grabber.get_exposure_time(stream_id)/self.frame_grabber.get_line_interval(stream_id) \
-                if not self.simulated else 1
-            self.slit_width[f'{stream_id}label'], self.slit_width[f'{stream_id}widget'] = \
-                self.create_widget(value, QLineEdit, f'Slit Width {self.camera_id[stream_id]}:')
-            validator = QIntValidator(1, 999)
-            self.slit_width[f'{stream_id}widget'].setValidator(validator)
-            self.slit_width[f'{stream_id}widget'].editingFinished.connect(lambda stream=stream_id:
-                                                                          self.set_exposure_time(stream))
-            slit_widths[str(stream_id)] = self.create_layout(struct='H', label=self.slit_width[f'{stream_id}label'],
-                                                             text=self.slit_width[f'{stream_id}widget'])
+    def set_cpx_exposure_time(self):
 
-        return self.create_layout(struct='V', **slit_widths)
+        """Setting CPX exposure time based on slit_width and cpx line rate"""
 
-    def set_exposure_time(self, stream_id):
+        # TODO: This is assuming that the line_interval is set the same in
+        # both cameras. Should have some fail safe in case not?
+        cpx_line_interval = self.frame_grabber.get_line_interval()
+        self.frame_grabber.set_exposure_time(int(self.slit_width['widget'].text()) *
+                                             cpx_line_interval[0],
+                                             live=self.instrument.live_status)
 
-        self.frame_grabber.set_exposure_time(stream_id, int(self.slit_width[f'{stream_id}widget'].text())*
-                                             self.frame_grabber.get_line_interval(stream_id))
+        self.cfg.slit_width = int(self.slit_width['widget'].text())
 
-    def frame_grabber_line_interval(self):
+        if self.instrument.live_status:
+            self.instrument._setup_waveform_hardware(
+                self.instrument.active_laser,
+                live=True)
 
-        """Setting CPX line interval based on exposure time and linerate"""
+    def exposure_time_widget(self):
 
-        exposure_times = {}
+        """Setting CPX line interval based on gui exposure time and column pix"""
 
-        for stream_id in range(0, 2):
-            value = self.frame_grabber.get_line_interval(stream_id) * self.column_pixels if not self.simulated else 1 #TODO: make sure the pixels are right
-            self.exposure_time_cpx[f'{stream_id}label'], self.exposure_time_cpx[f'{stream_id}widget'] = \
-                self.create_widget(value, QLineEdit, f'Exposure Time {self.camera_id[stream_id]}:')
-            self.exposure_time_cpx[f'{stream_id}widget'].editingFinished.connect(lambda stream=stream_id:
-                                                                                 self.set_line_interval(stream))
-            exposure_times[str(stream_id)] = self.create_layout(struct='H', label=self.exposure_time_cpx[f'{stream_id}label'],
-                                                             text=self.exposure_time_cpx[f'{stream_id}widget'])
-        return self.create_layout(struct='V', **exposure_times)
+        value = self.cfg.exposure_time
+        # TODO: make sure the pixels are right
+        self.exposure_time['label'], self.exposure_time['widget'] = \
+            self.create_widget(value, QLineEdit, 'Exposure Time (ms):')
+        self.exposure_time['widget'].editingFinished.connect(self.set_cpx_line_interval)
 
-    def set_line_interval(self, stream_id):
+        return self.create_layout(struct='H', **self.exposure_time)
 
-        self.frame_grabber.set_line_interval(stream_id,int(self.exposure_time_cpx[f'{stream_id}widget'].text()) / self.column_pixels)
+    def set_cpx_line_interval(self):
+
+        """Setting CPX line interval based on gui exposure time and column pix.
+        Setting exposure time and line time in config object"""
+
+        line_interval = (float(self.exposure_time['widget'].text()) * 1000000) / self.column_pixels
+        self.frame_grabber.set_line_interval(line_interval,live=self.instrument.live_status)
+        self.frame_grabber.set_exposure_time(int(self.slit_width['widget'].text()) *
+                                             line_interval,
+                                             live=self.instrument.live_status)
+        self.cfg.line_time = line_interval
+        self.cfg.exposure_time = float(self.exposure_time['widget'].text())
+
+        if self.instrument.live_status:
+            self.instrument._setup_waveform_hardware(
+                self.instrument.active_laser,
+                live=True)
