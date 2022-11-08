@@ -9,6 +9,7 @@ from widgets.lasers import Lasers
 import logging
 import traceback
 
+
 class UserInterface:
 
     def __init__(self, config_filepath: str,
@@ -16,40 +17,33 @@ class UserInterface:
                  console_output: bool = True,
                  console_output_level: str = 'info',
                  simulated: bool = False):
-        # TODO: Create logger tab at bottom of napari viewer
+
         try:
-            self.log = logging.getLogger("dispim")
-
-            self.viewer = napari.Viewer(title='diSPIM control', ndisplay=2, axis_labels=('x', 'y'))
-
-            self.instrument = dispim.Dispim(config_filepath=config_filepath,
-                                            simulated=simulated)
+            self.log = logging.getLogger("dispim")  # TODO: Create logger tab at bottom of napari viewer
+            self.instrument = dispim.Dispim(config_filepath=config_filepath, simulated=simulated)
             self.simulated = simulated
             self.cfg = self.instrument.cfg
             self.possible_wavelengths = self.cfg.cfg['imaging_specs']['possible_wavelengths']
+            self.viewer = napari.Viewer(title='diSPIM control', ndisplay=2, axis_labels=('x', 'y'))
 
-            imaging = QDockWidget()
-            imaging.setWindowTitle('Imaging')
-            acquisition_block = self.volumeteric_acquisition()
-            livestream_block = self.livestream_widget()
-            imaging.setWidget(self.vol_acq_params.create_layout(struct='V',
-                                                                acq =acquisition_block,
-                                                                live = livestream_block
-                                                                ))
-            laser_block = self.laser_widget()
-            self.imaging_specs = self.config_properties()
+            # Set up main window on gui which has livestreaming capability and volumeteric imaging button
+            main_window = QDockWidget()
+            main_window.setWindowTitle('Main')
+            main_widgets = {
+                'acquisition_block': self.volumeteric_acquisition(),
+                'livestream_block': self.livestream_widget()
+            }
+            main_window.setWidget(self.vol_acq_params.create_layout(struct='V', **main_widgets))
+            # Set up laser sliders and tabs
+            self.laser_widget()
+            # Set up automatically generated widget labels and inputs
+            instr_params_window = self.instrument_params()
 
-            dock = {'Imaging': imaging,
-                    'Laser Slider': self.laser_slider,
-                    'Imaging Specs': self.imaging_specs,
-                    }
-
-            self.imaging_dock = self.viewer.window.add_dock_widget(dock['Imaging'], name='Imaging')
-            self.imaging_dock_params = self.viewer.window.add_dock_widget(dock['Imaging Specs'],
-                                                                          name='Config Inputs', area='left')
-            self.viewer.window.add_dock_widget(dock['Laser Slider'], name="Laser Current", area='bottom')
-
-            self.laser_parameters.adding_wavelength_tabs(self.imaging_dock)
+            # Add dockwidgets to viewer
+            main_dock = self.viewer.window.add_dock_widget(main_window, name='Main Window')
+            self.laser_parameters.adding_wavelength_tabs(main_dock)  # Adding laser wavelength tabs
+            self.viewer.window.add_dock_widget(instr_params_window, name='Instrument Parameters', area='left')
+            self.viewer.window.add_dock_widget(self.laser_slider, name="Laser Current", area='bottom')
 
             self.viewer.scale_bar.visible = True
             self.viewer.scale_bar.unit = "um"
@@ -62,17 +56,16 @@ class UserInterface:
             self.close_instrument()
             self.viewer.close()
 
-
-    def config_properties(self):
+    def instrument_params(self):
         instrument_params = InstrumentParameters(self.instrument.frame_grabber, self.cfg.sensor_column_count,
                                                  self.simulated)
         config_properties = instrument_params.scan_config(self.cfg)
         cpx_exposure_widget = instrument_params.frame_grabber_exposure_time()
         cpx_line_interval_widget = instrument_params.frame_grabber_line_interval()
-        # instrument_params_widget = instrument_params.create_layout('V', exp=cpx_exposure_widget,
-        #                                                line=cpx_line_interval_widget,
-        #                                                prop=config_properties)
-        instrument_params_widget = instrument_params.create_layout('V', params=config_properties)
+        instrument_params_widget = instrument_params.create_layout('V', exp=cpx_exposure_widget,
+                                                                   line=cpx_line_interval_widget,
+                                                                   prop=config_properties)
+        # instrument_params_widget = instrument_params.create_layout('V', params=config_properties)
         scroll_box = instrument_params.scroll_box(instrument_params_widget)
         instrument_params_dock = QDockWidget()
         instrument_params_dock.setWidget(scroll_box)
@@ -84,10 +77,10 @@ class UserInterface:
         self.livestream_parameters = Livestream(self.viewer, self.cfg, self.instrument, self.simulated)
 
         widgets = {
-                        'live_view': self.livestream_parameters.liveview_widget(),
-                        'grid': self.livestream_parameters.grid_widget(),
-                        'screenshot': self.livestream_parameters.screenshot_button()
-                  }
+            'live_view': self.livestream_parameters.liveview_widget(),
+            'grid': self.livestream_parameters.grid_widget(),
+            'screenshot': self.livestream_parameters.screenshot_button()
+        }
 
         return self.livestream_parameters.create_layout(struct='V', **widgets)
 
@@ -97,12 +90,12 @@ class UserInterface:
 
         self.vol_acq_params = VolumetericAcquisition(self.viewer, self.cfg, self.instrument, self.simulated)
         widgets = {
-                        'position': self.vol_acq_params.sample_stage_position(),
-                        'volumetric_image': self.vol_acq_params.volumeteric_imaging_button(),
-                        'waveform': self.vol_acq_params.waveform_graph(),
-                   }
+            'position': self.vol_acq_params.sample_stage_position(),
+            'volumetric_image': self.vol_acq_params.volumeteric_imaging_button(),
+            'waveform': self.vol_acq_params.waveform_graph(),
+        }
 
-        return self.vol_acq_params.create_layout(struct = 'V', **widgets)
+        return self.vol_acq_params.create_layout(struct='V', **widgets)
 
     def laser_widget(self):
 
