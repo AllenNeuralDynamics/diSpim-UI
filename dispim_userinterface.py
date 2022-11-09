@@ -22,7 +22,6 @@ class UserInterface:
             self.instrument = dispim.Dispim(config_filepath=config_filepath, simulated=simulated)
             self.simulated = simulated
             self.cfg = self.instrument.cfg
-            self.possible_wavelengths = self.cfg.cfg['imaging_specs']['possible_wavelengths']
             self.viewer = napari.Viewer(title='diSPIM control', ndisplay=2, axis_labels=('x', 'y'))
 
             # Set up main window on gui which has livestreaming capability and volumeteric imaging button
@@ -31,7 +30,7 @@ class UserInterface:
             main_widgets = {
                                 'livestream_block': self.livestream_widget(),
                                 'acquisition_block': self.volumeteric_acquisition(),
-                            }
+                            }  
             main_window.setWidget(self.vol_acq_params.create_layout(struct='V', **main_widgets))
             # Set up laser sliders and tabs
             self.laser_widget()
