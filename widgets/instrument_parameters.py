@@ -24,7 +24,7 @@ class InstrumentParameters(WidgetBase):
         self.slit_width = {}
         self.exposure_time = {}
 
-        self.camera_id = ['Right', 'Left']
+        self.camera_id = ['camera_right', 'camera_left']
 
     def scan_config(self, config: object):
 
@@ -112,6 +112,27 @@ class InstrumentParameters(WidgetBase):
         self.cfg.line_time = line_interval
         self.cfg.exposure_time = float(self.exposure_time['widget'].text())
 
+        if self.instrument.live_status:
+            self.instrument._setup_waveform_hardware(
+                self.instrument.active_laser,
+                live=True)
+
+    def shutter_direction_widgets(self):
+
+        """"Setting shutter direction for each camera"""
+        scan_widgets= {}
+        self.scan_direction = {}
+        directions = ['FORWARD', 'BACKWARD']
+        for stream_id in range(0,2):
+            value = self.cfg.camera_specs[self.camera_id[stream_id]]['scan_direction']
+            scan_widgets['label'], scan_widgets[f'widget{stream_id}'] = \
+                self.create_widget(int(value), QLineEdit, f'Scan Direction {self.camera_id[stream_id]}:')
+            scan_widgets[f'widget{stream_id}'].currentIndexChanged.connect(self.set_shutter_direction)
+            self.scan_direction[self.camera_id[stream_id]] = self.create_layout(struct='H', **scan_widgets)
+
+        return self.create_layout(struct='H', **self.scan_direction)
+
+    def set_shutter_direction(self):
         if self.instrument.live_status:
             self.instrument._setup_waveform_hardware(
                 self.instrument.active_laser,

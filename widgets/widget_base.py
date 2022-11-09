@@ -1,6 +1,7 @@
 from PyQt5.QtCore import Qt
 from qtpy.QtWidgets import  QMessageBox, QLineEdit, QVBoxLayout, QWidget, \
-    QHBoxLayout, QLabel, QDoubleSpinBox,  QScrollArea, QFrame, QSpinBox, QSlider
+    QHBoxLayout, QLabel, QDoubleSpinBox,  QScrollArea, QFrame, QSpinBox, QSlider,\
+    QComboBox
 import qtpy.QtCore as QtCore
 
 class WidgetBase:
