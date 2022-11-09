@@ -34,7 +34,9 @@ class InstrumentParameters(WidgetBase):
         imaging_specs = {}  # dictionary to store attribute labels and input box
         imaging_specs_widgets = {}  # dictionary that holds layout of attribute labels/input pairs
 
-        for attr in dir(config):
+        cpx_attributes = ['exposure_time','slit_width','line_time','scan_direction_left','scan_direction_right']
+        directory = [i for i in dir(config) if i not in cpx_attributes]
+        for attr in directory:
             value = getattr(config, attr)
 
             if isinstance(value, list):
@@ -42,8 +44,7 @@ class InstrumentParameters(WidgetBase):
             elif isinstance(getattr(type(config), attr, None), property):
                 prop_obj = get_dict_attr(config, attr)
 
-                if prop_obj.fset is not None and prop_obj.fget is not None \
-                        and attr != 'exposure_time' and attr != 'slit_width' and attr != 'line_time':
+                if prop_obj.fset is not None and prop_obj.fget is not None:
                     imaging_specs[attr, '_label'], imaging_specs[attr] = \
                         self.create_widget(getattr(config, attr), QLineEdit, label=attr)
 

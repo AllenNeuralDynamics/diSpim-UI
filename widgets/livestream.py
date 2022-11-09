@@ -102,14 +102,15 @@ class Livestream(WidgetBase):
 
         self.stream_id = stream_id
         not_id = (stream_id + 1) % 2
-
         key = f"Video {self.camera_id[stream_id]}"
         not_key = f"Video {self.camera_id[not_id]}"
+
         self.viewer.layers['lines'].visible = True
         self.viewer.layers['lines'].mode = 'select'
         self.viewer.grid.enabled = False
         self.viewer.layers[key].opacity = 1
         self.viewer.layers[not_key].opacity = 0
+        self.viewer.layers.selection.active = self.viewer.layers[key]
         self.camera_button_change(str(self.stream_id))
 
 

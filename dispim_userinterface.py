@@ -23,7 +23,6 @@ class UserInterface:
             self.instrument = dispim.Dispim(config_filepath=config_filepath, simulated=simulated)
             self.simulated = simulated
             self.cfg = self.instrument.cfg
-            self.possible_wavelengths = self.cfg.cfg['imaging_specs']['possible_wavelengths']
             self.viewer = napari.Viewer(title='diSPIM control', ndisplay=2, axis_labels=('x', 'y'))
 
             # Set up laser sliders and tabs

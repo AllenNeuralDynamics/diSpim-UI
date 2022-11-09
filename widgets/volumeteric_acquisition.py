@@ -88,24 +88,20 @@ class VolumetericAcquisition(WidgetBase):
         return self.waveform['generate']
 
     def waveform_update(self):
-        t, voltages_t = generate_waveforms(self.cfg, 488)
+        t, voltages_t = generate_waveforms(self.cfg, 488) #TODO: Rework so it's using active laser
+
+        self.waveform['graph'].clear()
+        for index, ao_name in enumerate(self.cfg.daq_ao_names_to_channels.keys()):
+            self.waveform['graph'].addLegend(offset=(365, .5), horSpacing=20, verSpacing=0, labelTextSize='8pt')
+            self.waveform['graph'].plot(t, voltages_t[index], name=ao_name,
+                                        pen=mkPen(color=self.colors[index], width=3))
         try:
-            for index, ao_name in enumerate(self.cfg.daq_ao_names_to_channels.keys()):
-                self.data_line.setData(t, voltages_t[index], name=ao_name, pen=mkPen(color=self.colors[index]))
             self.viewer.window.remove_dock_widget(self.waveform['graph'])
+        except LookupError:
+            pass
+        finally:
             self.viewer.window.add_dock_widget(self.waveform['graph'])
-        except:
-            for index, ao_name in enumerate(self.cfg.daq_ao_names_to_channels.keys()):
-                # self.waveform['graph'].setFixedWidth(500)
-                # self.waveform['graph'].setFixedHeight(250)
-                self.waveform['graph'].setTitle("Waveforms One Image Capture Sequence", color="w", size="10pt")
-                self.waveform['graph'].setLabel('bottom', 'Time (s)')
-                self.waveform['graph'].setLabel('left', 'Amplitude (V)')
-                #self.waveform['graph'].setXRange(0, .03)
-                self.data_line = self.waveform['graph'].plot(t, voltages_t[index], name=ao_name,
-                                                             pen=mkPen(color=self.colors[index], width=3))
-                self.waveform['graph'].addLegend(offset=(365, .5), horSpacing=20, verSpacing=0, labelTextSize='8pt')
-            self.viewer.window.add_dock_widget(self.waveform['graph'])
+
 
 
 
