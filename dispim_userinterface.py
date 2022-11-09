@@ -2,8 +2,10 @@ import napari
 from qtpy.QtWidgets import QDockWidget
 from qtpy.QtCore import QTimer
 import dispim.dispim as dispim
-from acquisition_params_tab import AcquisitionParamsTab
-from initialize_acquisition_tab import InitializeAcquisitionTab
+from widgets.instrument_parameters import InstrumentParameters
+from widgets.volumeteric_acquisition import VolumetericAcquisition
+from widgets.livestream import Livestream
+from widgets.lasers import Lasers
 import logging
 import traceback
 
@@ -16,34 +18,31 @@ class UserInterface:
                  simulated: bool = False):
         # TODO: Create logger tab at bottom of napari viewer
         try:
-
-           #self.log = logging.getLogger("dispim")
-
-            self.viewer = napari.Viewer(title='diSPIM control', ndisplay=2, axis_labels=('x', 'y'))
-
-            self.instrument = dispim.Dispim(config_filepath=config_filepath,
-                                            simulated=simulated)
-
+            self.log = logging.getLogger("dispim")  # TODO: Create logger tab at bottom of napari viewer
+            self.instrument = dispim.Dispim(config_filepath=config_filepath, simulated=simulated)
+            self.simulated = simulated
             self.cfg = self.instrument.cfg
             self.possible_wavelengths = self.cfg.cfg['imaging_specs']['possible_wavelengths']
+            self.viewer = napari.Viewer(title='diSPIM control', ndisplay=2, axis_labels=('x', 'y'))
 
-            self.imaging, self.laser_slider = self.imaging_tab(simulated)
-            self.imaging_specs = self.imaging_specs_tab(simulated)
+            # Set up main window on gui which has livestreaming capability and volumeteric imaging button
+            main_window = QDockWidget()
+            main_window.setWindowTitle('Main')
+            main_widgets = {
+                                'livestream_block': self.livestream_widget(),
+                                'acquisition_block': self.volumeteric_acquisition(),
+                            }
+            main_window.setWidget(self.vol_acq_params.create_layout(struct='V', **main_widgets))
+            # Set up laser sliders and tabs
+            self.laser_widget()
+            # Set up automatically generated widget labels and inputs
+            instr_params_window = self.instrument_params()
 
-            dock = {'Imaging': self.imaging,
-                    'Laser Slider': self.laser_slider,
-                    'Imaging Specs': self.imaging_specs,
-                    }
-
-
-
-
-            self.imaging_dock = self.viewer.window.add_dock_widget(dock['Imaging'], name='Imaging')
-            self.imaging_dock_params = self.viewer.window.add_dock_widget(dock['Imaging Specs'],
-                                                                          name='Config Inputs', area='left')
-            self.viewer.window.add_dock_widget(dock['Laser Slider'], name="Laser Current", area='bottom')
-
-            self.general_imaging.adding_wavelength_tabs(self.imaging_dock)
+            # Add dockwidgets to viewer
+            main_dock = self.viewer.window.add_dock_widget(main_window, name='Main Window')
+            self.laser_parameters.adding_wavelength_tabs(main_dock)  # Adding laser wavelength tabs
+            self.viewer.window.add_dock_widget(instr_params_window, name='Instrument Parameters', area='left')
+            self.viewer.window.add_dock_widget(self.laser_slider, name="Laser Current", area='bottom')
 
             self.viewer.scale_bar.visible = True
             self.viewer.scale_bar.unit = "um"
@@ -57,44 +56,53 @@ class UserInterface:
             self.close_instrument()
             self.viewer.close()
 
+    def instrument_params(self):
+        instrument_params = InstrumentParameters(self.instrument.frame_grabber, self.cfg.sensor_column_count,
+                                                 self.simulated, self.instrument, self.cfg)
+        config_properties = instrument_params.scan_config(self.cfg)
+        cpx_exposure_widget = instrument_params.slit_width_widget()
+        cpx_line_interval_widget = instrument_params.exposure_time_widget()
+        cpx_scan_direction_widget = instrument_params.shutter_direction_widgets()
+        # instrument_params_widget = instrument_params.create_layout('V', exp=cpx_exposure_widget,
+        #                                                            line=cpx_line_interval_widget,
+        #                                                            prop=config_properties)
+        instrument_params_widget = instrument_params.create_layout('V', dir = cpx_scan_direction_widget, params=config_properties)
+        scroll_box = instrument_params.scroll_box(instrument_params_widget)
+        instrument_params_dock = QDockWidget()
+        instrument_params_dock.setWidget(scroll_box)
 
-    def imaging_specs_tab(self, simulated):
-        imaging_tab = AcquisitionParamsTab(self.instrument.frame_grabber, self.cfg.sensor_column_count, simulated,
-                                           self.instrument, self.cfg)
-        instument_params = imaging_tab.scan_config(self.cfg)
-        cpx_exposure_widget = imaging_tab.slit_width_widget()
-        cpx_line_interval_widget = imaging_tab.exposure_time_widget()
-        acquisition_widget = imaging_tab.create_layout('V', exp = cpx_exposure_widget,
-                                                       line = cpx_line_interval_widget,
-                                                       params = instument_params)
-        #acquisition_widget = imaging_tab.create_layout('V', params = instument_params)
-        scroll_box = imaging_tab.scroll_box(acquisition_widget)
-        imaging_specs_dock = QDockWidget()
-        imaging_specs_dock.setWidget(scroll_box)
+        return instrument_params_dock
 
-        return imaging_specs_dock
+    def livestream_widget(self):
 
-    def imaging_tab(self, simulated):
+        self.livestream_parameters = Livestream(self.viewer, self.cfg, self.instrument, self.simulated)
+
+        widgets = {
+            'live_view': self.livestream_parameters.liveview_widget(),
+            'grid': self.livestream_parameters.grid_widget(),
+            'screenshot': self.livestream_parameters.screenshot_button()
+        }
+
+        return self.livestream_parameters.create_layout(struct='V', **widgets)
+
+    def volumeteric_acquisition(self):
         imaging = QDockWidget()
         imaging.setWindowTitle('Imaging')
 
-        self.general_imaging = InitializeAcquisitionTab(self.viewer, self.cfg,
-                                                   self.instrument, simulated)
-        qframes = {
-                        'live_view': self.general_imaging.live_view_widget(),
-                        'grid' : self.general_imaging.grid_widget(),
-                        'screenshot': self.general_imaging.screenshot_button(),
-                        'position': self.general_imaging.sample_stage_position(),
-                        'volumetric_image': self.general_imaging.volumeteric_imaging_button(),
-                        'waveform': self.general_imaging.waveform_graph(),
-                        'wavelength_select': self.general_imaging.laser_wl_select(),}
+        self.vol_acq_params = VolumetericAcquisition(self.viewer, self.cfg, self.instrument, self.simulated)
+        widgets = {
+            'position': self.vol_acq_params.sample_stage_position(),
+            'volumetric_image': self.vol_acq_params.volumeteric_imaging_button(),
+            'waveform': self.vol_acq_params.waveform_graph(),
+        }
 
-        general_imaging_tab_widget = self.general_imaging.create_layout(struct='V', **qframes)
-        imaging.setWidget(general_imaging_tab_widget)
+        return self.vol_acq_params.create_layout(struct='V', **widgets)
 
-        laser_slider = self.general_imaging.laser_power_slider(self.instrument.lasers)
+    def laser_widget(self):
 
-        return imaging, laser_slider
+        self.laser_parameters = Lasers(self.viewer, self.cfg, self.instrument, self.simulated)
+        self.laser_slider = self.laser_parameters.laser_power_slider(self.instrument.lasers)
+        self.laser_wl_tabs = self.laser_parameters.laser_wl_select()
 
     def close_instrument(self):
         self.instrument.cfg.save()
