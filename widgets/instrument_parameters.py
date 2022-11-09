@@ -1,6 +1,6 @@
 from widgets.widget_base import WidgetBase
 from qtpy.QtWidgets import QLineEdit, QVBoxLayout, QWidget, \
-    QHBoxLayout, QLabel, QDoubleSpinBox
+    QHBoxLayout, QLabel, QDoubleSpinBox, QComboBox
 from qtpy.QtGui import QIntValidator
 
 
@@ -105,7 +105,7 @@ class InstrumentParameters(WidgetBase):
         Setting exposure time and line time in config object"""
 
         line_interval = (float(self.exposure_time['widget'].text()) * 1000000) / self.column_pixels
-        self.frame_grabber.set_line_interval(line_interval,live=self.instrument.live_status)
+        self.frame_grabber.set_line_interval(line_interval, live=self.instrument.live_status)
         self.frame_grabber.set_exposure_time(int(self.slit_width['widget'].text()) *
                                              line_interval,
                                              live=self.instrument.live_status)
@@ -120,19 +120,31 @@ class InstrumentParameters(WidgetBase):
     def shutter_direction_widgets(self):
 
         """"Setting shutter direction for each camera"""
-        scan_widgets= {}
+        self.scan_widgets = {}
         self.scan_direction = {}
         directions = ['FORWARD', 'BACKWARD']
-        for stream_id in range(0,2):
+        for stream_id in range(0, 2):
             value = self.cfg.camera_specs[self.camera_id[stream_id]]['scan_direction']
-            scan_widgets['label'], scan_widgets[f'widget{stream_id}'] = \
-                self.create_widget(int(value), QLineEdit, f'Scan Direction {self.camera_id[stream_id]}:')
-            scan_widgets[f'widget{stream_id}'].currentIndexChanged.connect(self.set_shutter_direction)
-            self.scan_direction[self.camera_id[stream_id]] = self.create_layout(struct='H', **scan_widgets)
+            index = 0 if value == 'FORWARD' else 1
 
-        return self.create_layout(struct='H', **self.scan_direction)
+            self.scan_widgets['label'], self.scan_widgets[f'widget{stream_id}'] = \
+                self.create_widget(None, QComboBox, f'{self.camera_id[stream_id]}_scan_direction:')
+            self.scan_widgets[f'widget{stream_id}'].addItems(directions)
+            self.scan_widgets[f'widget{stream_id}'].setCurrentIndex(index)
+            self.scan_widgets[f'widget{stream_id}'].currentIndexChanged.connect(lambda camera=stream_id:
+                                                                                self.set_shutter_direction(camera))
+            self.scan_direction[self.camera_id[stream_id]] = self.create_layout(struct='H',
+                                                                                label=self.scan_widgets['label'],
+                                                                                widget=
+                                                                                self.scan_widgets[f'widget{stream_id}'])
 
-    def set_shutter_direction(self):
+        return self.create_layout(struct='V', **self.scan_direction)
+
+    def set_shutter_direction(self, stream_id):
+
+        self.frame_grabber.set_scan_direction(stream_id, self.scan_widgets[f'widget{stream_id}'].currentText())
+        print(self.frame_grabber.get_scan_direction())
+
         if self.instrument.live_status:
             self.instrument._setup_waveform_hardware(
                 self.instrument.active_laser,

@@ -47,7 +47,6 @@ class UserInterface:
 
             self.viewer.scale_bar.visible = True
             self.viewer.scale_bar.unit = "um"
-            self.viewer.add_shapes(name='hist')
             napari.run()
 
         finally:
@@ -61,10 +60,11 @@ class UserInterface:
         config_properties = instrument_params.scan_config(self.cfg)
         cpx_exposure_widget = instrument_params.slit_width_widget()
         cpx_line_interval_widget = instrument_params.exposure_time_widget()
-        instrument_params_widget = instrument_params.create_layout('V', exp=cpx_exposure_widget,
-                                                                   line=cpx_line_interval_widget,
-                                                                   prop=config_properties)
-        # instrument_params_widget = instrument_params.create_layout('V', params=config_properties)
+        cpx_scan_direction_widget = instrument_params.shutter_direction_widgets()
+        # instrument_params_widget = instrument_params.create_layout('V', exp=cpx_exposure_widget,
+        #                                                            line=cpx_line_interval_widget,
+        #                                                            prop=config_properties)
+        instrument_params_widget = instrument_params.create_layout('V', dir = cpx_scan_direction_widget, params=config_properties)
         scroll_box = instrument_params.scroll_box(instrument_params_widget)
         instrument_params_dock = QDockWidget()
         instrument_params_dock.setWidget(scroll_box)
