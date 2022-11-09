@@ -106,11 +106,17 @@ class Lasers(WidgetBase):
         return self.create_layout(struct='V', **tab_widget_wl)
 
     def laser_power_slider(self, lasers: dict):
+
+        """Create slider for every possible laser and hides ones not in use
+        :param lasers: dictionary of lasers created """
+
         self.lasers = lasers
         laser_power_layout = {}
-        for wl in lasers:
+
+        for wl in lasers:   # Convert into strings for convenience. Laser device dict uses int , widget dict uses str
             wls = str(wl)
 
+            # Setting commands and initial values for slider widgets. 561 is power based and others current
             if wl == 561:
                 command = Cmd.LaserPower
                 set_value = float(lasers[wl].get(Query.LaserPowerSetting)) if not self.simulated else 15
@@ -119,23 +125,29 @@ class Lasers(WidgetBase):
                 command = Cmd.LaserCurrent
                 set_value = float(lasers[wl].get(Query.LaserCurrentSetting)) if not self.simulated else 15
 
+            # Creating label and line edit widget
             self.laser_power[f'{wls} label'], self.laser_power[wls] = self.create_widget(
                 value=int(set_value),
                 Qtype=QSlider,
                 label=f'{wl}: {set_value}mW' if wl == 561 else f'{wl}: {set_value}%' )
 
+            # Setting coloring and bounds for sliders
             self.laser_power[wls].setTickPosition(QSlider.TickPosition.TicksBothSides)
             self.laser_power[wls].setStyleSheet(
                 f"QSlider::sub-page:horizontal{{ background-color:{self.cfg.laser_specs[wls]['color']}; }}")
             self.laser_power[wls].setMinimum(0)
             self.laser_power[wls].setMaximum(float(lasers[wl].get(Query.MaximumLaserPower))) \
                 if wl == 561 and not self.simulated else self.laser_power[wls].setMaximum(100)
+
+            # Setting activity when slider is moved (update lable value)
+            # or released (update laser current or power to slider setpoint)
             self.laser_power[wls].sliderReleased.connect(
                 lambda value=self.laser_power[wls].value(), wl=wls, released = True, command=command:
                 self.laser_power_label(command, wl, released, command))
             self.laser_power[wls].sliderMoved.connect(
                 lambda value=self.laser_power[wls].value(), wl=wls: self.laser_power_label(value, wl))
 
+            # Hides sliders that are not being used in imaging
             if wl not in self.imaging_wavelengths:
                 self.laser_power[wls].setHidden(True)
                 self.laser_power[f'{wls} label'].setHidden(True)
@@ -144,10 +156,19 @@ class Lasers(WidgetBase):
 
         return self.create_layout(struct='V', **laser_power_layout)
 
-    def laser_power_label(self, value, wl, released = False, command = None):
+    def laser_power_label(self, value, wl:int, released = False, command = None):
+
+        """Set laser current or power to slider set point if released and update label if slider moved
+        :param value: value of slider
+        :param wl: wavelength of laser
+        :param released: if slider was released
+        :param command: command to send to laser. Set current or power
+        """
+
         value = self.laser_power[wl].value()
         text = f'{wl}: {value}mW' if wl == str(561) else f'{wl}: {value}%'
         self.laser_power[f'{wl} label'].setText(text)
 
         if released:
-            self.lasers[int(wl)].set(command, self.laser_power[wl].value())
+            self.lasers[int(wl)].set(command, float(self.laser_power[wl].value()))
+            self.lasers[561].get(Query.LaserPowerSetting)

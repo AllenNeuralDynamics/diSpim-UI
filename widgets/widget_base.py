@@ -22,7 +22,8 @@ class WidgetBase:
         path = path + self.pathFind(dictionary, kw, path, True) if path is not None else self.pathFind(dictionary, kw)
         if self.pathGet(dictionary, path) - value != 0:
             self.pathSet(dictionary, path, value)
-            self.instrument._setup_waveform_hardware(specify, live = True)
+        if self.instrument.live_status:
+            self.instrument._setup_waveform_hardware(self.instrument.active_laser, live = self.instrument.live_status)
 
 
     def scan(self, dictionary: dict, attr: str, prev_key: str = None, QDictionary: dict = None,
@@ -95,6 +96,11 @@ class WidgetBase:
         value_type = type(getattr(obj, var))
         value = value_type(widget.text())
         setattr(obj, var, value)
+        #TODO: This does not work
+        if getattr(obj, var, value) - value != 0:
+            setattr(obj, var, value)
+        if self.instrument.live_status:
+            self.instrument._setup_waveform_hardware(self.instrument.active_laser, live = self.instrument.live_status)
 
     def error_msg(self, title: str, msg: str):
 

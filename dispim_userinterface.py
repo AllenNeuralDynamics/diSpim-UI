@@ -26,18 +26,20 @@ class UserInterface:
             self.possible_wavelengths = self.cfg.cfg['imaging_specs']['possible_wavelengths']
             self.viewer = napari.Viewer(title='diSPIM control', ndisplay=2, axis_labels=('x', 'y'))
 
+            # Set up laser sliders and tabs
+            self.laser_widget()
+
             # Set up main window on gui which has livestreaming capability and volumeteric imaging button
             main_window = QDockWidget()
             main_window.setWindowTitle('Main')
             main_widgets = {
                                 'livestream_block': self.livestream_widget(),
-                                'acquisition_block': self.volumeteric_acquisition(),
+                                'acquisition_block': self.volumeteric_acquisition_widget(),
+                                'laser_block': self.laser_wl_tabs,
                             }
             main_window.setWidget(self.vol_acq_params.create_layout(struct='V', **main_widgets))
-            # Set up laser sliders and tabs
-            self.laser_widget()
             # Set up automatically generated widget labels and inputs
-            instr_params_window = self.instrument_params()
+            instr_params_window = self.instrument_params_widget()
 
             # Add dockwidgets to viewer
             main_dock = self.viewer.window.add_dock_widget(main_window, name='Main Window')
@@ -54,17 +56,18 @@ class UserInterface:
             self.close_instrument()
             self.viewer.close()
 
-    def instrument_params(self):
+    def instrument_params_widget(self):
         instrument_params = InstrumentParameters(self.instrument.frame_grabber, self.cfg.sensor_column_count,
                                                  self.simulated, self.instrument, self.cfg)
         config_properties = instrument_params.scan_config(self.cfg)
         cpx_exposure_widget = instrument_params.slit_width_widget()
         cpx_line_interval_widget = instrument_params.exposure_time_widget()
         cpx_scan_direction_widget = instrument_params.shutter_direction_widgets()
-        # instrument_params_widget = instrument_params.create_layout('V', exp=cpx_exposure_widget,
-        #                                                            line=cpx_line_interval_widget,
-        #                                                            prop=config_properties)
-        instrument_params_widget = instrument_params.create_layout('V', dir = cpx_scan_direction_widget, params=config_properties)
+        instrument_params_widget = instrument_params.create_layout('V',dir=cpx_scan_direction_widget,
+                                                                   exp=cpx_exposure_widget,
+                                                                   line=cpx_line_interval_widget,
+                                                                   prop=config_properties)
+        #instrument_params_widget = instrument_params.create_layout('V', dir = cpx_scan_direction_widget, params=config_properties)
         scroll_box = instrument_params.scroll_box(instrument_params_widget)
         instrument_params_dock = QDockWidget()
         instrument_params_dock.setWidget(scroll_box)
@@ -83,7 +86,7 @@ class UserInterface:
 
         return self.livestream_parameters.create_layout(struct='V', **widgets)
 
-    def volumeteric_acquisition(self):
+    def volumeteric_acquisition_widget(self):
         imaging = QDockWidget()
         imaging.setWindowTitle('Imaging')
 
@@ -103,5 +106,6 @@ class UserInterface:
         self.laser_wl_tabs = self.laser_parameters.laser_wl_select()
 
     def close_instrument(self):
+
         self.instrument.cfg.save()
         self.instrument.close()

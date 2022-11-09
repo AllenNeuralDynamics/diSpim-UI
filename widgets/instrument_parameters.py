@@ -131,8 +131,8 @@ class InstrumentParameters(WidgetBase):
                 self.create_widget(None, QComboBox, f'{self.camera_id[stream_id]}_scan_direction:')
             self.scan_widgets[f'widget{stream_id}'].addItems(directions)
             self.scan_widgets[f'widget{stream_id}'].setCurrentIndex(index)
-            self.scan_widgets[f'widget{stream_id}'].currentIndexChanged.connect(lambda camera=stream_id:
-                                                                                self.set_shutter_direction(camera))
+            self.scan_widgets[f'widget{stream_id}'].currentIndexChanged.connect(lambda index=None,camera=stream_id:
+                                                                                self.set_shutter_direction(index,camera))
             self.scan_direction[self.camera_id[stream_id]] = self.create_layout(struct='H',
                                                                                 label=self.scan_widgets['label'],
                                                                                 widget=
@@ -140,10 +140,16 @@ class InstrumentParameters(WidgetBase):
 
         return self.create_layout(struct='V', **self.scan_direction)
 
-    def set_shutter_direction(self, stream_id):
+    def set_shutter_direction(self, index, stream_id):
 
-        self.frame_grabber.set_scan_direction(stream_id, self.scan_widgets[f'widget{stream_id}'].currentText())
-        print(self.frame_grabber.get_scan_direction())
+        direction = self.scan_widgets[f'widget{stream_id}'].currentText()
+        self.frame_grabber.set_scan_direction(stream_id, direction, self.instrument.live_status)
+        print(self.frame_grabber.get_scan_direction(stream_id))
+
+        if stream_id == 0:
+            self.cfg.scan_direction_right = direction
+        else:
+            self.cfg.scan_direction_left = direction
 
         if self.instrument.live_status:
             self.instrument._setup_waveform_hardware(
