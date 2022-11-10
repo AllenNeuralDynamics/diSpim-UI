@@ -28,15 +28,24 @@ class UserInterface:
             # Set up laser sliders and tabs
             self.laser_widget()
 
-            # Set up main window on gui which has livestreaming capability and volumeteric imaging button
+            # Set up main window on gui which combines livestreaming and volumeteric imaging
             main_window = QDockWidget()
             main_window.setWindowTitle('Main')
             main_widgets = {
                                 'livestream_block': self.livestream_widget(),
                                 'acquisition_block': self.volumeteric_acquisition_widget(),
-                                'laser_block': self.laser_wl_tabs,
+
                             }
             main_window.setWidget(self.vol_acq_params.create_layout(struct='V', **main_widgets))
+
+            # Set up laser window combining laser sliders and selection
+            laser_window = QDockWidget()
+            laser_widget = {
+                                'laser_slider': self.laser_slider,
+                                'laser_select': self.laser_wl_select,
+                            }
+            laser_window.setWidget(self.laser_parameters.create_layout(struct='H', **laser_widget))
+
             # Set up automatically generated widget labels and inputs
             instr_params_window = self.instrument_params_widget()
 
@@ -44,7 +53,7 @@ class UserInterface:
             main_dock = self.viewer.window.add_dock_widget(main_window, name='Main Window')
             self.laser_parameters.adding_wavelength_tabs(main_dock)  # Adding laser wavelength tabs
             self.viewer.window.add_dock_widget(instr_params_window, name='Instrument Parameters', area='left')
-            self.viewer.window.add_dock_widget(self.laser_slider, name="Laser Current", area='bottom')
+            self.viewer.window.add_dock_widget(laser_window, name="Laser Current", area='bottom')
 
             self.viewer.scale_bar.visible = True
             self.viewer.scale_bar.unit = "um"
@@ -102,7 +111,7 @@ class UserInterface:
 
         self.laser_parameters = Lasers(self.viewer, self.cfg, self.instrument, self.simulated)
         self.laser_slider = self.laser_parameters.laser_power_slider(self.instrument.lasers)
-        self.laser_wl_tabs = self.laser_parameters.laser_wl_select()
+        self.laser_wl_select = self.laser_parameters.laser_wl_select()
 
     def close_instrument(self):
 

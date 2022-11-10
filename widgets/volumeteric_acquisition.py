@@ -38,11 +38,11 @@ class VolumetericAcquisition(WidgetBase):
         for direction in directions:
             self.pos_widget[direction + 'label'], self.pos_widget[direction] = \
                 self.create_widget(self.stage_position[direction], QSpinBox, f'{direction}:')
-            self.pos_widget[direction].valueChanged.connect(self.stage_position_changed)
+            #self.pos_widget[direction].valueChanged.connect(self.stage_position_changed)
 
-        # self.pos_widget['update'] = QPushButton()
-        # self.pos_widget['update'].setText('Update')
-        # self.pos_widget['update'].clicked.connect(self.update_sample_pos)
+        self.pos_widget['update'] = QPushButton()
+        self.pos_widget['update'].setText('Update')
+        self.pos_widget['update'].clicked.connect(self.update_sample_pos)
         #TODO:When you update position you also change value which then moves stage.
         # How to get around? Spooked adam
 

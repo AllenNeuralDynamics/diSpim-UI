@@ -16,14 +16,18 @@ class WidgetBase:
         :param repeat = signals if there are multiple variables with the same kw in the dictionary
         """
 
-        value = float(widget.text())
         dictionary = getattr(self.cfg, attribute)
         path = self.pathFind(dictionary, specify)
         path = path + self.pathFind(dictionary, kw, path, True) if path is not None else self.pathFind(dictionary, kw)
-        if self.pathGet(dictionary, path) - value != 0:
+
+        cfg_value = self.pathGet(dictionary, path)
+        value_type = type(cfg_value)
+        value = value_type(widget.text())
+        print(cfg_value != value)
+        if cfg_value != value:
             self.pathSet(dictionary, path, value)
-        if self.instrument.live_status:
-            self.instrument._setup_waveform_hardware(self.instrument.active_laser, live = self.instrument.live_status)
+            if self.instrument.live_status:
+                self.instrument._setup_waveform_hardware(self.instrument.active_laser, live = self.instrument.live_status)
 
 
     def scan(self, dictionary: dict, attr: str, prev_key: str = None, QDictionary: dict = None,
@@ -97,10 +101,11 @@ class WidgetBase:
         value = value_type(widget.text())
         setattr(obj, var, value)
         #TODO: This does not work
-        if getattr(obj, var, value) - value != 0:
+        print(getattr(obj, var, value) != value)
+        if getattr(obj, var, value) != value:
             setattr(obj, var, value)
-        if self.instrument.live_status:
-            self.instrument._setup_waveform_hardware(self.instrument.active_laser, live = self.instrument.live_status)
+            if self.instrument.live_status:
+                self.instrument._setup_waveform_hardware(self.instrument.active_laser, live = self.instrument.live_status)
 
     def error_msg(self, title: str, msg: str):
 

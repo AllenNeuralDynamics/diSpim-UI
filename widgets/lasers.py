@@ -17,8 +17,8 @@ class Lasers(WidgetBase):
         self.cfg = cfg
         self.instrument = instrument
         self.simulated = simulated
-        self.possible_wavelengths = self.cfg.cfg['imaging_specs']['possible_wavelengths']
-        self.imaging_wavelengths = self.cfg.imaging_specs['laser_wavelengths']
+        self.possible_wavelengths = self.cfg.laser_wavelengths
+        self.imaging_wavelengths = self.cfg.imaging_wavelengths
 
         self.wavelength_selection = {}
         self.selected = {}
@@ -44,7 +44,7 @@ class Lasers(WidgetBase):
         # Adds a 'label' (QPushButton) for every possible wavelength then hides the unselected ones.
         # Pushing labels should hide them and selecting QComboBox should unhide them
         self.wavelength_selection['selected'] = self.selected_wv_label()
-        return self.create_layout('H', **self.wavelength_selection)
+        return self.create_layout('V', **self.wavelength_selection)
 
     def selected_wv_label(self):
 
@@ -60,7 +60,7 @@ class Lasers(WidgetBase):
                                                        self.hide_labels(clicked, widget))
             if int(wavelengths) not in self.imaging_wavelengths:
                 self.selected[wavelengths].setHidden(True)
-        self.selected_wl_layout = self.create_layout(struct='H', **self.selected)
+        self.selected_wl_layout = self.create_layout(struct='V', **self.selected)
         return self.selected_wl_layout
 
     def hide_labels(self, clicked, widget):

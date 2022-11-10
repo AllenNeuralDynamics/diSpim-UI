@@ -19,7 +19,7 @@ class Livestream(WidgetBase):
         """
 
         self.cfg = cfg
-        self.possible_wavelengths = self.cfg.cfg['imaging_specs']['possible_wavelengths']
+        self.possible_wavelengths = self.cfg.laser_wavelengths
         self.viewer = viewer
         self.instrument = instrument
         self.simulated = simulated
