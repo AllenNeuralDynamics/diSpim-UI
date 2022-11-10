@@ -9,7 +9,6 @@ from widgets.lasers import Lasers
 import logging
 import traceback
 
-
 class UserInterface:
 
     def __init__(self, config_filepath: str,
@@ -17,7 +16,7 @@ class UserInterface:
                  console_output: bool = True,
                  console_output_level: str = 'info',
                  simulated: bool = False):
-
+        # TODO: Create logger tab at bottom of napari viewer
         try:
             self.log = logging.getLogger("dispim")  # TODO: Create logger tab at bottom of napari viewer
             self.instrument = dispim.Dispim(config_filepath=config_filepath, simulated=simulated)
@@ -33,8 +32,7 @@ class UserInterface:
             main_window.setWindowTitle('Main')
             main_widgets = {
                                 'livestream_block': self.livestream_widget(),
-                                'acquisition_block': self.volumeteric_acquisition_widget(),
-
+                                'acquisition_block': self.volumeteric_acquisition(),
                             }
             main_window.setWidget(self.vol_acq_params.create_layout(struct='V', **main_widgets))
 
@@ -114,6 +112,5 @@ class UserInterface:
         self.laser_wl_select = self.laser_parameters.laser_wl_select()
 
     def close_instrument(self):
-
         self.instrument.cfg.save()
         self.instrument.close()

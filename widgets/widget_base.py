@@ -100,8 +100,7 @@ class WidgetBase:
         value_type = type(getattr(obj, var))
         value = value_type(widget.text())
         setattr(obj, var, value)
-        #TODO: This does not work
-        print(getattr(obj, var, value) != value)
+
         if getattr(obj, var, value) != value:
             setattr(obj, var, value)
             if self.instrument.live_status:
