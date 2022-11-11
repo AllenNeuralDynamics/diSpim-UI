@@ -64,6 +64,11 @@ class Lasers(WidgetBase):
         return self.selected_wl_layout
 
     def hide_labels(self, clicked, widget):
+
+        """Hides laser labels and tabs that are not in use
+        :param widget: widget that was clicked to remove from imaging wavelengths
+        """
+
         widget_wavelength = widget.text()
         widget.setHidden(True)
         self.laser_dock[widget_wavelength].setHidden(True)
@@ -73,6 +78,9 @@ class Lasers(WidgetBase):
         self.wavelength_selection['unselected'].addItem(widget.text())
 
     def unhide_labels(self):
+
+        """Reveals laser labels and tabs that are now in use"""
+
         index = self.wavelength_selection['unselected'].currentIndex()
         if index != 0:
             widget_wavelength = self.wavelength_selection['unselected'].currentText()
@@ -84,6 +92,10 @@ class Lasers(WidgetBase):
             self.laser_power[f'{widget_wavelength} label'].setHidden(False)
 
     def adding_wavelength_tabs(self, imaging_dock):
+
+        """Adds laser parameters tabs onto main window for all possible wavelengths
+        :param imaging_dock: main window to tabify laser parameter """
+
         for wavelength in self.possible_wavelengths:
             wavelength = str(wavelength)
             main_dock = QDockWidget()
@@ -127,7 +139,7 @@ class Lasers(WidgetBase):
 
             # Creating label and line edit widget
             self.laser_power[f'{wls} label'], self.laser_power[wls] = self.create_widget(
-                value=int(set_value),
+                value = None,
                 Qtype=QSlider,
                 label=f'{wl}: {set_value}mW' if wl == 561 else f'{wl}: {set_value}%' )
 
@@ -138,6 +150,7 @@ class Lasers(WidgetBase):
             self.laser_power[wls].setMinimum(0)
             self.laser_power[wls].setMaximum(float(lasers[wl].get(Query.MaximumLaserPower))) \
                 if wl == 561 and not self.simulated else self.laser_power[wls].setMaximum(100)
+            self.laser_power[wls].setValue(set_value)
 
             # Setting activity when slider is moved (update lable value)
             # or released (update laser current or power to slider setpoint)

@@ -16,7 +16,7 @@ class UserInterface:
                  console_output: bool = True,
                  console_output_level: str = 'info',
                  simulated: bool = False):
-        # TODO: Create logger tab at bottom of napari viewer
+
         try:
             self.log = logging.getLogger("dispim")  # TODO: Create logger tab at bottom of napari viewer
             self.instrument = dispim.Dispim(config_filepath=config_filepath, simulated=simulated)
@@ -32,7 +32,7 @@ class UserInterface:
             main_window.setWindowTitle('Main')
             main_widgets = {
                                 'livestream_block': self.livestream_widget(),
-                                'acquisition_block': self.volumeteric_acquisition(),
+                                'acquisition_block': self.volumeteric_acquisition_widget(),
                             }
             main_window.setWidget(self.vol_acq_params.create_layout(struct='V', **main_widgets))
 
@@ -65,15 +65,13 @@ class UserInterface:
     def instrument_params_widget(self):
         instrument_params = InstrumentParameters(self.instrument.frame_grabber, self.cfg.sensor_column_count,
                                                  self.simulated, self.instrument, self.cfg)
-        config_properties = instrument_params.scan_config(self.cfg)
-        cpx_exposure_widget = instrument_params.slit_width_widget()
-        cpx_line_interval_widget = instrument_params.exposure_time_widget()
-        cpx_scan_direction_widget = instrument_params.shutter_direction_widgets()
-        instrument_params_widget = instrument_params.create_layout('V',dir=cpx_scan_direction_widget,
-                                                                   exp=cpx_exposure_widget,
-                                                                   line=cpx_line_interval_widget,
-                                                                   prop=config_properties)
-        #instrument_params_widget = instrument_params.create_layout('V', dir = cpx_scan_direction_widget, params=config_properties)
+        widgets = {
+            'cpx_scan_direction_widget': instrument_params.shutter_direction_widgets(),
+            'cpx_line_interval_widget': instrument_params.exposure_time_widget(),
+            'cpx_exposure_widget': instrument_params.slit_width_widget(),
+            'config_properties': instrument_params.scan_config(self.cfg),
+        }
+        instrument_params_widget = instrument_params.create_layout('V', **widgets)
         scroll_box = instrument_params.scroll_box(instrument_params_widget)
         instrument_params_dock = QDockWidget()
         instrument_params_dock.setWidget(scroll_box)

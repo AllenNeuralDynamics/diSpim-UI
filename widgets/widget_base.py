@@ -217,9 +217,5 @@ class WidgetBase:
 
         elif isinstance(widget_input, QSlider):
             widget_input.setOrientation(QtCore.Qt.Horizontal)
-            try:
-                widget_input.setValue(value)
-            except:
-                pass
 
         return widget_label, widget_input

@@ -45,8 +45,16 @@ class InstrumentParameters(WidgetBase):
                 prop_obj = get_dict_attr(config, attr)
 
                 if prop_obj.fset is not None and prop_obj.fget is not None:
+
+                    doc_string = prop_obj.__doc__
+                    if doc_string is not None and ':unit' in doc_string:
+                        index = doc_string.find(':unit') + 6
+                        unit = doc_string[index:len(doc_string)]
+
+                    label = f'{attr} [{unit}]:' if doc_string is not None and ':unit' in doc_string else attr
+
                     imaging_specs[attr, '_label'], imaging_specs[attr] = \
-                        self.create_widget(getattr(config, attr), QLineEdit, label=attr)
+                        self.create_widget(getattr(config, attr), QLineEdit, label=label)
 
                     imaging_specs[attr].editingFinished.connect(lambda obj=config, var=attr, widget=imaging_specs[attr]:
                                                                 self.set_attribute(obj, var, widget))
@@ -63,7 +71,7 @@ class InstrumentParameters(WidgetBase):
 
         value = self.cfg.slit_width
         self.slit_width['label'], self.slit_width['widget'] = \
-            self.create_widget(int(value), QLineEdit, 'Slit Width:')
+            self.create_widget(int(value), QLineEdit, 'Slit Width [px]:')
         validator = QIntValidator()
         self.slit_width['widget'].setValidator(validator)
         self.slit_width['widget'].editingFinished.connect(self.set_cpx_exposure_time)
@@ -96,7 +104,7 @@ class InstrumentParameters(WidgetBase):
         value = self.cfg.exposure_time
         # TODO: make sure the pixels are right
         self.exposure_time['label'], self.exposure_time['widget'] = \
-            self.create_widget(value, QLineEdit, 'Exposure Time (ms):')
+            self.create_widget(value, QLineEdit, 'Exposure Time [s]:')
         self.exposure_time['widget'].editingFinished.connect(self.set_cpx_line_interval)
 
         return self.create_layout(struct='H', **self.exposure_time)
