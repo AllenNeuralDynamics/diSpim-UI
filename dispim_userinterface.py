@@ -28,6 +28,9 @@ class UserInterface:
             # Set up laser sliders and tabs
             self.laser_widget()
 
+            # Set up automatically generated widget labels and inputs
+            instr_params_window = self.instrument_params_widget()
+
             # Set up main window on gui which combines livestreaming and volumeteric imaging
             main_window = QDockWidget()
             main_window.setWindowTitle('Main')
@@ -45,9 +48,6 @@ class UserInterface:
                             }
             laser_window.setWidget(self.laser_parameters.create_layout(struct='H', **laser_widget))
 
-            # Set up automatically generated widget labels and inputs
-            instr_params_window = self.instrument_params_widget()
-
             # Add dockwidgets to viewer
             main_dock = self.viewer.window.add_dock_widget(main_window, name='Main Window')
             self.laser_parameters.adding_wavelength_tabs(main_dock)  # Adding laser wavelength tabs
@@ -64,16 +64,16 @@ class UserInterface:
             self.viewer.close()
 
     def instrument_params_widget(self):
-        instrument_params = InstrumentParameters(self.instrument.frame_grabber, self.cfg.sensor_column_count,
+        self.instrument_params = InstrumentParameters(self.instrument.frame_grabber, self.cfg.sensor_column_count,
                                                  self.simulated, self.instrument, self.cfg)
         widgets = {
-            'cpx_scan_direction_widget': instrument_params.shutter_direction_widgets(),
-            'cpx_line_interval_widget': instrument_params.exposure_time_widget(),
-            'cpx_exposure_widget': instrument_params.slit_width_widget(),
-            'config_properties': instrument_params.scan_config(self.cfg),
+            'cpx_scan_direction_widget': self.instrument_params.shutter_direction_widgets(),
+            'cpx_line_interval_widget': self.instrument_params.exposure_time_widget(),
+            'cpx_exposure_widget': self.instrument_params.slit_width_widget(),
+            'config_properties': self.instrument_params.scan_config(self.cfg),
         }
-        instrument_params_widget = instrument_params.create_layout('V', **widgets)
-        scroll_box = instrument_params.scroll_box(instrument_params_widget)
+        instrument_params_widget = self.instrument_params.create_layout('V', **widgets)
+        scroll_box = self.instrument_params.scroll_box(instrument_params_widget)
         instrument_params_dock = QDockWidget()
         instrument_params_dock.setWidget(scroll_box)
 
@@ -102,13 +102,41 @@ class UserInterface:
             'waveform': self.vol_acq_params.waveform_graph(),
         }
 
+        # Update config and instrument_params text of change of scan volume
+        self.vol_acq_params.set_volume['set_end'].clicked.connect(self.set_scan_volume)
+        self.vol_acq_params.set_volume['set_start'].clicked.connect(self.set_scan_volume)
+
         return self.vol_acq_params.create_layout(struct='V', **widgets)
+
+    def set_scan_volume(self):
+
+        """When volume of scan is changed, the config and widgets are subsequently updated"""
+
+        direction = ['X', 'Y', 'Z']
+        start = self.instrument.start_pos
+        print(start)
+        print(self.instrument.start_pos)
+        end = self.instrument.get_sample_position()
+        for direcs in direction:
+            if start is not None:
+                volume = end[direcs] - start[direcs]
+                self.cfg.imaging_specs[f'volume_{direcs.lower()}_um'] = volume * 1 / 10
+                self.instrument_params.imaging_specs[f'volume_{direcs.lower()}_um']. \
+                    setText(str(volume * 1 / 10))
+                # volume is in 1/10 of micron
+
+            else:
+                print('else ',self.instrument.start_pos)
+                self.vol_acq_params.set_volume['set_end'].setHidden(False)
+                self.instrument.set_scan_start(end)
+                return
 
     def laser_widget(self):
 
         self.laser_parameters = Lasers(self.viewer, self.cfg, self.instrument, self.simulated)
         self.laser_slider = self.laser_parameters.laser_power_slider(self.instrument.lasers)
         self.laser_wl_select = self.laser_parameters.laser_wl_select()
+
 
     def close_instrument(self):
         self.instrument.cfg.save()

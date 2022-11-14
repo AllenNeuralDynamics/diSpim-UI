@@ -23,6 +23,7 @@ class InstrumentParameters(WidgetBase):
         self.cfg = config
         self.slit_width = {}
         self.exposure_time = {}
+        self.imaging_specs = {}
 
         self.camera_id = ['camera_right', 'camera_left']
 
@@ -31,7 +32,7 @@ class InstrumentParameters(WidgetBase):
         """Scans config and finds property types with setter and getter attributes
         :param config: config object from the instrument class"""
 
-        imaging_specs = {}  # dictionary to store attribute labels and input box
+        self.imaging_specs = {}  # dictionary to store attribute labels and input box
         imaging_specs_widgets = {}  # dictionary that holds layout of attribute labels/input pairs
 
         cpx_attributes = ['exposure_time','slit_width','line_time','scan_direction_left','scan_direction_right']
@@ -53,16 +54,18 @@ class InstrumentParameters(WidgetBase):
 
                     label = f'{attr} [{unit}]:' if doc_string is not None and ':unit' in doc_string else attr
 
-                    imaging_specs[attr, '_label'], imaging_specs[attr] = \
+                    self.imaging_specs[attr, '_label'], self.imaging_specs[attr] = \
                         self.create_widget(getattr(config, attr), QLineEdit, label=label)
 
-                    imaging_specs[attr].editingFinished.connect(lambda obj=config, var=attr, widget=imaging_specs[attr]:
+                    self.imaging_specs[attr].editingFinished.connect\
+                        (lambda obj=config, var=attr, widget=self.imaging_specs[attr]:
                                                                 self.set_attribute(obj, var, widget))
 
-                    imaging_specs[attr].setToolTip(prop_obj.__doc__)
+                    self.imaging_specs[attr].setToolTip(prop_obj.__doc__)
 
-                    imaging_specs_widgets[attr] = self.create_layout(struct='H', label=imaging_specs[attr, '_label'],
-                                                                     text=imaging_specs[attr])
+                    imaging_specs_widgets[attr] = self.create_layout(struct='H',
+                                                                     label=self.imaging_specs[attr, '_label'],
+                                                                     text=self.imaging_specs[attr])
         return self.create_layout(struct='V', **imaging_specs_widgets)
 
     def slit_width_widget(self):
