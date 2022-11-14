@@ -74,7 +74,9 @@ class VolumetericAcquisition(WidgetBase):
 
     def run_volumeteric_imaging(self):
 
-        self.instrument.run_from_config()
+        self.instrument.run(overwrite=True)
+
+        # TODO: Add a warning if about to overwrite
 
     def waveform_graph(self):
 
