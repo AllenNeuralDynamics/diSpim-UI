@@ -68,6 +68,7 @@ class VolumetericAcquisition(WidgetBase):
 
         volumetric_image = {'start': QPushButton('Start Volumetric Imaging')}
         volumetric_image['start'].clicked.connect(self.run_volumeteric_imaging)
+        # Put in seperate function so upon initiation of gui, run(0 funtion does not start
 
         return self.create_layout(struct='H', **volumetric_image)
 

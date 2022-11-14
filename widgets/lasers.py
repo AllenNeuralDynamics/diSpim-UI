@@ -184,4 +184,6 @@ class Lasers(WidgetBase):
 
         if released:
             self.lasers[int(wl)].set(command, float(self.laser_power[wl].value()))
-            self.lasers[561].get(Query.LaserPowerSetting)
+            #TODO: When gui talks to hardware, log statement clarifying this
+            #   Anytime gui changes state of not the gui
+            #self.lasers[561].get(Query.LaserPowerSetting)

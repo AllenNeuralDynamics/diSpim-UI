@@ -18,7 +18,8 @@ class UserInterface:
                  simulated: bool = False):
 
         try:
-            self.log = logging.getLogger("dispim")  # TODO: Create logger tab at bottom of napari viewer
+            self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
+            # TODO: Create logger tab at bottom of napari viewer. Also make logger for each class as well
             self.instrument = dispim.Dispim(config_filepath=config_filepath, simulated=simulated)
             self.simulated = simulated
             self.cfg = self.instrument.cfg
