@@ -1,6 +1,5 @@
 import napari
 from qtpy.QtWidgets import QDockWidget
-from qtpy.QtCore import QTimer
 import dispim.dispim as dispim
 from widgets.instrument_parameters import InstrumentParameters
 from widgets.volumeteric_acquisition import VolumetericAcquisition
@@ -8,6 +7,7 @@ from widgets.livestream import Livestream
 from widgets.lasers import Lasers
 import logging
 import traceback
+
 
 class UserInterface:
 
@@ -35,17 +35,17 @@ class UserInterface:
             main_window = QDockWidget()
             main_window.setWindowTitle('Main')
             main_widgets = {
-                                'livestream_block': self.livestream_widget(),
-                                'acquisition_block': self.volumeteric_acquisition_widget(),
-                            }
+                'livestream_block': self.livestream_widget(),
+                'acquisition_block': self.volumeteric_acquisition_widget(),
+            }
             main_window.setWidget(self.vol_acq_params.create_layout(struct='V', **main_widgets))
 
             # Set up laser window combining laser sliders and selection
             laser_window = QDockWidget()
             laser_widget = {
-                                'laser_slider': self.laser_slider,
-                                'laser_select': self.laser_wl_select,
-                            }
+                'laser_slider': self.laser_slider,
+                'laser_select': self.laser_wl_select,
+            }
             laser_window.setWidget(self.laser_parameters.create_layout(struct='H', **laser_widget))
 
             # Add dockwidgets to viewer
@@ -65,7 +65,7 @@ class UserInterface:
 
     def instrument_params_widget(self):
         self.instrument_params = InstrumentParameters(self.instrument.frame_grabber, self.cfg.sensor_column_count,
-                                                 self.simulated, self.instrument, self.cfg)
+                                                      self.simulated, self.instrument, self.cfg)
         widgets = {
             'cpx_scan_direction_widget': self.instrument_params.shutter_direction_widgets(),
             'cpx_line_interval_widget': self.instrument_params.exposure_time_widget(),
@@ -86,9 +86,17 @@ class UserInterface:
         widgets = {
             'live_view': self.livestream_parameters.liveview_widget(),
             'grid': self.livestream_parameters.grid_widget(),
-            'screenshot': self.livestream_parameters.screenshot_button()
+            'screenshot': self.livestream_parameters.screenshot_button(),
+            'position': self.livestream_parameters.sample_stage_position(),
         }
 
+        # Update config and instrument_params text of change of scan volume
+        self.livestream_parameters.set_volume['set_start'].clicked.connect(lambda clicked=None,
+                                                                                  state='start':
+                                                                           self.set_scan_volume(clicked, state))
+        self.livestream_parameters.set_volume['set_end'].clicked.connect(lambda clicked=None,
+                                                                                state='stop':
+                                                                         self.set_scan_volume(clicked, state))
         return self.livestream_parameters.create_layout(struct='V', **widgets)
 
     def volumeteric_acquisition_widget(self):
@@ -97,39 +105,11 @@ class UserInterface:
 
         self.vol_acq_params = VolumetericAcquisition(self.viewer, self.cfg, self.instrument, self.simulated)
         widgets = {
-            'position': self.vol_acq_params.sample_stage_position(),
             'volumetric_image': self.vol_acq_params.volumeteric_imaging_button(),
             'waveform': self.vol_acq_params.waveform_graph(),
         }
 
-        # Update config and instrument_params text of change of scan volume
-        self.vol_acq_params.set_volume['set_end'].clicked.connect(self.set_scan_volume)
-        self.vol_acq_params.set_volume['set_start'].clicked.connect(self.set_scan_volume)
-
         return self.vol_acq_params.create_layout(struct='V', **widgets)
-
-    def set_scan_volume(self):
-
-        """When volume of scan is changed, the config and widgets are subsequently updated"""
-
-        direction = ['X', 'Y', 'Z']
-        start = self.instrument.start_pos
-        print(start)
-        print(self.instrument.start_pos)
-        end = self.instrument.get_sample_position()
-        for direcs in direction:
-            if start is not None:
-                volume = end[direcs] - start[direcs]
-                self.cfg.imaging_specs[f'volume_{direcs.lower()}_um'] = volume * 1 / 10
-                self.instrument_params.imaging_specs[f'volume_{direcs.lower()}_um']. \
-                    setText(str(volume * 1 / 10))
-                # volume is in 1/10 of micron
-
-            else:
-                print('else ',self.instrument.start_pos)
-                self.vol_acq_params.set_volume['set_end'].setHidden(False)
-                self.instrument.set_scan_start(end)
-                return
 
     def laser_widget(self):
 
@@ -137,6 +117,51 @@ class UserInterface:
         self.laser_slider = self.laser_parameters.laser_power_slider(self.instrument.lasers)
         self.laser_wl_select = self.laser_parameters.laser_wl_select()
 
+    def set_scan_volume(self, clicked, state):
+
+        """When volume of scan is changed, the config and widgets are subsequently updated"""
+
+        direction = ['X', 'Y', 'Z']
+        current = self.livestream_parameters.sample_pos
+        set_start = self.instrument.start_pos
+
+        if set_start is None:
+            self.livestream_parameters.set_volume['set_end'].setHidden(False)
+            self.instrument.set_scan_start(current)
+
+        else:
+            if state == 'start':
+                self.instrument.set_scan_start(current)
+                if self.livestream_parameters.end_scan == None:
+                    return
+                else:
+                    self.update_volume(direction)
+
+            else:
+                self.livestream_parameters.end_scan = current
+                self.log.info(f'Scan end position set to {self.livestream_parameters.end_scan["X"]}, '
+                              f'{self.livestream_parameters.end_scan["Y"]}, '
+                              f'{self.livestream_parameters.end_scan["Z"]}')
+                self.update_volume(direction)
+
+    def update_volume(self, direction):
+        start = self.instrument.start_pos
+        end = self.livestream_parameters.end_scan
+        direction_samp = ['z', 'x', 'y']    #Remapping axis from tiger box to sample
+        for tiger, sample in zip(direction, direction_samp):
+            self.log.info(f"Setting volume limits. Tiger axis = {tiger}. "
+                          f"Setting {sample} volume")
+            volume = end[tiger] - start[tiger]
+            if volume < 0:
+                self.instrument_params.error_msg('Invalid Volume',
+                                                 'Invalid start and end coordinates '
+                                                 'resulting in negative volume values.\n'
+                                                 f'Start: {start["X"]}, {start["Y"]}, {start["Z"]}\n '
+                                                 f'End: {end["X"]}, {end["Y"]}, {end["Z"]}')
+                return
+            self.cfg.imaging_specs[f'volume_{sample}_um'] = volume * 1 / 10
+            self.instrument_params.imaging_specs[f'volume_{sample}_um']. \
+                setText(str(volume * 1 / 10))
 
     def close_instrument(self):
         self.instrument.cfg.save()

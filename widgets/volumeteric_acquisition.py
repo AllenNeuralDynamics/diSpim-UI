@@ -23,57 +23,9 @@ class VolumetericAcquisition(WidgetBase):
         self.instrument = instrument
         self.simulated = simulated
 
-        self.pos_widget = {}
         self.waveform = {}
         self.selected = {}
-        self.pos_widget = {}    # Holds widgets related to sample position
-        self.set_volume = {}    # Holds widgets related to setting volume limits during scan
-        self.volume = {}        # Dictionary of x, y, z volume for scan
-        self.colors = None
-        self.stage_position = None
         self.data_line = None       # Lines for graph
-
-    def sample_stage_position(self):
-
-        """Creates labels and boxs to indicate sample position"""
-
-        directions = ['X', 'Y', 'Z']
-        self.stage_position = self.instrument.get_sample_position()
-
-        #Create X, Y, Z labels and displays for where stage is
-        for direction in directions:
-            self.pos_widget[direction + 'label'], self.pos_widget[direction] = \
-                self.create_widget(self.stage_position[direction], QSpinBox, f'{direction}:')
-            self.pos_widget[direction].setReadOnly(True)
-
-        # Update sample position in gui when pressed
-        self.set_volume['update'] = QPushButton()
-        self.set_volume['update'].setText('Update')
-        self.set_volume['update'].clicked.connect(self.update_sample_pos)
-        #TODO:When you update position you also change value which then moves stage.
-        # How to get around? Spooked adam
-
-        # Sets start position of scan to current position of sample
-        self.set_volume['set_start'] = QPushButton()
-        self.set_volume['set_start'].setText('Set Scan Start')
-
-        # Sets start position of scan to current position of sample
-        self.set_volume['set_end'] = QPushButton()
-        self.set_volume['set_end'].setText('Set Scan End')
-        self.set_volume['set_end'].setHidden(True)
-
-        self.pos_widget['volume_widgets'] = self.create_layout(struct='V', **self.set_volume)
-
-        return self.create_layout(struct='H', **self.pos_widget)
-
-
-    def update_sample_pos(self):
-        """Update position widgets for volumetric imaging or manually moving"""
-
-        sample_pos = self.instrument.get_sample_position()
-        for direction, value in sample_pos.items():
-            if direction in self.pos_widget:
-                self.pos_widget[direction].setValue(value)
 
     def volumeteric_imaging_button(self):
 
