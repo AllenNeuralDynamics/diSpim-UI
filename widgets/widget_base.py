@@ -213,7 +213,7 @@ class WidgetBase:
         elif isinstance(widget_input, QSpinBox):
             widget_input.setMaximum(2147483647)
             widget_input.setMinimum(-2147483648)
-            widget_input.setValue(value)
+            widget_input.setValue(int(value))
 
         elif isinstance(widget_input, QSlider):
             widget_input.setOrientation(QtCore.Qt.Horizontal)

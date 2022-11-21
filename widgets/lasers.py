@@ -75,6 +75,7 @@ class Lasers(WidgetBase):
         self.laser_power[widget_wavelength].setHidden(True)
         self.laser_power[f'{widget_wavelength} label'].setHidden(True)
         self.imaging_wavelengths.remove(int(widget_wavelength))
+        self.imaging_wavelengths.sort()
         self.wavelength_selection['unselected'].addItem(widget.text())
 
     def unhide_labels(self):
@@ -85,6 +86,7 @@ class Lasers(WidgetBase):
         if index != 0:
             widget_wavelength = self.wavelength_selection['unselected'].currentText()
             self.imaging_wavelengths.append(int(widget_wavelength))
+            self.imaging_wavelengths.sort()
             self.wavelength_selection['unselected'].removeItem(index)
             self.selected[widget_wavelength].setHidden(False)
             self.laser_dock[widget_wavelength].setHidden(False)

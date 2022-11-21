@@ -1,9 +1,12 @@
 from widgets.widget_base import WidgetBase
-from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, QSlider, QLineEdit
+from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, \
+    QSlider, QLineEdit,QMessageBox
 import numpy as np
 from pyqtgraph import PlotWidget, mkPen
 from dispim.compute_waveforms import generate_waveforms
 import logging
+from napari.qt.threading import thread_worker, create_worker
+from time import sleep
 
 class VolumetericAcquisition(WidgetBase):
 
@@ -26,20 +29,69 @@ class VolumetericAcquisition(WidgetBase):
         self.waveform = {}
         self.selected = {}
         self.data_line = None       # Lines for graph
+        self.camera_id = ['Right', 'Left']
 
     def volumeteric_imaging_button(self):
 
-        volumetric_image = {'start': QPushButton('Start Volumetric Imaging')}
-        volumetric_image['start'].clicked.connect(self.run_volumeteric_imaging)
+        self.volumetric_image = {'start': QPushButton('Start Volumetric Imaging'),
+                                 'overwrite': QCheckBox('Overwrite')}
+        self.volumetric_image['start'].clicked.connect(self.run_volumeteric_imaging)
         # Put in seperate function so upon initiation of gui, run() funtion does not start
 
-        return self.create_layout(struct='H', **volumetric_image)
+        return self.create_layout(struct='H', **self.volumetric_image)
 
     def run_volumeteric_imaging(self):
+        if self.volumetric_image['overwrite'].isChecked():
+            return_value = self.overwrite_warning()
+            if return_value == QMessageBox.Cancel:
+                return
 
-        self.instrument.run(overwrite=True)
+        self.run_worker = self._run()
+        self.run_worker.start()
+        sleep(5)
+        self.volumetric_image_worker = self._volumetric_image()
+        self.volumetric_image_worker.yielded.connect(self.update_layer)
+        self.volumetric_image_worker.start()
 
-        # TODO: Add a warning if about to overwrite
+    @thread_worker
+    def _run(self):
+        self.instrument.run(overwrite=self.volumetric_image['overwrite'].isChecked())
+        self.end_scan()
+
+    @thread_worker
+    def _volumetric_image(self):
+
+        while True:
+            im = self.instrument.im if not self.simulated else np.random.rand(self.cfg.sensor_row_count,
+                                                                              self.cfg.sensor_column_count)
+            yield im
+
+    def update_layer(self, im):
+
+        """Update viewer with the newest image from scan"""
+
+        try:
+            key = 'Volumeteric Run'
+            layer = self.viewer.layers[key]
+            layer._slice.image._view = im
+            layer.events.set_data()
+
+        except KeyError:
+            self.viewer.layers.clear()
+            self.viewer.add_image(im, name='Volumeteric Run')
+
+    def end_scan(self):
+        self.instrument.livestream_enabled.clear()
+        self.run_worker.quit()
+        self.volumetric_image_worker.quit()
+
+    def overwrite_warning(self):
+        msgBox = QMessageBox()
+        msgBox.setIcon(QMessageBox.Information)
+        msgBox.setText("Running Acquisition will overwrite files. Are you sure you want to do this?")
+        msgBox.setWindowTitle("Overwrite Files")
+        msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        return msgBox.exec()
 
     def waveform_graph(self):
 

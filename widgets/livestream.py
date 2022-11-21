@@ -5,7 +5,7 @@ import qtpy.QtCore as QtCore
 import numpy as np
 from math import ceil
 from skimage.io import imsave
-from napari.qt.threading import thread_worker
+from napari.qt.threading import thread_worker, create_worker
 from time import sleep
 import logging
 
@@ -166,7 +166,7 @@ class Livestream(WidgetBase):
             self.live_view['grid'].setHidden(False)
 
         self.instrument.start_livestream(int(self.live_view['wavelength'].currentText()))
-        self.livestream_worker = self.instrument._livestream_worker()
+        self.livestream_worker = create_worker(self.instrument._livestream_worker)
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
 
