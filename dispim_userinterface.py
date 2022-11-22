@@ -1,10 +1,11 @@
 import napari
-from qtpy.QtWidgets import QDockWidget
+from qtpy.QtWidgets import QDockWidget, QTabWidget
 import dispim.dispim as dispim
 from widgets.instrument_parameters import InstrumentParameters
 from widgets.volumeteric_acquisition import VolumetericAcquisition
 from widgets.livestream import Livestream
 from widgets.lasers import Lasers
+from widgets.tissue_map import TissueMap
 import logging
 import traceback
 
@@ -48,9 +49,20 @@ class UserInterface:
             }
             laser_window.setWidget(self.laser_parameters.create_layout(struct='H', **laser_widget))
 
+            # Set up tissue map widget
+            self.tissue_map_widget()
+
             # Add dockwidgets to viewer
-            main_dock = self.viewer.window.add_dock_widget(main_window, name='Main Window')
-            self.laser_parameters.adding_wavelength_tabs(main_dock)  # Adding laser wavelength tabs
+            tabbed_widgets = QTabWidget()                                                    # Creating tab object
+            tabbed_widgets.addTab(main_window, 'Main Window')                                # Adding main window tab
+            tabbed_widgets = self.laser_parameters.add_wavelength_tabs(tabbed_widgets)       # Generator laser wavelength tabs
+            tabbed_widgets.addTab(self.graph_widget, 'Tissue Map')                           # Adding tissue map tab
+            self.tissue_map.set_tab_widget(tabbed_widgets)                                   # Passing in tab widget to
+                                                                                             # tissue map
+            self.viewer.window.add_dock_widget(tabbed_widgets, name=' ')
+
+            # If tab is tissue map, map updates where stage is by starting thread
+
             self.viewer.window.add_dock_widget(instr_params_window, name='Instrument Parameters', area='left')
             self.viewer.window.add_dock_widget(laser_window, name="Laser Current", area='bottom')
 
@@ -61,7 +73,7 @@ class UserInterface:
         finally:
             traceback.print_exc()
             self.close_instrument()
-            self.viewer.close()
+            self.viewer.window.close()
 
     def instrument_params_widget(self):
         self.instrument_params = InstrumentParameters(self.instrument.frame_grabber, self.cfg.sensor_column_count,
@@ -100,8 +112,6 @@ class UserInterface:
         return self.livestream_parameters.create_layout(struct='V', **widgets)
 
     def volumeteric_acquisition_widget(self):
-        imaging = QDockWidget()
-        imaging.setWindowTitle('Imaging')
 
         self.vol_acq_params = VolumetericAcquisition(self.viewer, self.cfg, self.instrument, self.simulated)
         widgets = {
@@ -116,6 +126,10 @@ class UserInterface:
         self.laser_parameters = Lasers(self.viewer, self.cfg, self.instrument, self.simulated)
         self.laser_slider = self.laser_parameters.laser_power_slider(self.instrument.lasers)
         self.laser_wl_select = self.laser_parameters.laser_wl_select()
+
+    def tissue_map_widget(self):
+        self.tissue_map = TissueMap(self.instrument)
+        self.graph_widget = self.tissue_map.graph()
 
     def set_scan_volume(self, clicked, state):
 

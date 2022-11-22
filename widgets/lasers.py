@@ -1,6 +1,9 @@
 from widgets.widget_base import WidgetBase
-from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, QSlider, QLineEdit
+from PyQt5.QtCore import Qt, QSize
+from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, QSlider, QLineEdit, \
+    QTabWidget
 from oxxius_laser import Cmd, Query
+
 
 class Lasers(WidgetBase):
 
@@ -22,11 +25,10 @@ class Lasers(WidgetBase):
 
         self.wavelength_selection = {}
         self.selected = {}
-        self.laser_dock = {}
         self.laser_power = {}
+        self.tab_map = {}
         self.selected_wl_layout = None
-
-
+        self.tab_widget = None
 
     def laser_wl_select(self):
 
@@ -71,7 +73,7 @@ class Lasers(WidgetBase):
 
         widget_wavelength = widget.text()
         widget.setHidden(True)
-        self.laser_dock[widget_wavelength].setHidden(True)
+        self.tab_widget.setTabVisible(self.tab_map[widget_wavelength], False)
         self.laser_power[widget_wavelength].setHidden(True)
         self.laser_power[f'{widget_wavelength} label'].setHidden(True)
         self.imaging_wavelengths.remove(int(widget_wavelength))
@@ -89,27 +91,26 @@ class Lasers(WidgetBase):
             self.imaging_wavelengths.sort()
             self.wavelength_selection['unselected'].removeItem(index)
             self.selected[widget_wavelength].setHidden(False)
-            self.laser_dock[widget_wavelength].setHidden(False)
+            self.tab_widget.setTabVisible(self.tab_map[widget_wavelength], True)
             self.laser_power[widget_wavelength].setHidden(False)
             self.laser_power[f'{widget_wavelength} label'].setHidden(False)
 
-    def adding_wavelength_tabs(self, imaging_dock):
+    def add_wavelength_tabs(self, tab_widget: QTabWidget):
 
         """Adds laser parameters tabs onto main window for all possible wavelengths
         :param imaging_dock: main window to tabify laser parameter """
-
-        for wavelength in self.possible_wavelengths:
-            wavelength = str(wavelength)
-            main_dock = QDockWidget()
-            main_dock.setWindowTitle('Laser ' + wavelength)
-            main_dock = self.scan_wavelength_params(wavelength)
-            scroll_box = self.scroll_box(main_dock)
+        self.tab_widget = tab_widget
+        for wl in self.possible_wavelengths:
+            wl = str(wl)
+            wl_dock = self.scan_wavelength_params(wl)
+            scroll_box = self.scroll_box(wl_dock)
             scrollable_dock = QDockWidget()
             scrollable_dock.setWidget(scroll_box)
-            self.laser_dock[wavelength] = self.viewer.window.add_dock_widget(scrollable_dock, name='Wavelength ' + wavelength)
-            self.viewer.window._qt_window.tabifyDockWidget(imaging_dock, self.laser_dock[wavelength])
-            if int(wavelength) not in self.imaging_wavelengths:
-                self.laser_dock[wavelength].setHidden(True)
+            self.tab_widget.addTab(scrollable_dock, f'Wavelength {wl}')
+            self.tab_map[wl] = self.tab_widget.indexOf(scrollable_dock)
+            if int(wl) not in self.cfg.imaging_wavelengths:
+                tab_widget.setTabVisible(self.tab_map[wl], False)
+        return self.tab_widget
 
     def scan_wavelength_params(self, wavelength: str):
         """Scans config for relevant laser wavelength parameters
@@ -126,8 +127,7 @@ class Lasers(WidgetBase):
 
         self.lasers = lasers
         laser_power_layout = {}
-
-        for wl in lasers:   # Convert into strings for convenience. Laser device dict uses int , widget dict uses str
+        for wl in lasers:  # Convert into strings for convenience. Laser device dict uses int , widget dict uses str
             wls = str(wl)
 
             # Setting commands and initial values for slider widgets. 561 is power based and others current
@@ -141,9 +141,9 @@ class Lasers(WidgetBase):
 
             # Creating label and line edit widget
             self.laser_power[f'{wls} label'], self.laser_power[wls] = self.create_widget(
-                value = None,
+                value=None,
                 Qtype=QSlider,
-                label=f'{wl}: {set_value}mW' if wl == 561 else f'{wl}: {set_value}%' )
+                label=f'{wl}: {set_value}mW' if wl == 561 else f'{wl}: {set_value}%')
 
             # Setting coloring and bounds for sliders
             self.laser_power[wls].setTickPosition(QSlider.TickPosition.TicksBothSides)
@@ -157,7 +157,7 @@ class Lasers(WidgetBase):
             # Setting activity when slider is moved (update lable value)
             # or released (update laser current or power to slider setpoint)
             self.laser_power[wls].sliderReleased.connect(
-                lambda value=self.laser_power[wls].value(), wl=wls, released = True, command=command:
+                lambda value=self.laser_power[wls].value(), wl=wls, released=True, command=command:
                 self.laser_power_label(command, wl, released, command))
             self.laser_power[wls].sliderMoved.connect(
                 lambda value=self.laser_power[wls].value(), wl=wls: self.laser_power_label(value, wl))
@@ -167,11 +167,11 @@ class Lasers(WidgetBase):
                 self.laser_power[wls].setHidden(True)
                 self.laser_power[f'{wls} label'].setHidden(True)
             laser_power_layout[wls] = self.create_layout(struct='H', label=self.laser_power[f'{wls} label'],
-                                                            text=self.laser_power[wls])
+                                                         text=self.laser_power[wls])
 
         return self.create_layout(struct='V', **laser_power_layout)
 
-    def laser_power_label(self, value, wl:int, released = False, command = None):
+    def laser_power_label(self, value, wl: int, released=False, command=None):
 
         """Set laser current or power to slider set point if released and update label if slider moved
         :param value: value of slider
@@ -186,6 +186,6 @@ class Lasers(WidgetBase):
 
         if released:
             self.lasers[int(wl)].set(command, float(self.laser_power[wl].value()))
-            #TODO: When gui talks to hardware, log statement clarifying this
+            # TODO: When gui talks to hardware, log statement clarifying this
             #   Anytime gui changes state of not the gui
-            #self.lasers[561].get(Query.LaserPowerSetting)
+            # self.lasers[561].get(Query.LaserPowerSetting)
