@@ -1,5 +1,5 @@
 from widgets.widget_base import WidgetBase
-from qtpy.QtWidgets import QPushButton, QComboBox, QSpinBox, QLineEdit
+from qtpy.QtWidgets import QPushButton, QComboBox, QSpinBox, QLineEdit, QTabWidget
 import qtpy.QtGui as QtGui
 import qtpy.QtCore as QtCore
 import numpy as np
@@ -21,7 +21,6 @@ class Livestream(WidgetBase):
             :param simulated: if instrument is in simulate mode
         """
 
-        self.sample_pos_worker = None
         self.cfg = cfg
         self.possible_wavelengths = self.cfg.laser_wavelengths
         self.viewer = viewer
@@ -37,10 +36,10 @@ class Livestream(WidgetBase):
         self.pos_widget = {}
         self.pos_widget = {}  # Holds widgets related to sample position
         self.set_volume = {}  # Holds widgets related to setting volume limits during scan
-        self.volume = {}  # Dictionary of x, y, z volume for scan
-        self.colors = None
         self.stage_position = None
-        self.end_scan = None    #Bookeeping if end of scan is set
+        self.tab_widget = None
+        self.sample_pos_worker = None
+        self.end_scan = None
 
         self.livestream_worker = None
         self.scale = [self.cfg.cfg['tile_specs']['x_field_of_view_um'] / self.cfg.sensor_row_count,
@@ -56,6 +55,10 @@ class Livestream(WidgetBase):
         self.horz_end = self.cfg.sensor_row_count * self.scale[1]
 
         self.camera_id = ['Right', 'Left']
+
+    def set_tab_widget(self, tab_widget: QTabWidget):
+
+        self.tab_widget = tab_widget
 
     def liveview_widget(self):
 
@@ -332,11 +335,14 @@ class Livestream(WidgetBase):
         """Update position widgets for volumetric imaging or manually moving"""
         sleep(5)
         self.log.info('Starting stage update')
-        while self.instrument.livestream_enabled.is_set():
-            self.sample_pos = self.instrument.get_sample_position()
-            for direction, value in self.sample_pos.items():
-                if direction in self.pos_widget:
-                    self.pos_widget[direction].setValue(value*1/10)  #Units in microns
+        # While livestreaming and looking at the first tab the stage position updates
+        while True:
+            while self.instrument.livestream_enabled.is_set() and \
+                    self.tab_widget.currentIndex() == 0:
+                self.sample_pos = self.instrument.get_sample_position()
+                for direction, value in self.sample_pos.items():
+                    if direction in self.pos_widget:
+                        self.pos_widget[direction].setValue(int(value*1/10))  #Units in microns
 
             sleep(.5)
 

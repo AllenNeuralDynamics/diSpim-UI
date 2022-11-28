@@ -50,18 +50,17 @@ class UserInterface:
             laser_window.setWidget(self.laser_parameters.create_layout(struct='H', **laser_widget))
 
             # Set up tissue map widget
-            self.tissue_map_widget()
+            self.tissue_map_window = self.tissue_map_widget()
 
             # Add dockwidgets to viewer
             tabbed_widgets = QTabWidget()                                                    # Creating tab object
             tabbed_widgets.addTab(main_window, 'Main Window')                                # Adding main window tab
-            tabbed_widgets = self.laser_parameters.add_wavelength_tabs(tabbed_widgets)       # Generator laser wavelength tabs
-            tabbed_widgets.addTab(self.graph_widget, 'Tissue Map')                           # Adding tissue map tab
-            self.tissue_map.set_tab_widget(tabbed_widgets)                                   # Passing in tab widget to
-                                                                                             # tissue map
-            self.viewer.window.add_dock_widget(tabbed_widgets, name=' ')
+            tabbed_widgets = self.laser_parameters.add_wavelength_tabs(tabbed_widgets)       # Generate laser wl tabs
+            tabbed_widgets.addTab(self.tissue_map_window, 'Tissue Map')                           # Adding tissue map tab
+            self.tissue_map.set_tab_widget(tabbed_widgets)                         # Passing in tab widget to tissue map
+            self.livestream_parameters.set_tab_widget(tabbed_widgets)              # Passing in tab widget to livestream
 
-            # If tab is tissue map, map updates where stage is by starting thread
+            self.viewer.window.add_dock_widget(tabbed_widgets, name=' ')            # Adding tabs to window
 
             self.viewer.window.add_dock_widget(instr_params_window, name='Instrument Parameters', area='left')
             self.viewer.window.add_dock_widget(laser_window, name="Laser Current", area='bottom')
@@ -128,9 +127,17 @@ class UserInterface:
         self.laser_wl_select = self.laser_parameters.laser_wl_select()
 
     def tissue_map_widget(self):
-        self.tissue_map = TissueMap(self.instrument)
-        self.graph_widget = self.tissue_map.graph()
 
+        self.tissue_map = TissueMap(self.instrument)
+        widgets = {
+            'graph': self.tissue_map.graph(),
+            'set_point': self.tissue_map.mark_graph()
+        }
+
+        return self.tissue_map.create_layout(struct='V', **widgets)
+
+
+    #TODO: Can we calculate new volume in livestream and then when instrument_params_widget is clicked update widgets?
     def set_scan_volume(self, clicked, state):
 
         """When volume of scan is changed, the config and widgets are subsequently updated"""

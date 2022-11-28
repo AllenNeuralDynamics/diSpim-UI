@@ -7,6 +7,7 @@ from napari.qt.threading import thread_worker
 from time import sleep
 from pyqtgraph.Qt import QtCore, QtGui
 
+
 class TissueMap(WidgetBase):
 
     def __init__(self, instrument):
@@ -14,8 +15,11 @@ class TissueMap(WidgetBase):
         self.instrument = instrument
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
         self.tab_widget = None
+        self.sample_pos_worker = None
+        self.pos = None
+        self.plot = None
 
-    def set_tab_widget(self, tab_widget:QTabWidget):
+    def set_tab_widget(self, tab_widget: QTabWidget):
 
         self.tab_widget = tab_widget
         self.tab_widget.tabBarClicked.connect(self.stage_positon_map)
@@ -23,48 +27,70 @@ class TissueMap(WidgetBase):
     def stage_positon_map(self, index):
         last_index = len(self.tab_widget) - 1
         if index == last_index:
-            print(index)
+            self.sample_pos_worker = self._sample_pos_worker()
+            self.sample_pos_worker.start()
+            # TODO: Start stage position worker
+            # if start position is not none, update start position, volume, and
+            # outline box which is going to be image
 
-    # @thread_worker
-    # def _sample_pos_worker(self): #TODO: Make part of widget base?
-    #     """Update position widgets for volumetric imaging or manually moving"""
-    #
-    #     while self.instrument.livestream_enabled.is_set():
-    #         self.sample_pos = self.instrument.get_sample_position()
-    #         for direction, value in self.sample_pos.items():
-    #             if direction in self.pos_widget:
-    #                 self.pos_widget[direction].setValue(value * 1 / 10)  # Units in microns
-    #
-    #         sleep(.5)
+        else:
+            if self.sample_pos_worker is not None:
+                self.sample_pos_worker.quit()
+            pass
 
+    def mark_graph(self):
+
+        """Mark graph with pertinent landmarks"""
+
+        mark = QPushButton('Set Point')
+        mark.clicked.connect(self.set_point)
+
+        return mark
+
+    def set_point(self):
+
+        """Set current position as point on graph"""
+
+        sample_pos = self.instrument.get_sample_position()
+        coord = (sample_pos['X'], sample_pos['Y'], sample_pos['Z'])
+        coord = [i * 0.0001 for i in coord] # converting from 1/10um to mm
+        point = gl.GLScatterPlotItem(pos=coord, size=1, color=(1.0, 1.0, 0.0, 1.0), pxMode=False)
+        self.plot.addItem(point)
+
+
+    @thread_worker
+    def _sample_pos_worker(self):
+        """Update position of stage for tissue map"""
+
+        while True:
+            self.sample_pos = self.instrument.get_sample_position()
+            coord = (self.sample_pos['X'], self.sample_pos['Y'], self.sample_pos['Z'])
+            coord = [i * 0.0001 for i in coord]  # converting from 1/10um to mm
+            self.pos.setData(pos=coord)
+            sleep(.5)
 
     def graph(self):
 
-        w = gl.GLViewWidget()
-        w.opts['distance'] = 40
-        w.setWindowTitle('pyqtgraph example: GLScatterPlotItem')
+        self.plot = gl.GLViewWidget()
+        self.plot.opts['distance'] = 40
+        self.plot.setWindowTitle('pyqtgraph example: GLScatterPlotItem')
 
-        g = gl.GLGridItem()
-        w.addItem(g)
+        dirs = ['x', 'y']
+        low = {'X': 0, 'Y': 0} if self.instrument.simulated else self.instrument.tigerbox.get_lower_travel_limit(*dirs)
+        up = {'X': 60, 'Y': 60} if self.instrument.simulated else self.instrument.tigerbox.get_upper_travel_limit(*dirs)
+        axes_size = {}
+        for directions in dirs:
+            axes_size[directions] = up[directions.upper()] - low[directions.upper()]
 
-        pos = np.empty((53, 3))
-        size = np.empty((53))
-        color = np.empty((53, 4))
-        pos[0] = (1,0,0); size[0] = 0.5;   color[0] = (1.0, 0.0, 0.0, 0.5)
-        pos[1] = (0,1,0); size[1] = 0.2;   color[1] = (0.0, 0.0, 1.0, 0.5)
-        pos[2] = (0,0,1); size[2] = 2./3.; color[2] = (0.0, 1.0, 0.0, 0.5)
+        axes = gl.GLGridItem()
+        axes.setSize(x=axes_size['x'], y=axes_size['y'])
+        self.plot.addItem(axes)
 
-        z = 0.5
-        d = 6.0
-        for i in range(3,53):
-            pos[i] = (0,0,z)
-            size[i] = 2./d
-            color[i] = (0.0, 1.0, 0.0, 0.5)
-            z *= 0.5
-            d *= 2.0
+        coord = (1, 0, 0)
+        size = 1
+        color = (1.0, 0.0, 0.0, 0.5)
 
-        sp1 = gl.GLScatterPlotItem(pos=pos, size=size, color=color, pxMode=False)
-        sp1.translate(5,5,0)
-        w.addItem(sp1)
+        self.pos = gl.GLScatterPlotItem(pos=coord, size=size, color=color, pxMode=False)
+        self.plot.addItem(self.pos)
 
-        return w
+        return self.plot
