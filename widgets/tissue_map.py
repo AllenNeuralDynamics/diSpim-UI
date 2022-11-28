@@ -5,7 +5,7 @@ import pyqtgraph.opengl as gl
 import numpy as np
 from napari.qt.threading import thread_worker
 from time import sleep
-from pyqtgraph.Qt import QtCore, QtGui
+import qtpy.QtGui as QtGui
 
 
 class TissueMap(WidgetBase):
@@ -15,7 +15,7 @@ class TissueMap(WidgetBase):
         self.instrument = instrument
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
         self.tab_widget = None
-        self.sample_pos_worker = None
+        self.map_pos_worker = None
         self.pos = None
         self.plot = None
 
@@ -27,15 +27,15 @@ class TissueMap(WidgetBase):
     def stage_positon_map(self, index):
         last_index = len(self.tab_widget) - 1
         if index == last_index:
-            self.sample_pos_worker = self._sample_pos_worker()
-            self.sample_pos_worker.start()
+            self.map_pos_worker = self._map_pos_worker()
+            self.map_pos_worker.start()
             # TODO: Start stage position worker
             # if start position is not none, update start position, volume, and
             # outline box which is going to be image
 
         else:
-            if self.sample_pos_worker is not None:
-                self.sample_pos_worker.quit()
+            if self.map_pos_worker is not None:
+                self.map_pos_worker.quit()
             pass
 
     def mark_graph(self):
@@ -51,20 +51,19 @@ class TissueMap(WidgetBase):
 
         """Set current position as point on graph"""
 
-        sample_pos = self.instrument.get_sample_position()
-        coord = (sample_pos['X'], sample_pos['Y'], sample_pos['Z'])
-        coord = [i * 0.0001 for i in coord] # converting from 1/10um to mm
+        coord = (self.map_pose['X'], self.map_pose['Y'], self.map_pose['Z'])
+        coord = [i * 0.0001 for i in coord]  # converting from 1/10um to mm
         point = gl.GLScatterPlotItem(pos=coord, size=1, color=(1.0, 1.0, 0.0, 1.0), pxMode=False)
         self.plot.addItem(point)
 
 
     @thread_worker
-    def _sample_pos_worker(self):
+    def _map_pos_worker(self):
         """Update position of stage for tissue map"""
 
         while True:
-            self.sample_pos = self.instrument.get_sample_position()
-            coord = (self.sample_pos['X'], self.sample_pos['Y'], self.sample_pos['Z'])
+            self.map_pose = self.instrument.get_sample_position()
+            coord = (self.map_pose['X'], self.map_pose['Y'], self.map_pose['Z'])
             coord = [i * 0.0001 for i in coord]  # converting from 1/10um to mm
             self.pos.setData(pos=coord)
             sleep(.5)
@@ -75,15 +74,21 @@ class TissueMap(WidgetBase):
         self.plot.opts['distance'] = 40
         self.plot.setWindowTitle('pyqtgraph example: GLScatterPlotItem')
 
-        dirs = ['x', 'y']
+        dirs = ['x', 'y', 'z']
         low = {'X': 0, 'Y': 0} if self.instrument.simulated else self.instrument.tigerbox.get_lower_travel_limit(*dirs)
         up = {'X': 60, 'Y': 60} if self.instrument.simulated else self.instrument.tigerbox.get_upper_travel_limit(*dirs)
-        axes_size = {}
+
+        axes_len = {}
+        origin = {}
         for directions in dirs:
-            axes_size[directions] = up[directions.upper()] - low[directions.upper()]
+            axes_len[directions] = up[directions.upper()] - low[directions.upper()]
+            origin[directions] = low[directions.upper()] + (axes_len[directions]/2)
+
+        self.plot.opts['center'] = QtGui.QVector3D(origin['x'], origin['y'], origin['z'])
 
         axes = gl.GLGridItem()
-        axes.setSize(x=axes_size['x'], y=axes_size['y'])
+        axes.setSize(x=round(axes_len['x']), y=round(axes_len['y']))
+        axes.translate(origin['x'], origin['y'], origin['z'])
         self.plot.addItem(axes)
 
         coord = (1, 0, 0)
