@@ -36,6 +36,7 @@ class TissueMap(WidgetBase):
         else:
             if self.map_pos_worker is not None:
                 self.map_pos_worker.quit()
+
             pass
 
     def mark_graph(self):
@@ -62,11 +63,13 @@ class TissueMap(WidgetBase):
         """Update position of stage for tissue map"""
 
         while True:
+
             self.map_pose = self.instrument.get_sample_position()
             coord = (self.map_pose['X'], self.map_pose['Y'], self.map_pose['Z'])
             coord = [i * 0.0001 for i in coord]  # converting from 1/10um to mm
             self.pos.setData(pos=coord)
             sleep(.5)
+            yield
 
     def graph(self):
 

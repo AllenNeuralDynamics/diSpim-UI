@@ -54,6 +54,7 @@ class UserInterface:
 
             # Add dockwidgets to viewer
             tabbed_widgets = QTabWidget()  # Creating tab object
+            tabbed_widgets.setTabPosition(QTabWidget.South)
             tabbed_widgets.addTab(main_window, 'Main Window')  # Adding main window tab
             tabbed_widgets = self.laser_parameters.add_wavelength_tabs(tabbed_widgets)  # Generate laser wl tabs
             tabbed_widgets.addTab(self.tissue_map_window, 'Tissue Map')  # Adding tissue map tab
@@ -65,6 +66,7 @@ class UserInterface:
                                                             tab=tabbed_widgets)
 
             self.viewer.window.add_dock_widget(test, name=' ')  # Adding tabs to window
+            #TODO: Move set scan to tissue map tab?
 
             self.viewer.window.add_dock_widget(instr_params_window, name='Instrument Parameters', area='left')
             self.viewer.window.add_dock_widget(laser_window, name="Laser Current", area='bottom')

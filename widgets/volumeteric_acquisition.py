@@ -62,9 +62,11 @@ class VolumetericAcquisition(WidgetBase):
     def _volumetric_image(self):
 
         while True:
-            im = self.instrument.im if not self.simulated else np.random.rand(self.cfg.sensor_row_count,
-                                                                              self.cfg.sensor_column_count)
-            yield im
+            sleep(.5)
+            if type(self.instrument.im) == np.ndarray:
+                im = self.instrument.im if not self.simulated else np.random.rand(self.cfg.sensor_row_count,
+                                                                                  self.cfg.sensor_column_count)
+                yield im
 
     def update_layer(self, im):
 
@@ -77,10 +79,12 @@ class VolumetericAcquisition(WidgetBase):
             layer.events.set_data()
 
         except KeyError:
+
             self.viewer.layers.clear()
             self.viewer.add_image(im, name='Volumeteric Run')
 
     def end_scan(self):
+
         self.instrument.livestream_enabled.clear()
         self.run_worker.quit()
         self.volumetric_image_worker.quit()
