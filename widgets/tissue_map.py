@@ -87,8 +87,8 @@ class TissueMap(WidgetBase):
         self.plot.opts['center'] = QtGui.QVector3D(origin['x'], origin['y'], origin['z'])
 
         axes = gl.GLGridItem()
-        axes.setSize(x=round(axes_len['x']), y=round(axes_len['y']))
-        axes.translate(origin['x'], origin['y'], origin['z'])
+        axes.setSize(x=round(axes_len['x']), y=round(axes_len['y']))    # Setting axes size to bonds of stage
+        axes.translate(origin['x'], origin['y'], origin['z'])   # Translating axes into stage coordinates
         self.plot.addItem(axes)
 
         coord = (1, 0, 0)
