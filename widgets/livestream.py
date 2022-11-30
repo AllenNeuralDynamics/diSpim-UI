@@ -339,6 +339,7 @@ class Livestream(WidgetBase):
         while True:
             while self.instrument.livestream_enabled.is_set() and \
                     self.tab_widget.currentIndex() == 0:
+                print(self.tab_widget.currentIndex())
                 self.sample_pos = self.instrument.get_sample_position()
                 for direction, value in self.sample_pos.items():
                     if direction in self.pos_widget:

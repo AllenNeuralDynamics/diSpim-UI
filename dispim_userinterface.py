@@ -53,14 +53,20 @@ class UserInterface:
             self.tissue_map_window = self.tissue_map_widget()
 
             # Add dockwidgets to viewer
-            tabbed_widgets = QTabWidget()                                                    # Creating tab object
-            tabbed_widgets.addTab(main_window, 'Main Window')                                # Adding main window tab
-            tabbed_widgets = self.laser_parameters.add_wavelength_tabs(tabbed_widgets)       # Generate laser wl tabs
-            tabbed_widgets.addTab(self.tissue_map_window, 'Tissue Map')                           # Adding tissue map tab
-            self.tissue_map.set_tab_widget(tabbed_widgets)                         # Passing in tab widget to tissue map
-            self.livestream_parameters.set_tab_widget(tabbed_widgets)              # Passing in tab widget to livestream
+            tabbed_widgets = QTabWidget()  # Creating tab object
+            tabbed_widgets.setTabPosition(QTabWidget.South)
+            tabbed_widgets.addTab(main_window, 'Main Window')  # Adding main window tab
+            tabbed_widgets = self.laser_parameters.add_wavelength_tabs(tabbed_widgets)  # Generate laser wl tabs
+            tabbed_widgets.addTab(self.tissue_map_window, 'Tissue Map')  # Adding tissue map tab
+            self.tissue_map.set_tab_widget(tabbed_widgets)  # Passing in tab widget to tissue map
+            self.livestream_parameters.set_tab_widget(tabbed_widgets)  # Passing in tab widget to livestream
 
-            self.viewer.window.add_dock_widget(tabbed_widgets, name=' ')            # Adding tabs to window
+            test = self.livestream_parameters.create_layout(struct='V',
+                                                            live=self.livestream_parameters.liveview_widget(),
+                                                            tab=tabbed_widgets)
+
+            self.viewer.window.add_dock_widget(test, name=' ')  # Adding tabs to window
+            #TODO: Move set scan to tissue map tab?
 
             self.viewer.window.add_dock_widget(instr_params_window, name='Instrument Parameters', area='left')
             self.viewer.window.add_dock_widget(laser_window, name="Laser Current", area='bottom')
@@ -95,7 +101,6 @@ class UserInterface:
         self.livestream_parameters = Livestream(self.viewer, self.cfg, self.instrument, self.simulated)
 
         widgets = {
-            'live_view': self.livestream_parameters.liveview_widget(),
             'grid': self.livestream_parameters.grid_widget(),
             'screenshot': self.livestream_parameters.screenshot_button(),
             'position': self.livestream_parameters.sample_stage_position(),
@@ -136,8 +141,7 @@ class UserInterface:
         widgets['set_point'].setMaximumHeight(50)
         return self.tissue_map.create_layout(struct='V', **widgets)
 
-
-    #TODO: Can we calculate new volume in livestream and then when instrument_params_widget is clicked update widgets?
+    # TODO: Can we calculate new volume in livestream and then when instrument_params_widget is clicked update widgets?
     def set_scan_volume(self, clicked, state):
 
         """When volume of scan is changed, the config and widgets are subsequently updated"""
@@ -168,7 +172,7 @@ class UserInterface:
     def update_volume(self, direction):
         start = self.instrument.start_pos
         end = self.livestream_parameters.end_scan
-        direction_samp = ['z', 'x', 'y']    #Remapping axis from tiger box to sample
+        direction_samp = ['z', 'x', 'y']  # Remapping axis from tiger box to sample
         for tiger, sample in zip(direction, direction_samp):
             self.log.info(f"Setting volume limits. Tiger axis = {tiger}. "
                           f"Setting {sample} volume")
