@@ -59,7 +59,7 @@ class TissueMap(WidgetBase):
 
         """Set current position as point on graph"""
 
-        coord = (self.map_pose['X'], self.map_pose['Y'], self.map_pose['Z'])
+        coord = (self.map_pose['X'], self.map_pose['Y'], -self.map_pose['Z'])
         coord = [i * 0.0001 for i in coord]  # converting from 1/10um to mm
         point = gl.GLScatterPlotItem(pos=coord, size=1, color=(1.0, 1.0, 0.0, 1.0), pxMode=False)
         info = self.map['label'].text()
@@ -76,7 +76,7 @@ class TissueMap(WidgetBase):
         while True:
 
             self.map_pose = self.instrument.get_sample_position()
-            coord = (self.map_pose['X'], self.map_pose['Y'], self.map_pose['Z'])
+            coord = (self.map_pose['X'], self.map_pose['Y'], -self.map_pose['Z'])
             coord = [i * 0.0001 for i in coord]  # converting from 1/10um to mm
             self.pos.setData(pos=coord)
             sleep(.5)
@@ -100,23 +100,25 @@ class TissueMap(WidgetBase):
 
         self.plot.opts['center'] = QtGui.QVector3D(origin['x'], origin['y'], axes_len['z'])
 
+        # Translate axis so origin of graph translate to center of stage limits
+        # Z coords increase as stage moves down so z origin and coords are negative
+
         axes_x = gl.GLGridItem()
         axes_x.rotate(90, 0, 1, 0)
-        axes_x.setSize(x=round(axes_len['x']),y=round(axes_len['y']), z=round(axes_len['z']))
-        axes_x.translate(axes_len['x'], origin['y'], axes_len['z'])
+        axes_x.setSize(x=round(axes_len['z']), y=round(axes_len['y']))
+        axes_x.translate(low['X'], origin['y'], -low['Z'])  # Translate to lower end of x and z and origin of y
         self.plot.addItem(axes_x)
 
         axes_y = gl.GLGridItem()
         axes_y.rotate(90, 1, 0, 0)
-        axes_y.setSize(x=round(axes_len['x']),  y=round(axes_len['y']), z=round(axes_len['z']))
-        axes_y.translate(origin['x'], axes_len['y'], axes_len['z'])
+        axes_y.setSize(x=round(axes_len['x']), y=round(axes_len['z']))
+        axes_y.translate(origin['x'], low['Y'], -low['Z']) # Translate to lower end of y and z and origin of x
         self.plot.addItem(axes_y)
 
         axes_z = gl.GLGridItem()
         axes_z.setSize(x=round(axes_len['x']), y=round(axes_len['y']))
-        axes_z.translate(origin['x'], origin['y'], origin['z'])
+        axes_z.translate(origin['x'], origin['y'], -origin['z'])  # Translate to origin of x, y, z
         self.plot.addItem(axes_z)
-
         coord = (1, 0, 0)
         size = 1
         color = (1.0, 0.0, 0.0, 0.5)

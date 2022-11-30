@@ -333,18 +333,17 @@ class Livestream(WidgetBase):
     @thread_worker
     def _sample_pos_worker(self):
         """Update position widgets for volumetric imaging or manually moving"""
-        sleep(5)
+        sleep(1)
         self.log.info('Starting stage update')
         # While livestreaming and looking at the first tab the stage position updates
         while True:
             while self.instrument.livestream_enabled.is_set() and \
                     self.tab_widget.currentIndex() == 0:
-                print(self.tab_widget.currentIndex())
                 self.sample_pos = self.instrument.get_sample_position()
                 for direction, value in self.sample_pos.items():
                     if direction in self.pos_widget:
                         self.pos_widget[direction].setValue(int(value*1/10))  #Units in microns
-
+            yield       # yield so thread can quit
             sleep(.5)
 
     def screenshot_button(self):
