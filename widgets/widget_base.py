@@ -19,14 +19,15 @@ class WidgetBase:
         dictionary = getattr(self.cfg, attribute)
         path = self.pathFind(dictionary, specify)
         path = path + self.pathFind(dictionary, kw, path, True) if path is not None else self.pathFind(dictionary, kw)
+
         cfg_value = self.pathGet(dictionary, path)
-        value = float(widget.text()) if type(cfg_value) != str else widget.text()
+        value_type = type(cfg_value)
+        value = value_type(widget.text())
+        print(cfg_value != value)
         if cfg_value != value:
             self.pathSet(dictionary, path, value)
             if self.instrument.live_status:
-                self.instrument._setup_waveform_hardware(
-                    self.instrument.active_laser,
-                    live=True)
+                self.instrument._setup_waveform_hardware(self.instrument.active_laser, live = self.instrument.live_status)
 
 
     def scan(self, dictionary: dict, attr: str, prev_key: str = None, QDictionary: dict = None,
@@ -99,10 +100,12 @@ class WidgetBase:
         value_type = type(getattr(obj, var))
         value = value_type(widget.text())
         setattr(obj, var, value)
-        if self.instrument.live_status:
-            self.instrument._setup_waveform_hardware(
-                self.instrument.active_laser,
-                live=True)
+
+        if getattr(obj, var, value) != value:
+            setattr(obj, var, value)
+            if self.instrument.live_status:
+                self.instrument._setup_waveform_hardware(self.instrument.active_laser, live = self.instrument.live_status)
+
     def error_msg(self, title: str, msg: str):
 
         """Easy way to display error messages
@@ -174,10 +177,11 @@ class WidgetBase:
             layout = QHBoxLayout()
         else:
             layout = QVBoxLayout()
-
-        layout.setContentsMargins(0, 0, 0, 0)
         for arg in kwargs.values():
             layout.addWidget(arg)
+
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         widget.setLayout(layout)
         return widget
 
@@ -210,13 +214,9 @@ class WidgetBase:
         elif isinstance(widget_input, QSpinBox):
             widget_input.setMaximum(2147483647)
             widget_input.setMinimum(-2147483648)
-            widget_input.setValue(value)
+            widget_input.setValue(int(value))
 
         elif isinstance(widget_input, QSlider):
             widget_input.setOrientation(QtCore.Qt.Horizontal)
-            try:
-                widget_input.setValue(value)
-            except:
-                pass
 
         return widget_label, widget_input
