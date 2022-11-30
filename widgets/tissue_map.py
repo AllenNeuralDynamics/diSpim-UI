@@ -1,12 +1,12 @@
 import logging
 from widgets.widget_base import WidgetBase
-from qtpy.QtWidgets import QPushButton, QTabWidget, QWidget
+from qtpy.QtWidgets import QPushButton, QTabWidget, QWidget, QLineEdit
 import pyqtgraph.opengl as gl
 import numpy as np
 from napari.qt.threading import thread_worker
 from time import sleep
+from pyqtgraph.Qt import QtCore, QtGui
 import qtpy.QtGui as QtGui
-
 
 class TissueMap(WidgetBase):
 
@@ -18,6 +18,10 @@ class TissueMap(WidgetBase):
         self.map_pos_worker = None
         self.pos = None
         self.plot = None
+
+        self.map = {}
+
+
 
     def set_tab_widget(self, tab_widget: QTabWidget):
 
@@ -43,10 +47,13 @@ class TissueMap(WidgetBase):
 
         """Mark graph with pertinent landmarks"""
 
-        mark = QPushButton('Set Point')
-        mark.clicked.connect(self.set_point)
+        self.map['mark'] = QPushButton('Set Point')
+        self.map['mark'].clicked.connect(self.set_point)
 
-        return mark
+        self.map['label'] = QLineEdit()
+        self.map['label'].editingFinished.connect(self.set_point)
+
+        return self.create_layout(struct = 'H', **self.map)
 
     def set_point(self):
 
@@ -55,8 +62,12 @@ class TissueMap(WidgetBase):
         coord = (self.map_pose['X'], self.map_pose['Y'], self.map_pose['Z'])
         coord = [i * 0.0001 for i in coord]  # converting from 1/10um to mm
         point = gl.GLScatterPlotItem(pos=coord, size=1, color=(1.0, 1.0, 0.0, 1.0), pxMode=False)
+        info = self.map['label'].text()
+        info_point = gl.GLTextItem(pos=coord, text=info)
+        self.plot.addItem(info_point)
         self.plot.addItem(point)
 
+        self.map['label'].clear()
 
     @thread_worker
     def _map_pos_worker(self):
@@ -78,9 +89,10 @@ class TissueMap(WidgetBase):
         self.plot.setWindowTitle('pyqtgraph example: GLScatterPlotItem')
 
         dirs = ['x', 'y', 'z']
-        low = {'X': 0, 'Y': 0} if self.instrument.simulated else self.instrument.tigerbox.get_lower_travel_limit(*dirs)
-        up = {'X': 60, 'Y': 60} if self.instrument.simulated else self.instrument.tigerbox.get_upper_travel_limit(*dirs)
-
+        low = {'X': 0, 'Y': 0, 'Z': 0} if self.instrument.simulated else \
+            self.instrument.tigerbox.get_lower_travel_limit(*dirs)
+        up = {'X': 60, 'Y': 60, 'Z': 60} if self.instrument.simulated else \
+            self.instrument.tigerbox.get_upper_travel_limit(*dirs)
         axes_len = {}
         origin = {}
         for directions in dirs:

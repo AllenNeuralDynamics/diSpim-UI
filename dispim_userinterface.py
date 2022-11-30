@@ -138,7 +138,7 @@ class UserInterface:
             'graph': self.tissue_map.graph(),
             'set_point': self.tissue_map.mark_graph()
         }
-
+        widgets['set_point'].setMaximumHeight(50)
         return self.tissue_map.create_layout(struct='V', **widgets)
 
     # TODO: Can we calculate new volume in livestream and then when instrument_params_widget is clicked update widgets?
