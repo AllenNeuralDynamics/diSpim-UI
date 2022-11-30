@@ -86,7 +86,6 @@ class TissueMap(WidgetBase):
 
         self.plot = gl.GLViewWidget()
         self.plot.opts['distance'] = 40
-        self.plot.setWindowTitle('pyqtgraph example: GLScatterPlotItem')
 
         dirs = ['x', 'y', 'z']
         low = {'X': 0, 'Y': 0, 'Z': 0} if self.instrument.simulated else \
@@ -99,12 +98,24 @@ class TissueMap(WidgetBase):
             axes_len[directions] = up[directions.upper()] - low[directions.upper()]
             origin[directions] = low[directions.upper()] + (axes_len[directions]/2)
 
-        self.plot.opts['center'] = QtGui.QVector3D(origin['x'], origin['y'], origin['z'])
+        self.plot.opts['center'] = QtGui.QVector3D(origin['x'], origin['y'], axes_len['z'])
 
-        axes = gl.GLGridItem()
-        axes.setSize(x=round(axes_len['x']), y=round(axes_len['y']))    # Setting axes size to bonds of stage
-        axes.translate(origin['x'], origin['y'], origin['z'])   # Translating axes into stage coordinates
-        self.plot.addItem(axes)
+        axes_x = gl.GLGridItem()
+        axes_x.rotate(90, 0, 1, 0)
+        axes_x.setSize(x=round(axes_len['x']),y=round(axes_len['y']), z=round(axes_len['z']))
+        axes_x.translate(axes_len['x'], origin['y'], axes_len['z'])
+        self.plot.addItem(axes_x)
+
+        axes_y = gl.GLGridItem()
+        axes_y.rotate(90, 1, 0, 0)
+        axes_y.setSize(x=round(axes_len['x']),  y=round(axes_len['y']), z=round(axes_len['z']))
+        axes_y.translate(origin['x'], axes_len['y'], axes_len['z'])
+        self.plot.addItem(axes_y)
+
+        axes_z = gl.GLGridItem()
+        axes_z.setSize(x=round(axes_len['x']), y=round(axes_len['y']))
+        axes_z.translate(origin['x'], origin['y'], origin['z'])
+        self.plot.addItem(axes_z)
 
         coord = (1, 0, 0)
         size = 1
