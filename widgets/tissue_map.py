@@ -98,7 +98,7 @@ class TissueMap(WidgetBase):
             axes_len[directions] = up[directions.upper()] - low[directions.upper()]
             origin[directions] = low[directions.upper()] + (axes_len[directions]/2)
 
-        self.plot.opts['center'] = QtGui.QVector3D(origin['x'], origin['y'], axes_len['z'])
+        self.plot.opts['center'] = QtGui.QVector3D(origin['x'], origin['y'], -origin['z'])
 
         # Translate axis so origin of graph translate to center of stage limits
         # Z coords increase as stage moves down so z origin and coords are negative

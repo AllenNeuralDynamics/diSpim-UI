@@ -205,10 +205,7 @@ class Livestream(WidgetBase):
 
         except KeyError:
 
-            self.viewer.add_image(
-                image,
-                name=f"Video {self.camera_id[stream_id]}",
-                scale=self.scale)
+            self.viewer.add_image(image, name=f"Video {self.camera_id[stream_id]}", scale=self.scale)
             self.layer_index += 1
 
             if self.layer_index == 2:
@@ -326,14 +323,25 @@ class Livestream(WidgetBase):
         self.set_volume['set_end'].setText('Set Scan End')
         self.set_volume['set_end'].setHidden(True)
 
+        self.set_volume['clear'] = QPushButton()
+        self.set_volume['clear'].setText('Clear')
+        self.set_volume['clear'].clicked.connect(self.clear_start_position)
+        self.set_volume['clear'].setHidden(True)
+
         self.pos_widget['volume_widgets'] = self.create_layout(struct='V', **self.set_volume)
 
         return self.create_layout(struct='H', **self.pos_widget)
 
+    def clear_start_position(self):
+
+        """Reset start position of scan to None which means the scan will start at current positon"""
+
+        self.instrument.set_scan_start(None)
+
     @thread_worker
     def _sample_pos_worker(self):
         """Update position widgets for volumetric imaging or manually moving"""
-        sleep(1)
+        pause = sleep(5) if self.simulated else sleep(1)
         self.log.info('Starting stage update')
         # While livestreaming and looking at the first tab the stage position updates
         while True:
