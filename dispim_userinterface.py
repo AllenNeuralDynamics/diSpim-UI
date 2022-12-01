@@ -66,7 +66,7 @@ class UserInterface:
                                                             tab=tabbed_widgets)
 
             self.viewer.window.add_dock_widget(test, name=' ')  # Adding tabs to window
-            #TODO: Move set scan to tissue map tab?
+            # TODO: Move set scan to tissue map tab?
 
             self.viewer.window.add_dock_widget(instr_params_window, name='Instrument Parameters', area='left')
             self.viewer.window.add_dock_widget(laser_window, name="Laser Current", area='bottom')
@@ -152,10 +152,12 @@ class UserInterface:
             self.livestream_parameters.set_volume['set_end'].setHidden(False)
             self.livestream_parameters.set_volume['clear'].setHidden(False)
             self.instrument.set_scan_start(current)
+            self.tissue_map.scan_vol.translate(current['X'], current['Y'], -current['Z'])
 
         else:
             if state == 'start':
                 self.instrument.set_scan_start(current)
+                self.tissue_map.scan_vol.translate(current['X'], current['Y'], -current['Z'])
                 if self.livestream_parameters.end_scan == None:
                     return
                 else:
@@ -186,6 +188,11 @@ class UserInterface:
             self.cfg.imaging_specs[f'volume_{sample}_um'] = volume * 1 / 10
             self.instrument_params.imaging_specs[f'volume_{sample}_um']. \
                 setText(str(volume * 1 / 10))
+
+        # self.tissue_map.scan_vol.setSize(x=self.cfg.imaging_specs[f'volume_z_um']*1/1000,
+        #                                  y=self.cfg.imaging_specs[f'volume_x_um']*1/1000,
+        #                                  z=self.cfg.imaging_specs[f'volume_y_um']*1/1000)
+        #                                 # Update volume of box in tissue map
 
     def close_instrument(self):
         self.instrument.cfg.save()

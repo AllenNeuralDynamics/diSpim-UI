@@ -8,11 +8,13 @@ from time import sleep
 from pyqtgraph.Qt import QtCore, QtGui
 import qtpy.QtGui as QtGui
 
+
 class TissueMap(WidgetBase):
 
     def __init__(self, instrument):
 
         self.instrument = instrument
+        self.cfg = self.instrument.cfg
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
         self.tab_widget = None
         self.map_pos_worker = None
@@ -20,8 +22,6 @@ class TissueMap(WidgetBase):
         self.plot = None
 
         self.map = {}
-
-
 
     def set_tab_widget(self, tab_widget: QTabWidget):
 
@@ -53,7 +53,7 @@ class TissueMap(WidgetBase):
         self.map['label'] = QLineEdit()
         self.map['label'].editingFinished.connect(self.set_point)
 
-        return self.create_layout(struct = 'H', **self.map)
+        return self.create_layout(struct='H', **self.map)
 
     def set_point(self):
 
@@ -61,9 +61,9 @@ class TissueMap(WidgetBase):
 
         coord = (self.map_pose['X'], self.map_pose['Y'], -self.map_pose['Z'])
         coord = [i * 0.0001 for i in coord]  # converting from 1/10um to mm
-        point = gl.GLScatterPlotItem(pos=coord, size=1, color=(1.0, 1.0, 0.0, 1.0), pxMode=False)
+        point = gl.GLScatterPlotItem(pos=coord, size=.2, color=(1.0, 1.0, 0.0, 1.0), pxMode=False)
         info = self.map['label'].text()
-        info_point = gl.GLTextItem(pos=coord, text=info)
+        info_point = gl.GLTextItem(pos=coord, text=info, font=QtGui.QFont('Helvetica', 10))
         self.plot.addItem(info_point)
         self.plot.addItem(point)
 
@@ -74,11 +74,18 @@ class TissueMap(WidgetBase):
         """Update position of stage for tissue map"""
 
         while True:
-
             self.map_pose = self.instrument.get_sample_position()
             coord = (self.map_pose['X'], self.map_pose['Y'], -self.map_pose['Z'])
             coord = [i * 0.0001 for i in coord]  # converting from 1/10um to mm
             self.pos.setData(pos=coord)
+            if self.instrument.start_pos == None:
+                self.plot.removeItem(self.scan_vol)
+                self.scan_vol = gl.GLBoxItem()  # Representing scan volume
+                self.scan_vol.translate(coord[0], coord[1], coord[2])
+                self.scan_vol.setSize(x=self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000,
+                                      y=self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
+                                      z=self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000)
+                self.plot.addItem(self.scan_vol)
             sleep(.5)
             yield
 
@@ -96,7 +103,7 @@ class TissueMap(WidgetBase):
         origin = {}
         for directions in dirs:
             axes_len[directions] = up[directions.upper()] - low[directions.upper()]
-            origin[directions] = low[directions.upper()] + (axes_len[directions]/2)
+            origin[directions] = low[directions.upper()] + (axes_len[directions] / 2)
 
         self.plot.opts['center'] = QtGui.QVector3D(origin['x'], origin['y'], -origin['z'])
 
@@ -112,7 +119,7 @@ class TissueMap(WidgetBase):
         axes_y = gl.GLGridItem()
         axes_y.rotate(90, 1, 0, 0)
         axes_y.setSize(x=round(axes_len['x']), y=round(axes_len['z']))
-        axes_y.translate(origin['x'], low['Y'], -low['Z']) # Translate to lower end of y and z and origin of x
+        axes_y.translate(origin['x'], low['Y'], -low['Z'])  # Translate to lower end of y and z and origin of x
         self.plot.addItem(axes_y)
 
         axes_z = gl.GLGridItem()
@@ -122,6 +129,14 @@ class TissueMap(WidgetBase):
         coord = (1, 0, 0)
         size = 1
         color = (1.0, 0.0, 0.0, 0.5)
+
+        self.scan_vol = gl.GLBoxItem()      # Representing scan volume
+        self.scan_vol.translate(origin['x'], origin['y'], -origin['z'])
+        self.scan_vol.setSize(x=self.cfg.imaging_specs[f'volume_z_um']*1/1000,
+                              y=self.cfg.imaging_specs[f'volume_x_um']*1/1000,
+                              z=self.cfg.imaging_specs[f'volume_y_um']*1/1000)
+        #Remapping tiger axis to sample ['z', 'x', 'y']
+        self.plot.addItem(self.scan_vol)
 
         self.pos = gl.GLScatterPlotItem(pos=coord, size=size, color=color, pxMode=False)
         self.plot.addItem(self.pos)
