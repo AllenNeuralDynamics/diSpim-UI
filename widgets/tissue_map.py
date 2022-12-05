@@ -79,6 +79,7 @@ class TissueMap(WidgetBase):
             coord = [i * 0.0001 for i in coord]  # converting from 1/10um to mm
             self.pos.setData(pos=coord)
             if self.instrument.start_pos == None:
+                print('no start date')
                 self.plot.removeItem(self.scan_vol)
                 self.scan_vol = gl.GLBoxItem()  # Representing scan volume
                 self.scan_vol.translate(coord[0], coord[1], coord[2])
@@ -86,6 +87,17 @@ class TissueMap(WidgetBase):
                                       y=self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
                                       z=self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000)
                 self.plot.addItem(self.scan_vol)
+
+            else:
+                start = self.instrument.start_pos
+                self.plot.removeItem(self.scan_vol)
+                self.scan_vol = gl.GLBoxItem()  # Representing scan volume
+                self.scan_vol.translate(start['X']*0.0001, start['Y']*0.0001, -start['Z']*0.0001)
+                self.scan_vol.setSize(x=self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000,
+                                      y=self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
+                                      z=self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000)
+                self.plot.addItem(self.scan_vol)
+
             sleep(.5)
             yield
 
