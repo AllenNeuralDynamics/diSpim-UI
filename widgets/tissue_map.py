@@ -1,12 +1,12 @@
 import logging
 from widgets.widget_base import WidgetBase
-from qtpy.QtWidgets import QPushButton, QTabWidget, QWidget, QLineEdit
+from qtpy.QtWidgets import QPushButton, QTabWidget, QWidget, QLineEdit, QComboBox
 import pyqtgraph.opengl as gl
 import numpy as np
 from napari.qt.threading import thread_worker
 from time import sleep
 from pyqtgraph.Qt import QtCore, QtGui
-import qtpy.QtGui as QtGui
+import qtpy.QtGui
 
 
 class TissueMap(WidgetBase):
@@ -47,11 +47,14 @@ class TissueMap(WidgetBase):
 
         """Mark graph with pertinent landmarks"""
 
+        self.map['color'] = QComboBox()
+        self.map['color'].addItems(qtpy.QtGui.QColor.colorNames())
+
         self.map['mark'] = QPushButton('Set Point')
         self.map['mark'].clicked.connect(self.set_point)
 
         self.map['label'] = QLineEdit()
-        self.map['label'].editingFinished.connect(self.set_point)
+        self.map['label'].returnPressed.connect(self.set_point)
 
         return self.create_layout(struct='H', **self.map)
 
@@ -59,11 +62,13 @@ class TissueMap(WidgetBase):
 
         """Set current position as point on graph"""
 
-        coord = (self.map_pose['X'], self.map_pose['Y'], -self.map_pose['Z'])
+        coord = (self.map_pose['X'], self.map_pose['Y'], -self.map_pose['Z']) if not self.instrument.simulated else \
+            np.random.randint(1000,60000,3)
         coord = [i * 0.0001 for i in coord]  # converting from 1/10um to mm
-        point = gl.GLScatterPlotItem(pos=coord, size=.2, color=(1.0, 1.0, 0.0, 1.0), pxMode=False)
+        hue = str(self.map['color'].currentText())
+        point = gl.GLScatterPlotItem(pos=coord, size=.2, color=qtpy.QtGui.QColor(hue), pxMode=False)
         info = self.map['label'].text()
-        info_point = gl.GLTextItem(pos=coord, text=info, font=QtGui.QFont('Helvetica', 10))
+        info_point = gl.GLTextItem(pos=coord, text=info, font=qtpy.QtGui.QFont('Helvetica', 10))
         self.plot.addItem(info_point)
         self.plot.addItem(point)
 
@@ -78,32 +83,33 @@ class TissueMap(WidgetBase):
             coord = (self.map_pose['X'], self.map_pose['Y'], -self.map_pose['Z'])
             coord = [i * 0.0001 for i in coord]  # converting from 1/10um to mm
             self.pos.setData(pos=coord)
+
             if self.instrument.start_pos == None:
-                print('no start date')
-                self.plot.removeItem(self.scan_vol)
-                self.scan_vol = gl.GLBoxItem()  # Representing scan volume
-                self.scan_vol.translate(coord[0], coord[1], coord[2])
-                self.scan_vol.setSize(x=self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000,
-                                      y=self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
-                                      z=self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000)
-                self.plot.addItem(self.scan_vol)
+                self.draw_volume(coord)
 
             else:
-                start = self.instrument.start_pos
-                self.plot.removeItem(self.scan_vol)
-                self.scan_vol = gl.GLBoxItem()  # Representing scan volume
-                self.scan_vol.translate(start['X']*0.0001, start['Y']*0.0001, -start['Z']*0.0001)
-                self.scan_vol.setSize(x=self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000,
-                                      y=self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
-                                      z=self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000)
-                self.plot.addItem(self.scan_vol)
+                start = [self.instrument.start_pos['X'], self.instrument.start_pos['Y'], self.instrument.start_pos['Z']]
+                start = [i * 0.0001 for i in start]
+                self.draw_volume(start)
 
             sleep(.5)
             yield
 
+    def draw_volume(self, coord : list):
+
+        """Redraw and translate volumetric scan box in map"""
+
+        self.plot.removeItem(self.scan_vol)
+        self.scan_vol = gl.GLBoxItem()  # Representing scan volume
+        self.scan_vol.translate(coord[0], coord[1], coord[2])
+        self.scan_vol.setSize(x=self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000,
+                              y=self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
+                              z=self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000)
+        self.plot.addItem(self.scan_vol)
+
     def graph(self):
 
-        self.plot = gl.GLViewWidget()
+        self.plot = GraphItem()
         self.plot.opts['distance'] = 40
 
         dirs = ['x', 'y', 'z']
@@ -154,3 +160,13 @@ class TissueMap(WidgetBase):
         self.plot.addItem(self.pos)
 
         return self.plot
+
+class GraphItem(gl.GLViewWidget):
+
+    def __init__(self):
+        super().__init__()
+
+    def mouseReleaseEvent(self, ev):
+        lpos = ev.position() if hasattr(ev, 'position') else ev.localPos()
+        self.mousePos = lpos
+        print(self.items)
