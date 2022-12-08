@@ -159,10 +159,11 @@ class Livestream(WidgetBase):
 
         """Start livestreaming"""
 
+        self.disable_button(self.live_view['start'])
+        self.live_view['start'].clicked.disconnect(self.start_live_view)
+
         if self.live_view['start'].text() == 'Start Live View':
             self.live_view['start'].setText('Stop Live View')
-            self.live_view['start'].clicked.disconnect(self.start_live_view)
-            self.live_view['start'].clicked.connect(self.stop_live_view)
             self.live_view['overlay'].setHidden(False)
             self.live_view['1'].setHidden(False)
             self.live_view['0'].setHidden(False)
@@ -173,23 +174,39 @@ class Livestream(WidgetBase):
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
 
+        pause = sleep(5) if self.simulated else sleep(1)    # Allow livestream to start
+
         self.sample_pos_worker = self._sample_pos_worker()
         self.sample_pos_worker.start()
+
+
+        self.live_view['start'].clicked.connect(self.stop_live_view)
+        # Only allow stopping once everything is initialized
+        # to avoid crashing gui
 
     def stop_live_view(self):
 
         """Stop livestreaming"""
 
+        self.disable_button(self.live_view['start'])
+        self.live_view['start'].clicked.disconnect(self.stop_live_view)
         self.instrument.stop_livestream()
         self.livestream_worker.quit()
         self.sample_pos_worker.quit()
         self.live_view['start'].setText('Start Live View')
-        self.live_view['start'].clicked.disconnect(self.stop_live_view)
-        self.live_view['start'].clicked.connect(self.start_live_view)
         self.live_view['overlay'].setHidden(True)
         self.live_view['1'].setHidden(True)
         self.live_view['0'].setHidden(True)
         self.live_view['grid'].setHidden(True)
+
+        self.live_view['start'].clicked.connect(self.start_live_view)
+
+    def disable_button(self, button, pause=5000):
+
+        """Function to disable button clicks for a period of time to avoid crashing gui"""
+
+        button.setEnabled(False)
+        QtCore.QTimer.singleShot(pause, lambda: button.setDisabled(False))
 
     def update_layer(self, args):
 
@@ -341,7 +358,7 @@ class Livestream(WidgetBase):
     @thread_worker
     def _sample_pos_worker(self):
         """Update position widgets for volumetric imaging or manually moving"""
-        pause = sleep(5) if self.simulated else sleep(1)
+
         self.log.info('Starting stage update')
         # While livestreaming and looking at the first tab the stage position updates
         while True:

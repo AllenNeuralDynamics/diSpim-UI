@@ -21,7 +21,9 @@ class TissueMap(WidgetBase):
         self.pos = None
         self.plot = None
 
+        self.rotate = {}
         self.map = {}
+        self.origin = {}
 
     def set_tab_widget(self, tab_widget: QTabWidget):
 
@@ -63,7 +65,7 @@ class TissueMap(WidgetBase):
         """Set current position as point on graph"""
 
         coord = (self.map_pose['X'], self.map_pose['Y'], -self.map_pose['Z']) if not self.instrument.simulated else \
-            np.random.randint(1000,60000,3)
+            np.random.randint(1000, 60000, 3)
         coord = [i * 0.0001 for i in coord]  # converting from 1/10um to mm
         hue = str(self.map['color'].currentText())
         point = gl.GLScatterPlotItem(pos=coord, size=.2, color=qtpy.QtGui.QColor(hue), pxMode=False)
@@ -88,14 +90,16 @@ class TissueMap(WidgetBase):
                 self.draw_volume(coord)
 
             else:
-                start = [self.instrument.start_pos['X'], self.instrument.start_pos['Y'], self.instrument.start_pos['Z']]
+                start = [self.instrument.start_pos['X'],
+                         self.instrument.start_pos['Y'],
+                         -self.instrument.start_pos['Z']]
                 start = [i * 0.0001 for i in start]
                 self.draw_volume(start)
 
             sleep(.5)
             yield
 
-    def draw_volume(self, coord : list):
+    def draw_volume(self, coord: list):
 
         """Redraw and translate volumetric scan box in map"""
 
@@ -106,6 +110,39 @@ class TissueMap(WidgetBase):
                               y=self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
                               z=self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000)
         self.plot.addItem(self.scan_vol)
+
+    def rotate_buttons(self):
+
+        self.rotate['x-y'] = QPushButton("X/Y Plane")
+        self.rotate['x-y'].clicked.connect(lambda click=None,
+                                                  center=QtGui.QVector3D(self.origin['x'], self.origin['y'], 0),
+                                                  elevation=90,
+                                                  azimuth = 0:
+                                           self.rotate_graph(click, center, elevation, azimuth))
+
+        self.rotate['x-z'] = QPushButton("X/Z Plane")
+        self.rotate['x-z'].clicked.connect(lambda click=None,
+                                                  center=QtGui.QVector3D(self.origin['x'], 0, -self.origin['z']),
+                                                  elevation=0,
+                                                  azimuth = 90:
+                                           self.rotate_graph(click, center, elevation, azimuth))
+
+        self.rotate['y-z'] = QPushButton("Y/Z Plane")
+        self.rotate['y-z'].clicked.connect(lambda click=None,
+                                                  center=QtGui.QVector3D(0, self.origin['y'], -self.origin['z']),
+                                                  elevation=0,
+                                                  azimuth = 180:
+                                           self.rotate_graph(click, center, elevation, azimuth))
+
+        return self.create_layout(struct='V', **self.rotate)
+
+    def rotate_graph(self, click, center, elevation, azimuth):
+
+        """Rotate graph to specific view"""
+
+        self.plot.opts['center'] = center
+        self.plot.opts['elevation'] = elevation
+        self.plot.opts['azimuth'] = azimuth
 
     def graph(self):
 
@@ -118,12 +155,11 @@ class TissueMap(WidgetBase):
         up = {'X': 60, 'Y': 60, 'Z': 60} if self.instrument.simulated else \
             self.instrument.tigerbox.get_upper_travel_limit(*dirs)
         axes_len = {}
-        origin = {}
         for directions in dirs:
             axes_len[directions] = up[directions.upper()] - low[directions.upper()]
-            origin[directions] = low[directions.upper()] + (axes_len[directions] / 2)
+            self.origin[directions] = low[directions.upper()] + (axes_len[directions] / 2)
 
-        self.plot.opts['center'] = QtGui.QVector3D(origin['x'], origin['y'], -origin['z'])
+        self.plot.opts['center'] = QtGui.QVector3D(self.origin['x'], self.origin['y'], -self.origin['z'])
 
         # Translate axis so origin of graph translate to center of stage limits
         # Z coords increase as stage moves down so z origin and coords are negative
@@ -131,35 +167,38 @@ class TissueMap(WidgetBase):
         axes_x = gl.GLGridItem()
         axes_x.rotate(90, 0, 1, 0)
         axes_x.setSize(x=round(axes_len['z']), y=round(axes_len['y']))
-        axes_x.translate(low['X'], origin['y'], -low['Z'])  # Translate to lower end of x and z and origin of y
+        axes_x.translate(low['X'], self.origin['y'],
+                         -self.origin['z'])  # Translate to lower end of x and origin of y and -z
         self.plot.addItem(axes_x)
 
         axes_y = gl.GLGridItem()
         axes_y.rotate(90, 1, 0, 0)
         axes_y.setSize(x=round(axes_len['x']), y=round(axes_len['z']))
-        axes_y.translate(origin['x'], low['Y'], -low['Z'])  # Translate to lower end of y and z and origin of x
+        axes_y.translate(self.origin['x'], low['Y'],
+                         -self.origin['z'])  # Translate to lower end of y and origin of x and -z
         self.plot.addItem(axes_y)
 
         axes_z = gl.GLGridItem()
         axes_z.setSize(x=round(axes_len['x']), y=round(axes_len['y']))
-        axes_z.translate(origin['x'], origin['y'], -origin['z'])  # Translate to origin of x, y, z
+        axes_z.translate(self.origin['x'], self.origin['y'], -up['Z'])  # Translate to origin of x, y, z
         self.plot.addItem(axes_z)
         coord = (1, 0, 0)
         size = 1
         color = (1.0, 0.0, 0.0, 0.5)
 
-        self.scan_vol = gl.GLBoxItem()      # Representing scan volume
-        self.scan_vol.translate(origin['x'], origin['y'], -origin['z'])
-        self.scan_vol.setSize(x=self.cfg.imaging_specs[f'volume_z_um']*1/1000,
-                              y=self.cfg.imaging_specs[f'volume_x_um']*1/1000,
-                              z=self.cfg.imaging_specs[f'volume_y_um']*1/1000)
-        #Remapping tiger axis to sample ['z', 'x', 'y']
+        self.scan_vol = gl.GLBoxItem()  # Representing scan volume
+        self.scan_vol.translate(self.origin['x'], self.origin['y'], -up['Z'])
+        self.scan_vol.setSize(x=self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000,
+                              y=self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
+                              z=self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000)
+        # Remapping tiger axis to sample ['z', 'x', 'y']
         self.plot.addItem(self.scan_vol)
 
         self.pos = gl.GLScatterPlotItem(pos=coord, size=size, color=color, pxMode=False)
         self.plot.addItem(self.pos)
 
         return self.plot
+
 
 class GraphItem(gl.GLViewWidget):
 
