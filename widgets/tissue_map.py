@@ -1,6 +1,6 @@
 import logging
 from widgets.widget_base import WidgetBase
-from qtpy.QtWidgets import QPushButton, QTabWidget, QWidget, QLineEdit, QComboBox
+from qtpy.QtWidgets import QPushButton, QTabWidget, QWidget, QLineEdit, QComboBox,QMessageBox
 import pyqtgraph.opengl as gl
 import numpy as np
 from napari.qt.threading import thread_worker
@@ -131,7 +131,7 @@ class TissueMap(WidgetBase):
         self.rotate['y-z'].clicked.connect(lambda click=None,
                                                   center=QtGui.QVector3D(0, self.origin['y'], -self.origin['z']),
                                                   elevation=0,
-                                                  azimuth = 180:
+                                                  azimuth = 0:
                                            self.rotate_graph(click, center, elevation, azimuth))
 
         return self.create_layout(struct='V', **self.rotate)
@@ -197,6 +197,8 @@ class TissueMap(WidgetBase):
         self.pos = gl.GLScatterPlotItem(pos=coord, size=size, color=color, pxMode=False)
         self.plot.addItem(self.pos)
 
+        gl.MeshData
+
         return self.plot
 
 
@@ -205,7 +207,27 @@ class GraphItem(gl.GLViewWidget):
     def __init__(self):
         super().__init__()
 
-    def mouseReleaseEvent(self, ev):
-        lpos = ev.position() if hasattr(ev, 'position') else ev.localPos()
-        self.mousePos = lpos
-        print(self.items)
+    def mouseReleaseEvent(self, e):
+        super().mousePressEvent(e)
+
+        items = self.itemsAt((e.pos().x() - 5, e.pos().y() - 5, 10, 10))
+        if len(items) == 0:
+            return
+        print(items)
+        for item in items:
+            if type(item) == gl.GLScatterPlotItem:
+
+                return_value = self.delete_point_warning()
+                if return_value == QMessageBox.Cancel:
+                    return
+
+                self.removeItem(item)
+        e.accept()
+
+    def delete_point_warning(self):
+        msgBox = QMessageBox()
+        msgBox.setIcon(QMessageBox.Information)
+        msgBox.setText("Do you want to delete this point?")
+        msgBox.setWindowTitle("Delete Point")
+        msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        return msgBox.exec()
