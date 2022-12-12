@@ -31,19 +31,20 @@ class TissueMap(WidgetBase):
         self.tab_widget.tabBarClicked.connect(self.stage_positon_map)
 
     def stage_positon_map(self, index):
+
+        print('tab clicked tissue map', index)
         last_index = len(self.tab_widget) - 1
         if index == last_index:
             self.map_pos_worker = self._map_pos_worker()
             self.map_pos_worker.start()
-            # TODO: Start stage position worker
+
             # if start position is not none, update start position, volume, and
-            # outline box which is going to be image
+            # outline box which is going to be imaged
 
         else:
             if self.map_pos_worker is not None:
                 self.map_pos_worker.quit()
 
-            pass
 
     def mark_graph(self):
 
@@ -80,8 +81,9 @@ class TissueMap(WidgetBase):
     def _map_pos_worker(self):
         """Update position of stage for tissue map"""
 
+        print('updating map')
         while True:
-            self.map_pose = self.instrument.get_sample_position()
+            self.map_pose = self.instrument.tigerbox.get_position()
             coord = (self.map_pose['X'], self.map_pose['Y'], -self.map_pose['Z'])
             coord = [i * 0.0001 for i in coord]  # converting from 1/10um to mm
             self.pos.setData(pos=coord)
@@ -196,8 +198,6 @@ class TissueMap(WidgetBase):
 
         self.pos = gl.GLScatterPlotItem(pos=coord, size=size, color=color, pxMode=False)
         self.plot.addItem(self.pos)
-
-        gl.MeshData
 
         return self.plot
 

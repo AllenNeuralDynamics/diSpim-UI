@@ -38,8 +38,10 @@ class Livestream(WidgetBase):
         self.set_volume = {}  # Holds widgets related to setting volume limits during scan
         self.stage_position = None
         self.tab_widget = None
-        self.sample_pos_worker = None
         self.end_scan = None
+
+        self.sample_pos_worker = self._sample_pos_worker()      # Start stage position update upon initiation
+        self.sample_pos_worker.start()
 
         self.livestream_worker = None
         self.scale = [self.cfg.cfg['tile_specs']['x_field_of_view_um'] / self.cfg.sensor_row_count,
@@ -59,6 +61,19 @@ class Livestream(WidgetBase):
     def set_tab_widget(self, tab_widget: QTabWidget):
 
         self.tab_widget = tab_widget
+        self.tab_widget.tabBarClicked.connect(self.stage_position_update)
+
+    def stage_position_update(self, index):
+
+        """Update stage position when user on main window tab"""
+
+        if index == 0:
+            self.sample_pos_worker = self._sample_pos_worker()
+            self.sample_pos_worker.start()
+
+        else:
+            if self.sample_pos_worker is not None:
+                self.sample_pos_worker.quit()
 
     def liveview_widget(self):
 
@@ -159,7 +174,7 @@ class Livestream(WidgetBase):
 
         """Start livestreaming"""
 
-        self.disable_button(self.live_view['start'])
+        self.disable_button(self.live_view['start'], pause=3000)    # Avoid crashing gui by rapidly pressing button
         self.live_view['start'].clicked.disconnect(self.start_live_view)
 
         if self.live_view['start'].text() == 'Start Live View':
@@ -174,12 +189,6 @@ class Livestream(WidgetBase):
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
 
-        pause = sleep(5) if self.simulated else sleep(1)    # Allow livestream to start
-
-        self.sample_pos_worker = self._sample_pos_worker()
-        self.sample_pos_worker.start()
-
-
         self.live_view['start'].clicked.connect(self.stop_live_view)
         # Only allow stopping once everything is initialized
         # to avoid crashing gui
@@ -188,11 +197,11 @@ class Livestream(WidgetBase):
 
         """Stop livestreaming"""
 
-        self.disable_button(self.live_view['start'])
+        self.disable_button(self.live_view['start'], pause=3000)    # Avoid crashing gui by rapidly pressing button
         self.live_view['start'].clicked.disconnect(self.stop_live_view)
         self.instrument.stop_livestream()
         self.livestream_worker.quit()
-        self.sample_pos_worker.quit()
+
         self.live_view['start'].setText('Start Live View')
         self.live_view['overlay'].setHidden(True)
         self.live_view['1'].setHidden(True)
@@ -323,7 +332,7 @@ class Livestream(WidgetBase):
         """Creates labels and boxs to indicate sample position"""
 
         directions = ['X', 'Y', 'Z']
-        self.stage_position = self.instrument.get_sample_position()
+        self.stage_position = self.sample_pos
 
         # Create X, Y, Z labels and displays for where stage is
         for direction in directions:
@@ -357,17 +366,16 @@ class Livestream(WidgetBase):
 
     @thread_worker
     def _sample_pos_worker(self):
+
         """Update position widgets for volumetric imaging or manually moving"""
 
         self.log.info('Starting stage update')
-        # While livestreaming and looking at the first tab the stage position updates
+
         while True:
-            while self.instrument.livestream_enabled.is_set() and \
-                    self.tab_widget.currentIndex() == 0:
-                self.sample_pos = self.instrument.get_sample_position()
-                for direction, value in self.sample_pos.items():
-                    if direction in self.pos_widget:
-                        self.pos_widget[direction].setValue(int(value*1/10))  #Units in microns
+            self.sample_pos = self.instrument.tigerbox.get_position()
+            for direction, value in self.sample_pos.items():
+                if direction in self.pos_widget:
+                    self.pos_widget[direction].setValue(int(value*1/10))  #Units in microns
             yield       # yield so thread can quit
             sleep(.5)
 
