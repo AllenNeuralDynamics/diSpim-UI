@@ -207,27 +207,27 @@ class GraphItem(gl.GLViewWidget):
     def __init__(self):
         super().__init__()
 
-    def mouseReleaseEvent(self, e):
-        super().mousePressEvent(e)
-
-        items = self.itemsAt((e.pos().x() - 5, e.pos().y() - 5, 10, 10))
-        if len(items) == 0:
-            return
-        print(items)
-        for item in items:
-            if type(item) == gl.GLScatterPlotItem:
-
-                return_value = self.delete_point_warning()
-                if return_value == QMessageBox.Cancel:
-                    return
-
-                self.removeItem(item)
-        e.accept()
-
-    def delete_point_warning(self):
-        msgBox = QMessageBox()
-        msgBox.setIcon(QMessageBox.Information)
-        msgBox.setText("Do you want to delete this point?")
-        msgBox.setWindowTitle("Delete Point")
-        msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
-        return msgBox.exec()
+    # def mouseReleaseEvent(self, e):
+    #     super().mousePressEvent(e)
+    #
+    #     items = self.itemsAt((e.pos().x() - 5, e.pos().y() - 5, 10, 10))
+    #     if len(items) == 0:
+    #         return
+    #     print(items)
+    #     for item in items:
+    #         if type(item) == gl.GLScatterPlotItem:
+    #
+    #             return_value = self.delete_point_warning()
+    #             if return_value == QMessageBox.Cancel:
+    #                 return
+    #
+    #             self.removeItem(item)
+    #     e.accept()
+    #
+    # def delete_point_warning(self):
+    #     msgBox = QMessageBox()
+    #     msgBox.setIcon(QMessageBox.Information)
+    #     msgBox.setText("Do you want to delete this point?")
+    #     msgBox.setWindowTitle("Delete Point")
+    #     msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+    #     return msgBox.exec()
