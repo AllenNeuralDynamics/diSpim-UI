@@ -1,8 +1,9 @@
 from widgets.widget_base import WidgetBase
 from PyQt5.QtCore import Qt, QSize
 from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, QSlider, QLineEdit, \
-    QTabWidget
+    QTabWidget, QVBoxLayout
 from oxxius_laser import Cmd, Query
+
 
 
 class Lasers(WidgetBase):
@@ -27,8 +28,10 @@ class Lasers(WidgetBase):
         self.selected = {}
         self.laser_power = {}
         self.tab_map = {}
+        self.rl_tab_widgets = {}
         self.selected_wl_layout = None
         self.tab_widget = None
+
 
     def laser_wl_select(self):
 
@@ -95,14 +98,65 @@ class Lasers(WidgetBase):
             self.laser_power[widget_wavelength].setHidden(False)
             self.laser_power[f'{widget_wavelength} label'].setHidden(False)
 
+    def change_tab(self, wl_tab_index):
+
+        index = self.tab_widget.currentIndex() if type(wl_tab_index) != int else wl_tab_index
+        title = self.tab_widget.tabText(index)
+        wl = title[-3:]
+
+        try:
+            if self.viewer.layers.selection.active == self.viewer.layers['Video Right']:
+                self.rl_tab_widgets[wl].setCurrentIndex(0)
+
+            if self.viewer.layers.selection.active == self.viewer.layers['Video Left']:
+                self.rl_tab_widgets[wl].setCurrentIndex(1)
+
+        except:
+            pass
+
+    def format_wavelength_tabs(self, wl:str):
+
+        """Create tabs within wavelength tabs to separate right and left parameters"""
+
+        self.viewer.layers.selection.events.changed.connect(self.change_tab)
+        self.rl_tab_widgets[wl] = QTabWidget()  # Creating tab object
+        self.rl_tab_widgets[wl].setTabPosition(QTabWidget.West)
+        params_widget = self.scan_wavelength_params(wl)
+        right_camera_layout = {}
+        left_camera_layout = {}
+        general_layout = {}
+
+        for keys in params_widget:
+            if 'right' in keys:
+                left_camera_layout[keys] = params_widget[keys]
+                params_widget[keys].children()[1].setText(params_widget[keys].children()[1].text().replace('Right', ''))
+
+            elif 'left' in keys:
+                right_camera_layout[keys] = params_widget[keys]
+                params_widget[keys].children()[1].setText(params_widget[keys].children()[1].text().replace('Left', ''))
+
+            else:
+                general_layout[keys] = params_widget[keys]
+
+        left_camera_widget = self.create_layout('V', **left_camera_layout)
+        right_camera_widget = self.create_layout('V', **right_camera_layout)
+        self.rl_tab_widgets[wl].addTab(right_camera_widget, 'Right Camera')
+        self.rl_tab_widgets[wl].addTab(left_camera_widget, 'Left Camera')
+
+        general_widget = self.create_layout('V', **general_layout)
+
+        return self.create_layout('V', general = general_widget, tabs= self.rl_tab_widgets[wl])
+
     def add_wavelength_tabs(self, tab_widget: QTabWidget):
 
         """Adds laser parameters tabs onto main window for all possible wavelengths
         :param imaging_dock: main window to tabify laser parameter """
+
         self.tab_widget = tab_widget
+        self.tab_widget.tabBarClicked.connect(self.change_tab)
         for wl in self.possible_wavelengths:
             wl = str(wl)
-            wl_dock = self.scan_wavelength_params(wl)
+            wl_dock = self.format_wavelength_tabs(wl)
             scroll_box = self.scroll_box(wl_dock)
             scrollable_dock = QDockWidget()
             scrollable_dock.setWidget(scroll_box)
@@ -117,8 +171,8 @@ class Lasers(WidgetBase):
         :param wavelength: the wavelength of the laser"""
 
         laser_specs_wavelength = self.cfg.laser_specs[wavelength]
-        tab_widget_wl = self.scan(laser_specs_wavelength, 'laser_specs', wl=wavelength, subdict=True)
-        return self.create_layout(struct='V', **tab_widget_wl)
+        return self.scan(laser_specs_wavelength, 'laser_specs', wl=wavelength, subdict=True)
+
 
     def laser_power_slider(self, lasers: dict):
 
@@ -170,6 +224,7 @@ class Lasers(WidgetBase):
                                                          text=self.laser_power[wls])
 
         return self.create_layout(struct='V', **laser_power_layout)
+
 
     def laser_power_label(self, value, wl: int, released=False, command=None):
 

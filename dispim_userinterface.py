@@ -148,7 +148,8 @@ class UserInterface:
         """When volume of scan is changed, the config and widgets are subsequently updated"""
 
         direction = ['X', 'Y', 'Z']
-        current = self.livestream_parameters.sample_pos
+        current = self.livestream_parameters.sample_pos if self.instrument.livestream_enabled.is_set() \
+                                                      else self.instrument.tigerbox.get_position()
         set_start = self.instrument.start_pos
 
         if set_start is None:

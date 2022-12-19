@@ -59,6 +59,17 @@ class Livestream(WidgetBase):
     def set_tab_widget(self, tab_widget: QTabWidget):
 
         self.tab_widget = tab_widget
+        self.tab_widget.tabBarClicked.connect(self.update_positon)
+
+    def update_positon(self, index):
+
+        directions = ['X', 'Y', 'Z']
+        if index == 0:
+            self.stage_position = self.instrument.tigerbox.get_position()
+            # Update stage labels if stage has moved
+            for direction in directions:
+                self.pos_widget[direction].setValue(int(self.stage_position[direction] * 1 / 10))
+
 
     def liveview_widget(self):
 
@@ -176,8 +187,8 @@ class Livestream(WidgetBase):
 
         pause = sleep(5) if self.simulated else sleep(1)    # Allow livestream to start
 
-        self.sample_pos_worker = self._sample_pos_worker()
-        self.sample_pos_worker.start()
+        # self.sample_pos_worker = self._sample_pos_worker()
+        # self.sample_pos_worker.start()
 
 
         self.live_view['start'].clicked.connect(self.stop_live_view)
@@ -237,6 +248,9 @@ class Livestream(WidgetBase):
 
                 shapes_layer = self.viewer.add_shapes(l, shape_type='line', edge_width=3, edge_color=color, name='line')
                 shapes_layer.mode = 'select'
+
+                self.viewer.layers.selection.active = self.viewer.layers["Video Left"]
+
 
                 @shapes_layer.mouse_drag_callbacks.append
                 def click_drag(layer, event):
@@ -323,7 +337,7 @@ class Livestream(WidgetBase):
         """Creates labels and boxs to indicate sample position"""
 
         directions = ['X', 'Y', 'Z']
-        self.stage_position = self.instrument.get_sample_position()
+        self.stage_position = self.instrument.tigerbox.get_position()
 
         # Create X, Y, Z labels and displays for where stage is
         for direction in directions:
@@ -364,7 +378,7 @@ class Livestream(WidgetBase):
         while True:
             while self.instrument.livestream_enabled.is_set() and \
                     self.tab_widget.currentIndex() == 0:
-                self.sample_pos = self.instrument.get_sample_position()
+                self.sample_pos = self.instrument.tigerbox.get_position()
                 for direction, value in self.sample_pos.items():
                     if direction in self.pos_widget:
                         self.pos_widget[direction].setValue(int(value*1/10))  #Units in microns
