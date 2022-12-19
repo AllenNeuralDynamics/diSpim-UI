@@ -81,7 +81,7 @@ class TissueMap(WidgetBase):
         """Update position of stage for tissue map"""
 
         while True:
-            self.map_pose = self.instrument.get_sample_position()
+            self.map_pose = self.instrument.tigerbox.get_position()
             coord = (self.map_pose['X'], self.map_pose['Y'], -self.map_pose['Z'])
             coord = [i * 0.0001 for i in coord]  # converting from 1/10um to mm
             self.pos.setData(pos=coord)
@@ -196,8 +196,6 @@ class TissueMap(WidgetBase):
 
         self.pos = gl.GLScatterPlotItem(pos=coord, size=size, color=color, pxMode=False)
         self.plot.addItem(self.pos)
-
-        gl.MeshData
 
         return self.plot
 
