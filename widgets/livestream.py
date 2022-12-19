@@ -187,8 +187,8 @@ class Livestream(WidgetBase):
 
         pause = sleep(5) if self.simulated else sleep(1)    # Allow livestream to start
 
-        # self.sample_pos_worker = self._sample_pos_worker()
-        # self.sample_pos_worker.start()
+        self.sample_pos_worker = self._sample_pos_worker()
+        self.sample_pos_worker.start()
 
 
         self.live_view['start'].clicked.connect(self.stop_live_view)
