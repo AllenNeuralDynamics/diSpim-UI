@@ -1,6 +1,6 @@
 from widgets.widget_base import WidgetBase
 from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, \
-    QSlider, QLineEdit,QMessageBox
+    QSlider, QLineEdit,QMessageBox, QTabWidget
 import numpy as np
 from pyqtgraph import PlotWidget, mkPen
 from dispim.compute_waveforms import generate_waveforms
@@ -31,6 +31,10 @@ class VolumetericAcquisition(WidgetBase):
         self.data_line = None       # Lines for graph
         self.camera_id = ['Right', 'Left']
 
+    def set_tab_widget(self, tab_widget: QTabWidget):
+
+        self.tab_widget = tab_widget
+
     def volumeteric_imaging_button(self):
 
         self.volumetric_image = {'start': QPushButton('Start Volumetric Imaging'),
@@ -41,10 +45,14 @@ class VolumetericAcquisition(WidgetBase):
         return self.create_layout(struct='H', **self.volumetric_image)
 
     def run_volumeteric_imaging(self):
+
         if self.volumetric_image['overwrite'].isChecked():
             return_value = self.overwrite_warning()
             if return_value == QMessageBox.Cancel:
                 return
+
+        for i in range(1,len(self.tab_widget)):
+            self.tab_widget.setTabEnabled(i,False)
 
         self.run_worker = self._run()
         self.run_worker.start()
