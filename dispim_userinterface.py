@@ -61,6 +61,7 @@ class UserInterface:
             tabbed_widgets.addTab(self.tissue_map_window, 'Tissue Map')  # Adding tissue map tab
             self.tissue_map.set_tab_widget(tabbed_widgets)  # Passing in tab widget to tissue map
             self.livestream_parameters.set_tab_widget(tabbed_widgets)  # Passing in tab widget to livestream
+            self.vol_acq_params.set_tab_widget(tabbed_widgets)
 
             test = self.livestream_parameters.create_layout(struct='V',
                                                             live=self.livestream_parameters.liveview_widget(),
