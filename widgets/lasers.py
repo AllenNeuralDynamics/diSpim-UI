@@ -3,8 +3,8 @@ from PyQt5.QtCore import Qt, QSize
 from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, QSlider, QLineEdit, \
     QTabWidget, QVBoxLayout
 from oxxius_laser import Cmd, Query
-
-
+import qtpy.QtCore as QtCore
+import logging
 
 class Lasers(WidgetBase):
 
@@ -23,12 +23,15 @@ class Lasers(WidgetBase):
         self.simulated = simulated
         self.possible_wavelengths = self.cfg.laser_wavelengths
         self.imaging_wavelengths = self.cfg.imaging_wavelengths
+        self.lasers = self.instrument.lasers
+        self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
         self.wavelength_selection = {}
         self.selected = {}
         self.laser_power = {}
         self.tab_map = {}
         self.rl_tab_widgets = {}
+        self.combiner_power_split = {}
         self.selected_wl_layout = None
         self.tab_widget = None
 
@@ -174,24 +177,23 @@ class Lasers(WidgetBase):
         return self.scan(laser_specs_wavelength, 'laser_specs', wl=wavelength, subdict=True)
 
 
-    def laser_power_slider(self, lasers: dict):
+    def laser_power_slider(self):
 
         """Create slider for every possible laser and hides ones not in use
         :param lasers: dictionary of lasers created """
 
-        self.lasers = lasers
         laser_power_layout = {}
-        for wl in lasers:  # Convert into strings for convenience. Laser device dict uses int , widget dict uses str
+        for wl in self.possible_wavelengths:  # Convert into strings for convenience. Laser device dict uses int , widget dict uses str
             wls = str(wl)
 
             # Setting commands and initial values for slider widgets. 561 is power based and others current
             if wl == 561:
                 command = Cmd.LaserPower
-                set_value = float(lasers[wl].get(Query.LaserPowerSetting)) if not self.simulated else 15
+                set_value = float(self.lasers[wl].get(Query.LaserPowerSetting)) if not self.simulated else 15
                 slider_label = f'{wl}: {set_value}mW'
             else:
                 command = Cmd.LaserCurrent
-                set_value = float(lasers[wl].get(Query.LaserCurrentSetting)) if not self.simulated else 15
+                set_value = float(self.lasers[wl].get(Query.LaserCurrentSetting)) if not self.simulated else 15
 
             # Creating label and line edit widget
             self.laser_power[f'{wls} label'], self.laser_power[wls] = self.create_widget(
@@ -204,7 +206,7 @@ class Lasers(WidgetBase):
             self.laser_power[wls].setStyleSheet(
                 f"QSlider::sub-page:horizontal{{ background-color:{self.cfg.laser_specs[wls]['color']}; }}")
             self.laser_power[wls].setMinimum(0)
-            self.laser_power[wls].setMaximum(float(lasers[wl].get(Query.MaximumLaserPower))) \
+            self.laser_power[wls].setMaximum(float(self.lasers[wl].get(Query.MaximumLaserPower))) \
                 if wl == 561 and not self.simulated else self.laser_power[wls].setMaximum(100)
             self.laser_power[wls].setValue(set_value)
 
@@ -244,3 +246,38 @@ class Lasers(WidgetBase):
             # TODO: When gui talks to hardware, log statement clarifying this
             #   Anytime gui changes state of not the gui
             # self.lasers[561].get(Query.LaserPowerSetting)
+
+    def laser_power_splitter(self):
+
+        """
+        Create slider for laser combiner power split
+                """
+
+        split_percentage = float(self.lasers['main'].get(Query.PercentageSplitStatus)) if not self.simulated else 15
+
+        self.combiner_power_split['Left label'] = QLabel(f'Left: {100-split_percentage}%')  # Left laser is set to 100 - percentage entered
+
+        self.combiner_power_split['slider'] = QSlider()
+        self.combiner_power_split['slider'].setOrientation(QtCore.Qt.Vertical)
+        self.combiner_power_split['slider'].setMinimum(0)
+        self.combiner_power_split['slider'].setMaximum(100)
+        self.combiner_power_split['slider'].setValue(split_percentage)
+        self.combiner_power_split['slider'].sliderReleased.connect(
+            lambda value=None, released=True, command=Cmd.PercentageSplit:
+            self.set_power_split(value, released, Cmd.LaserCurrent))
+        self.combiner_power_split['slider'].sliderMoved.connect(
+            lambda value=None: self.set_power_split(value))
+
+        self.combiner_power_split['Right label'] = QLabel(
+            f'Right: {split_percentage}%')  # Right laser is set to percentage entered
+
+        return self.create_layout(struct='V', **self.combiner_power_split)
+    def set_power_split(self, value, released=False, command=None):
+
+        value = int(self.combiner_power_split['slider'].value())
+        self.combiner_power_split['Right label'].setText(f'Right: {value}%')
+        self.combiner_power_split['Left label'].setText(f'Left: {100 - int(value)}%')
+
+        if released:
+            self.lasers['main'].set(command, value)
+            self.log.info(f'Laser power split set. Right: {value}%  Left: {100 - int(value)}%')

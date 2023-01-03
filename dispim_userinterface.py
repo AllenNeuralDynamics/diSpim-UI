@@ -1,5 +1,6 @@
 import napari
-from qtpy.QtWidgets import QDockWidget, QTabWidget
+from qtpy.QtWidgets import QDockWidget, QTabWidget,QPlainTextEdit, QDialog, QFrame
+from PyQt5 import QtWidgets
 import dispim.dispim as dispim
 from widgets.instrument_parameters import InstrumentParameters
 from widgets.volumeteric_acquisition import VolumetericAcquisition
@@ -9,7 +10,7 @@ from widgets.tissue_map import TissueMap
 import logging
 import traceback
 import pyqtgraph.opengl as gl
-
+import io
 
 class UserInterface:
 
@@ -20,7 +21,6 @@ class UserInterface:
                  simulated: bool = False):
 
         try:
-            self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
             # TODO: Create logger tab at bottom of napari viewer. Also make logger for each class as well
             self.instrument = dispim.Dispim(config_filepath=config_filepath, simulated=simulated)
             self.simulated = simulated
@@ -128,8 +128,12 @@ class UserInterface:
     def laser_widget(self):
 
         self.laser_parameters = Lasers(self.viewer, self.cfg, self.instrument, self.simulated)
-        self.laser_slider = self.laser_parameters.laser_power_slider(self.instrument.lasers)
+        widgets = {
+            'splitter': self.laser_parameters.laser_power_splitter(),
+            'power': self.laser_parameters.laser_power_slider(),
+        }
         self.laser_wl_select = self.laser_parameters.laser_wl_select()
+        self.laser_slider = self.laser_parameters.create_layout(struct='H', **widgets)
 
     def tissue_map_widget(self):
 
