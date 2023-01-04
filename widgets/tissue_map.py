@@ -110,9 +110,9 @@ class TissueMap(WidgetBase):
         self.plot.removeItem(self.scan_vol)
         self.scan_vol = gl.GLBoxItem()  # Representing scan volume
         self.scan_vol.translate(coord[0], coord[1], coord[2])
-        self.scan_vol.setSize(x=self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000,
-                              y=self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
-                              z=self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000)
+        self.scan_vol.setSize(x=self.cfg.imaging_specs[f'volume_z__um__'] * 1 / 1000,
+                              y=self.cfg.imaging_specs[f'volume_x__um__'] * 1 / 1000,
+                              z=self.cfg.imaging_specs[f'volume_y__um__'] * 1 / 1000)
         self.plot.addItem(self.scan_vol)
 
     def rotate_buttons(self):
@@ -192,9 +192,9 @@ class TissueMap(WidgetBase):
 
         self.scan_vol = gl.GLBoxItem()  # Representing scan volume
         self.scan_vol.translate(self.origin['x'], self.origin['y'], -up['Z'])
-        self.scan_vol.setSize(x=self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000,
-                              y=self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
-                              z=self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000)
+        self.scan_vol.setSize(x=self.cfg.imaging_specs[f'volume_z__um__'] * 1 / 1000,
+                              y=self.cfg.imaging_specs[f'volume_x__um__'] * 1 / 1000,
+                              z=self.cfg.imaging_specs[f'volume_y__um__'] * 1 / 1000)
         # Remapping tiger axis to sample ['z', 'x', 'y']
         self.plot.addItem(self.scan_vol)
 

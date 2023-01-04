@@ -187,6 +187,10 @@ class WidgetBase:
     def label_maker(self, string: str):
 
         """Removes underscores and capitalizes words in variable names"""
+
+        if '__' in string:
+            index = string.find('__')
+            string = string[0:1 + index] + '[' + string[index + 2:-2] + ']'
         label = string.split('_')
         label = [words.capitalize() for words in label]
         label = " ".join(label)
