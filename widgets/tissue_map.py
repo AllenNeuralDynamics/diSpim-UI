@@ -84,8 +84,7 @@ class TissueMap(WidgetBase):
         """Update position of stage for tissue map"""
 
         while True:
-
-           while not self.instrument.tigerbox.is_moving():
+            try:
                 self.map_pose = self.instrument.tigerbox.get_position()
                 coord = (self.map_pose['X'], self.map_pose['Y'], -self.map_pose['Z'])
                 coord = [i * 0.0001 for i in coord]  # converting from 1/10um to mm
@@ -100,8 +99,9 @@ class TissueMap(WidgetBase):
                              -self.instrument.start_pos['Z']]
                     start = [i * 0.0001 for i in start]
                     self.draw_volume(start)
+            finally:
                 sleep(.5)
-           yield
+                yield
 
     def draw_volume(self, coord: list):
 
@@ -203,30 +203,30 @@ class TissueMap(WidgetBase):
 
         return self.plot
 
-    def upload_graph(self):
-
-        file = open(r'C:\Users\micah.woodard\Downloads\test1.txt', 'r+')
-        elements = [line.rstrip('\n') for line in file.readlines()]
-
-        try:
-            points = np.genfromtxt(elements[1:elements.index('color')])
-            colors = np.genfromtxt(elements[elements.index('color') + 1:elements.index('text')])
-            text = elements[elements.index('text') + 1:elements.index('text pos')]
-            text_pos = np.genfromtxt(elements[elements.index('text pos') + 1:len(elements)])
-            text_pos = [np.array(x) for x in text_pos]
-
-        except:
-            self.error_msg('Invalid Map','Invalid map format. Example format:\n points\n 0 0 0 \n 1 1 1\ncolor\n '
-                                         '1 1 1 1 \n 0 1 0 1\n text\n hello \ntext pos\n 0 0 0' )
-            print('invalid format. format goes points\ncolor\ntext\ntext pos\n')
-
-
-        p1 = gl.GLScatterPlotItem(pos=points, size=2, color=colors)
-        w.addItem(p1)
-
-        for words, points in zip(text, text_pos):
-            info_point = gl.GLTextItem(pos=points, text=words, font=qtpy.QtGui.QFont('Helvetica', 10))
-            w.addItem(info_point)
+    # def upload_graph(self):
+    #
+    #     file = open(r'C:\Users\micah.woodard\Downloads\test1.txt', 'r+')
+    #     elements = [line.rstrip('\n') for line in file.readlines()]
+    #
+    #     try:
+    #         points = np.genfromtxt(elements[1:elements.index('color')])
+    #         colors = np.genfromtxt(elements[elements.index('color') + 1:elements.index('text')])
+    #         text = elements[elements.index('text') + 1:elements.index('text pos')]
+    #         text_pos = np.genfromtxt(elements[elements.index('text pos') + 1:len(elements)])
+    #         text_pos = [np.array(x) for x in text_pos]
+    #
+    #     except:
+    #         self.error_msg('Invalid Map','Invalid map format. Example format:\n points\n 0 0 0 \n 1 1 1\ncolor\n '
+    #                                      '1 1 1 1 \n 0 1 0 1\n text\n hello \ntext pos\n 0 0 0' )
+    #         print('invalid format. format goes points\ncolor\ntext\ntext pos\n')
+    #
+    #
+    #     p1 = gl.GLScatterPlotItem(pos=points, size=2, color=colors)
+    #     w.addItem(p1)
+    #
+    #     for words, points in zip(text, text_pos):
+    #         info_point = gl.GLTextItem(pos=points, text=words, font=qtpy.QtGui.QFont('Helvetica', 10))
+    #         w.addItem(info_point)
 
 
 

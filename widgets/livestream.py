@@ -65,6 +65,7 @@ class Livestream(WidgetBase):
 
         directions = ['X', 'Y', 'Z']
         if index == 0:
+            sleep(1)        # Pause to allow stage to complete any task before asking where it is
             self.stage_position = self.instrument.tigerbox.get_position()
             # Update stage labels if stage has moved
             for direction in directions:
