@@ -66,7 +66,7 @@ class InstrumentParameters(WidgetBase):
 
         """Setting CPX exposure time based on slit_width"""
 
-        value = self.cfg.slit_width_pix
+        value = self.cfg.slit_width
         self.slit_width['label'], self.slit_width['widget'] = \
             self.create_widget(int(value), QLineEdit, 'Slit Width [px]:')
         validator = QIntValidator()
@@ -98,7 +98,7 @@ class InstrumentParameters(WidgetBase):
 
         """Setting CPX line interval based on gui exposure time and column pix"""
 
-        value = self.cfg.exposure_time_s
+        value = self.cfg.exposure_time
         # TODO: make sure the pixels are right
         self.exposure_time['label'], self.exposure_time['widget'] = \
             self.create_widget(value, QLineEdit, 'Exposure Time [s]:')
