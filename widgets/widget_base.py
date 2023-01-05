@@ -188,9 +188,13 @@ class WidgetBase:
 
         """Removes underscores and capitalizes words in variable names"""
 
-        if '__' in string:
-            index = string.find('__')
-            string = string[0:1 + index] + '[' + string[index + 2:-2] + ']'
+        variable_names = {'um':'[um]', 's':'[s]', 'us':'[us]', 'v':'[V]', 'hz':'[Hz]',
+                          'pixels':'[px]', 'pix':'[px]', 'percent':'[%]', 'px':'[px]'}
+
+        for key, value in variable_names.items():
+            if key in string and string.rfind(key) == (len(string)-len(key)):
+                string = value.join(string.rsplit(key, 1))
+
         label = string.split('_')
         label = [words.capitalize() for words in label]
         label = " ".join(label)

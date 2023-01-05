@@ -42,8 +42,8 @@ class Livestream(WidgetBase):
         self.end_scan = None
 
         self.livestream_worker = None
-        self.scale = [self.cfg.cfg['tile_specs']['x_field_of_view__um__'] / self.cfg.sensor_row_count,
-                      self.cfg.cfg['tile_specs']['y_field_of_view__um__'] / self.cfg.sensor_column_count]
+        self.scale = [self.cfg.cfg['tile_specs']['x_field_of_view_um'] / self.cfg.sensor_row_count,
+                      self.cfg.cfg['tile_specs']['y_field_of_view_um'] / self.cfg.sensor_column_count]
         # TODO:change to config params
         self.layer_index = 0
         self.stream_id = 1

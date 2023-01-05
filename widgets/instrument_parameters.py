@@ -35,7 +35,7 @@ class InstrumentParameters(WidgetBase):
         self.imaging_specs = {}  # dictionary to store attribute labels and input box
         imaging_specs_widgets = {}  # dictionary that holds layout of attribute labels/input pairs
 
-        cpx_attributes = ['exposure_time__s__', 'slit_width__pix__', 'line_time__us__', 'scan_direction_left',
+        cpx_attributes = ['exposure_time_s', 'slit_width_pix', 'line_time_us', 'scan_direction_left',
                           'scan_direction_right']
         directory = [i for i in dir(config) if i not in cpx_attributes]
         for attr in directory:
@@ -66,7 +66,7 @@ class InstrumentParameters(WidgetBase):
 
         """Setting CPX exposure time based on slit_width"""
 
-        value = self.cfg.slit_width__pix__
+        value = self.cfg.slit_width_pix
         self.slit_width['label'], self.slit_width['widget'] = \
             self.create_widget(int(value), QLineEdit, 'Slit Width [px]:')
         validator = QIntValidator()
@@ -81,13 +81,13 @@ class InstrumentParameters(WidgetBase):
 
         # TODO: This is assuming that the line_interval is set the same in
         # both cameras. Should have some fail safe in case not?
-        set_sw = self.cfg.slit_width__pix__
+        set_sw = self.cfg.slit_width_pix
         new_sw = int(self.slit_width['widget'].text())
         if set_sw != new_sw:
             cpx_line_interval = self.frame_grabber.get_line_interval()
             self.frame_grabber.set_exposure_time(new_sw * cpx_line_interval[0],
                                                  live=self.instrument.live_status)
-            self.cfg.slit_width__pix__ = new_sw
+            self.cfg.slit_width_pix = new_sw
 
             if self.instrument.live_status:
                 self.instrument._setup_waveform_hardware(
@@ -98,7 +98,7 @@ class InstrumentParameters(WidgetBase):
 
         """Setting CPX line interval based on gui exposure time and column pix"""
 
-        value = self.cfg.exposure_time__s__
+        value = self.cfg.exposure_time_s
         # TODO: make sure the pixels are right
         self.exposure_time['label'], self.exposure_time['widget'] = \
             self.create_widget(value, QLineEdit, 'Exposure Time [s]:')
@@ -111,7 +111,7 @@ class InstrumentParameters(WidgetBase):
         """Setting CPX line interval based on gui exposure time and column pix.
         Setting exposure time and line time in config object"""
 
-        set_et = self.cfg.exposure_time__s__
+        set_et = self.cfg.exposure_time_s
         new_et = float(self.exposure_time['widget'].text())
         if set_et != new_et:
             line_interval = (new_et * 1000000) / self.column_pixels
@@ -119,8 +119,8 @@ class InstrumentParameters(WidgetBase):
             self.frame_grabber.set_exposure_time(int(self.slit_width['widget'].text()) *
                                                  line_interval,
                                                  live=self.instrument.live_status)
-            self.cfg.line_time__us__ = line_interval
-            self.cfg.exposure_time__s__ = new_et
+            self.cfg.line_time_us = line_interval
+            self.cfg.exposure_time_s = new_et
 
             if self.instrument.live_status:
                 self.instrument._setup_waveform_hardware(
