@@ -71,7 +71,7 @@ class TissueMap(WidgetBase):
             np.random.randint(1000, 60000, 3)
         coord = [i * 0.0001 for i in coord]  # converting from 1/10um to mm
         hue = str(self.map['color'].currentText())
-        point = gl.GLScatterPlotItem(pos=coord, size=.2, color=qtpy.QtGui.QColor(hue), pxMode=False)
+        point = gl.GLScatterPlotItem(pos=coord, size=.5, color=qtpy.QtGui.QColor(hue), pxMode=False)
         info = self.map['label'].text()
         info_point = gl.GLTextItem(pos=coord, text=info, font=qtpy.QtGui.QFont('Helvetica', 10))
         self.plot.addItem(info_point)
@@ -109,6 +109,7 @@ class TissueMap(WidgetBase):
 
         self.plot.removeItem(self.scan_vol)
         self.scan_vol = gl.GLBoxItem()  # Representing scan volume
+        self.scan_vol.setColor(qtpy.QtGui.QColor('cornflowerblue'))
         self.scan_vol.translate(coord[0], coord[1], coord[2])
         self.scan_vol.setSize(x=self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000,
                               y=self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
@@ -188,7 +189,7 @@ class TissueMap(WidgetBase):
         self.plot.addItem(axes_z)
         coord = (1, 0, 0)
         size = 1
-        color = (1.0, 0.0, 0.0, 0.5)
+        color = (150.0/255.0, 111.0/255.0, 214.0/255.0, 1)
 
         self.scan_vol = gl.GLBoxItem()  # Representing scan volume
         self.scan_vol.translate(self.origin['x'], self.origin['y'], -up['Z'])

@@ -46,7 +46,6 @@ class Livestream(WidgetBase):
                       self.cfg.cfg['tile_specs']['y_field_of_view_um'] / self.cfg.sensor_column_count]
         # TODO:change to config params
         self.layer_index = 0
-        self.stream_id = 1
 
         # Start and end points for lines
         self.vert_start = -self.cfg.sensor_column_count * self.scale[0]  # I can just change this to um in field of view
@@ -80,23 +79,23 @@ class Livestream(WidgetBase):
         self.live_view['start'] = QPushButton('Start Live View')
         self.live_view['start'].clicked.connect(self.start_live_view)
 
-        self.live_view['0'] = QPushButton('Right')
-        self.live_view['0'].setHidden(True)
-        self.live_view['0'].pressed.connect(lambda stream_id=0: self.toggle_camera_view(stream_id))
+        for streams in self.instrument.stream_ids:
+            self.live_view[str(streams)] = QPushButton(f'{self.camera_id[streams]}')
+            self.live_view[str(streams)].setHidden(True)
+            self.live_view[str(streams)].pressed.connect(lambda stream_id=streams: self.toggle_camera_view(stream_id))
+        self.camera_button_change(str(len(self.instrument.stream_ids)-1))   # Turns correct button green
 
-        self.live_view['1'] = QPushButton('Left')
-        self.live_view['1'].setHidden(True)
-        self.live_view['1'].pressed.connect(lambda stream_id=1: self.toggle_camera_view(stream_id))
+        if len(self.instrument.stream_ids) >= 2:
 
-        self.live_view['overlay'] = QPushButton('Blend')
-        self.live_view['overlay'].setHidden(True)
-        self.live_view['overlay'].clicked.connect(self.blending_views)
+            self.live_view['overlay'] = QPushButton('Blend')
+            self.live_view['overlay'].setHidden(True)
+            self.live_view['overlay'].clicked.connect(self.blending_views)
 
-        self.live_view['grid'] = QPushButton('Both')
-        self.live_view['grid'].setHidden(True)
-        self.live_view['grid'].clicked.connect(self.dual_stream)
+            self.live_view['grid'] = QPushButton('Both')
+            self.live_view['grid'].setHidden(True)
+            self.live_view['grid'].clicked.connect(self.multi_stream)
 
-        self.camera_button_change('1')
+        #self.camera_button_change('1')
 
         wv_strs = [str(x) for x in self.possible_wavelengths]
         self.live_view['wavelength'] = QComboBox()
@@ -128,18 +127,19 @@ class Livestream(WidgetBase):
 
         """Toggles opacity of left and right camera layer depending on button press """
 
-        self.stream_id = stream_id
-        not_id = (stream_id + 1) % 2
-        key = f"Video {self.camera_id[stream_id]}"
-        not_key = f"Video {self.camera_id[not_id]}"
-
         self.viewer.layers['line'].visible = True
         self.viewer.layers['line'].mode = 'select'
         self.viewer.grid.enabled = False
-        self.viewer.layers[key].opacity = 1
-        self.viewer.layers[not_key].opacity = 0
-        self.viewer.layers.selection.active = self.viewer.layers[key]
-        self.camera_button_change(str(self.stream_id))
+
+        for layers in self.viewer.layers:
+            if str(layers) == f"Video {self.camera_id[stream_id]}":
+                self.viewer.layers[str(layers)].opacity = 1
+                self.viewer.layers.selection.active = self.viewer.layers[str(layers)]
+            elif str(layers) != 'line' and str(layers) != f"Video {self.camera_id[stream_id]}":
+
+                self.viewer.layers[str(layers)].opacity = 0.0
+
+        self.camera_button_change(str(stream_id))
 
     def blending_views(self):
 
@@ -148,11 +148,14 @@ class Livestream(WidgetBase):
         self.viewer.grid.enabled = False
         self.viewer.layers['line'].visible = True
         self.viewer.layers['line'].mode = 'select'
-        self.viewer.layers[f"Video Left"].blending = self.viewer.layers[f"Video Right"].blending = 'additive'
-        self.viewer.layers[f"Video Left"].opacity = self.viewer.layers[f"Video Right"].opacity = 1.0
+
+        for layers in self.viewer.layers:
+            self.viewer.layers[str(layers)].blending = 'additive'
+            self.viewer.layers[str(layers)].opacity = 1.0
+
         self.camera_button_change('overlay')
 
-    def dual_stream(self):
+    def multi_stream(self):
 
         """Displays right and left camera layers side by side and hides line and grid layer"""
 
@@ -160,11 +163,13 @@ class Livestream(WidgetBase):
             self.viewer.layers.remove(self.viewer.layers['grid'])
         except:
             pass
-        self.viewer.layers[f"Video Left"].opacity = self.viewer.layers[f"Video Right"].opacity = 1.0
+
+        for layers in self.viewer.layers:
+            self.viewer.layers[str(layers)].opacity = 1.0
         self.camera_button_change('grid')
         self.viewer.grid.enabled = True
         self.viewer.layers[-1].visible = False
-        self.viewer.grid.shape = (1, 4)
+        #self.viewer.grid.shape = (1, 4)
         self.viewer.camera.zoom = .35
 
     def start_live_view(self):
@@ -176,10 +181,9 @@ class Livestream(WidgetBase):
 
         if self.live_view['start'].text() == 'Start Live View':
             self.live_view['start'].setText('Stop Live View')
-            self.live_view['overlay'].setHidden(False)
-            self.live_view['1'].setHidden(False)
-            self.live_view['0'].setHidden(False)
-            self.live_view['grid'].setHidden(False)
+            for buttons in self.live_view:
+
+                self.live_view[buttons].setHidden(False)
 
         self.instrument.start_livestream(int(self.live_view['wavelength'].currentText()))
         self.livestream_worker = create_worker(self.instrument._livestream_worker)
@@ -206,10 +210,9 @@ class Livestream(WidgetBase):
         self.livestream_worker.quit()
         self.sample_pos_worker.quit()
         self.live_view['start'].setText('Start Live View')
-        self.live_view['overlay'].setHidden(True)
-        self.live_view['1'].setHidden(True)
-        self.live_view['0'].setHidden(True)
-        self.live_view['grid'].setHidden(True)
+        for buttons in self.live_view:
+            if buttons != 'start' and buttons != 'wavelength':
+                self.live_view[buttons].setHidden(True)
 
         self.live_view['start'].clicked.connect(self.start_live_view)
 
