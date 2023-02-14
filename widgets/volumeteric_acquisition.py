@@ -117,7 +117,7 @@ class VolumetericAcquisition(WidgetBase):
         return self.waveform['generate']
 
     def waveform_update(self):
-        t, voltages_t = generate_waveforms(self.cfg, 488) #TODO: Rework so it's using active laser
+        t, voltages_t = generate_waveforms(self.cfg, self.cfg.imaging_wavelengths) #TODO: Rework so it's using active laser
 
         self.waveform['graph'].clear()
         for index, ao_name in enumerate(self.cfg.daq_ao_names_to_channels.keys()):

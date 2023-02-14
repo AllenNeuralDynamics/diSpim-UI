@@ -66,7 +66,7 @@ class InstrumentParameters(WidgetBase):
 
         """Setting CPX exposure time based on slit_width"""
 
-        value = self.cfg.slit_width
+        value = self.cfg.slit_width_pix
         self.slit_width['label'], self.slit_width['widget'] = \
             self.create_widget(int(value), QLineEdit, 'Slit Width [px]:')
         validator = QIntValidator()

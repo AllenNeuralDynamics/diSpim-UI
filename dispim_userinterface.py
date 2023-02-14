@@ -1,7 +1,7 @@
 import napari
 from qtpy.QtWidgets import QDockWidget, QTabWidget,QPlainTextEdit, QDialog, QFrame
 from PyQt5 import QtWidgets
-import dispim.dispim as dispim
+import ispim.ispim as ispim
 from widgets.instrument_parameters import InstrumentParameters
 from widgets.volumeteric_acquisition import VolumetericAcquisition
 from widgets.livestream import Livestream
@@ -22,10 +22,11 @@ class UserInterface:
 
         try:
             # TODO: Create logger tab at bottom of napari viewer. Also make logger for each class as well
-            self.instrument = dispim.Dispim(config_filepath=config_filepath, simulated=simulated)
+            self.instrument = ispim.Ispim(config_filepath=config_filepath, simulated=simulated)
+            print(self.instrument)
             self.simulated = simulated
             self.cfg = self.instrument.cfg
-            self.viewer = napari.Viewer(title='diSPIM control', ndisplay=2, axis_labels=('x', 'y'))
+            self.viewer = napari.Viewer(title='ISPIM control', ndisplay=2, axis_labels=('x', 'y'))
 
             # Set up laser sliders and tabs
             self.laser_widget()
