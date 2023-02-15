@@ -79,9 +79,7 @@ class UserInterface:
             napari.run()
 
         finally:
-            traceback.print_exc()
             self.close_instrument()
-            self.viewer.window.close()
 
     def instrument_params_widget(self):
         self.instrument_params = InstrumentParameters(self.instrument.frame_grabber, self.cfg.sensor_column_count,

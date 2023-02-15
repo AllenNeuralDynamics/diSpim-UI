@@ -1,6 +1,6 @@
 import logging
 from widgets.widget_base import WidgetBase
-from qtpy.QtWidgets import QPushButton, QTabWidget, QWidget, QLineEdit, QComboBox,QMessageBox
+from qtpy.QtWidgets import QPushButton, QTabWidget, QWidget, QLineEdit, QComboBox,QMessageBox,QCheckBox
 import pyqtgraph.opengl as gl
 import numpy as np
 from napari.qt.threading import thread_worker
@@ -20,10 +20,16 @@ class TissueMap(WidgetBase):
         self.map_pos_worker = None
         self.pos = None
         self.plot = None
-
+        self.initial_volume = [self.cfg.volume_x_um, self.cfg.volume_y_um, self.cfg.volume_z_um]
         self.rotate = {}
         self.map = {}
         self.origin = {}
+
+        # Initializing position shift of stage
+        self.volume_pos_shift = self.remap_axis({'X': - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
+                            'Y': - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
+                            'Z': 0})
+
 
     def set_tab_widget(self, tab_widget: QTabWidget):
 
@@ -58,10 +64,33 @@ class TissueMap(WidgetBase):
         self.map['label'] = QLineEdit()
         self.map['label'].returnPressed.connect(self.set_point)
 
-
-
+        self.map['tiling'] = QCheckBox('See Tiling')
+        self.map['tiling'].stateChanged.connect(self.set_tiling)
 
         return self.create_layout(struct='H', **self.map)
+
+    def set_tiling(self, state):
+
+        # State is 2 if checkmark is pressed
+        if state == 2:
+
+            # Grid steps in samplepose coords
+            self.x_grid_step_um, self.y_grid_step_um = self.instrument.get_xy_grid_step(self.cfg.tile_overlap_x_percent,
+                                                                                        self.cfg.tile_overlap_y_percent)
+            print(self.x_grid_step_um, self.y_grid_step_um)
+            # Tile in sample pose coords
+            self.xtiles, self.ytiles, self.ztiles = self.instrument.get_tile_counts(self.cfg.tile_overlap_x_percent,
+                                                                                    self.cfg.tile_overlap_y_percent,
+                                                                                    self.cfg.z_step_size_um,
+                                                                                    self.cfg.volume_x_um,
+                                                                                    self.cfg.volume_y_um,
+                                                                                    self.cfg.volume_z_um)
+        # State is 0 if checkmark is unpressed
+        if state == 0:
+            for item in self.plot.items:
+                if type(item) == gl.GLBoxItem and item != self.scan_vol:
+                    self.plot.removeItem(item)
+
 
     def set_point(self):
 
@@ -84,37 +113,91 @@ class TissueMap(WidgetBase):
         """Update position of stage for tissue map"""
 
         while True:
+
             try:
-                self.map_pose = self.instrument.tigerbox.get_position()
-                coord = (self.map_pose['X'], self.map_pose['Y'], -self.map_pose['Z'])
-                coord = [i * 0.0001 for i in coord]  # converting from 1/10um to mm
-                self.pos.setData(pos=coord)
+                self.map_pose = self.instrument.sample_pose.get_position()
+
+                coord = {'x': self.map_pose['X'] * 0.0001,
+                         'y': self.map_pose['Y'] * 0.0001,
+                         'z': -self.map_pose['Z'] * 0.0001}  # if not self.instrument.simulated \
+                #     else np.random.randint(-60000, 60000, 3)
+
+                #gui_coord = self.remap_axis(coord)
+                self.pos.setData(pos=[coord['x'], coord['y'], coord['z']])
+
 
                 if self.instrument.start_pos == None:
-                    self.draw_volume(coord)
+                    for item in self.plot.items:
+                        if type(item) == gl.GLBoxItem:
+                            self.plot.removeItem(item)
+
+                    volume_pos = {}
+                    for k in coord.keys(): volume_pos[k] = self.volume_pos_shift[k]+coord[k]
+
+                    scanning_volume = self.remap_axis({'X': self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
+                                                       'Y': self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000,
+                                                       'Z': self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000})
+
+                    self.scan_vol = self.draw_volume(volume_pos, scanning_volume)
+                    self.plot.addItem(self.scan_vol)
+
+                    if self.map['tiling'].isChecked():
+                        self.draw_tiles(volume_pos)
 
                 else:
-                    start = [self.instrument.start_pos['X'],
-                             self.instrument.start_pos['Y'],
-                             -self.instrument.start_pos['Z']]
-                    start = [i * 0.0001 for i in start]
-                    self.draw_volume(start)
+                    #   What coordinate system is start pos?
+                    start = {}
+                    for k in coord.keys(): start[k] = self.volume_pos_shift[k] + start[k]
+
+                    if self.map['tiling'].isChecked():
+                        self.draw_tiles(start)
+                    self.draw_volume(start, self.remap_axis({'X': self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
+                                                             'Y': self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000,
+                                                             'Z': self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000}))
+            # except:
+            #     sleep(2)
             finally:
                 sleep(.5)
                 yield
 
-    def draw_volume(self, coord: list):
+    def draw_tiles(self, coord):
 
-        """Redraw and translate volumetric scan box in map"""
+        "Coords in sample pose"
 
-        self.plot.removeItem(self.scan_vol)
-        self.scan_vol = gl.GLBoxItem()  # Representing scan volume
-        self.scan_vol.setColor(qtpy.QtGui.QColor('cornflowerblue'))
-        self.scan_vol.translate(coord[0], coord[1], coord[2])
-        self.scan_vol.setSize(x=self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000,
-                              y=self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
-                              z=self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000)
-        self.plot.addItem(self.scan_vol)
+        if self.initial_volume != [self.cfg.volume_x_um, self.cfg.volume_y_um, self.cfg.volume_z_um]:
+            self.set_tiling(2)
+            self.initial_volume = [self.cfg.volume_x_um, self.cfg.volume_y_um, self.cfg.volume_z_um]
+
+        for item in self.plot.items:
+            if type(item) == gl.GLBoxItem and item != self.scan_vol:
+                self.plot.removeItem(item)
+
+        for x in range(0, self.xtiles):
+            for y in range(0, self.ytiles):
+
+                tile_pos_shift = self.remap_axis({'X':(x * self.x_grid_step_um * .001),
+                                                  'Y':(y * self.y_grid_step_um * .001),
+                                                  'Z':0})
+                tile_pos = {}
+                print(tile_pos_shift)
+                for k in coord.keys(): tile_pos[k] = tile_pos_shift[k] + coord[k]
+
+
+                tile_volume = self.remap_axis({'X':self.cfg.tile_specs['x_field_of_view_um'] * .001,
+                                               'Y':self.cfg.tile_specs['y_field_of_view_um'] * .001,
+                                               'Z':0})
+                tile = self.draw_volume(tile_pos,tile_volume)
+                tile.setColor(qtpy.QtGui.QColor('cornflowerblue'))
+                self.plot.addItem(tile)
+
+    def draw_volume(self, coord: dict, size: dict):
+
+        """draw and translate boxes in map. Expecting gui coordinate system"""
+
+        box = gl.GLBoxItem()  # Representing scan volume
+        box.translate(coord['x'],coord['y'],coord['z'])
+        box.setSize(**size)
+        return box
 
     def rotate_buttons(self):
 
@@ -149,16 +232,36 @@ class TissueMap(WidgetBase):
         self.plot.opts['elevation'] = elevation
         self.plot.opts['azimuth'] = azimuth
 
+    def remap_axis(self, coords: dict):
+
+        """Remaps sample pose coordinates to gui 3d map coordinates.
+        Sample pose comes in dictionary with uppercase keys and gui uses lowercase"""
+
+        remap = {'x': 'Z', 'y': 'X', 'z': '-Y'}
+        remap_coords = {}
+        for k, v in remap.items():
+            if '-' in v:
+                v = v.lstrip('-')
+                remap_coords[k] = -coords[v]
+            else:
+                remap_coords[k] = coords[v]
+
+        return remap_coords
+
     def graph(self):
 
-        self.plot = GraphItem()
+        self.plot = gl.GLViewWidget()
         self.plot.opts['distance'] = 40
 
+        #TODO: Eventually need to be cognizant that axis will be in sample pose and change axis mapping accordingly
         dirs = ['x', 'y', 'z']
         low = {'X': 0, 'Y': 0, 'Z': 0} if self.instrument.simulated else \
-            self.instrument.tigerbox.get_lower_travel_limit(*dirs)
+            self.instrument.tigerbox.get_lower_travel_limit(*['x', 'y', 'z'])
         up = {'X': 60, 'Y': 60, 'Z': 60} if self.instrument.simulated else \
-            self.instrument.tigerbox.get_upper_travel_limit(*dirs)
+            self.instrument.tigerbox.get_upper_travel_limit(*['x', 'y', 'z'])
+
+
+
         axes_len = {}
         for directions in dirs:
             axes_len[directions] = up[directions.upper()] - low[directions.upper()]
@@ -188,15 +291,15 @@ class TissueMap(WidgetBase):
         axes_z.translate(self.origin['x'], self.origin['y'], -up['Z'])  # Translate to origin of x, y, z
         self.plot.addItem(axes_z)
         coord = (1, 0, 0)
-        size = 1
+        size = .5
         color = (150.0/255.0, 111.0/255.0, 214.0/255.0, 1)
 
         self.scan_vol = gl.GLBoxItem()  # Representing scan volume
         self.scan_vol.translate(self.origin['x'], self.origin['y'], -up['Z'])
-        self.scan_vol.setSize(x=self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000,
-                              y=self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
-                              z=self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000)
-        # Remapping tiger axis to sample ['z', 'x', 'y']
+        scanning_volume = self.remap_axis({'X': self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
+                                           'Y': self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000,
+                                           'Z': self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000})
+        self.scan_vol.setSize(**scanning_volume)
         self.plot.addItem(self.scan_vol)
 
         self.pos = gl.GLScatterPlotItem(pos=coord, size=size, color=color, pxMode=False)
@@ -204,59 +307,6 @@ class TissueMap(WidgetBase):
 
         return self.plot
 
-    # def upload_graph(self):
-    #
-    #     file = open(r'C:\Users\micah.woodard\Downloads\test1.txt', 'r+')
-    #     elements = [line.rstrip('\n') for line in file.readlines()]
-    #
-    #     try:
-    #         points = np.genfromtxt(elements[1:elements.index('color')])
-    #         colors = np.genfromtxt(elements[elements.index('color') + 1:elements.index('text')])
-    #         text = elements[elements.index('text') + 1:elements.index('text pos')]
-    #         text_pos = np.genfromtxt(elements[elements.index('text pos') + 1:len(elements)])
-    #         text_pos = [np.array(x) for x in text_pos]
-    #
-    #     except:
-    #         self.error_msg('Invalid Map','Invalid map format. Example format:\n points\n 0 0 0 \n 1 1 1\ncolor\n '
-    #                                      '1 1 1 1 \n 0 1 0 1\n text\n hello \ntext pos\n 0 0 0' )
-    #         print('invalid format. format goes points\ncolor\ntext\ntext pos\n')
-    #
-    #
-    #     p1 = gl.GLScatterPlotItem(pos=points, size=2, color=colors)
-    #     w.addItem(p1)
-    #
-    #     for words, points in zip(text, text_pos):
-    #         info_point = gl.GLTextItem(pos=points, text=words, font=qtpy.QtGui.QFont('Helvetica', 10))
-    #         w.addItem(info_point)
 
 
 
-class GraphItem(gl.GLViewWidget):
-
-    def __init__(self):
-        super().__init__()
-
-    # def mouseReleaseEvent(self, e):
-    #     super().mousePressEvent(e)
-    #
-    #     items = self.itemsAt((e.pos().x() - 5, e.pos().y() - 5, 10, 10))
-    #     if len(items) == 0:
-    #         return
-    #     print(items)
-    #     for item in items:
-    #         if type(item) == gl.GLScatterPlotItem:
-    #
-    #             return_value = self.delete_point_warning()
-    #             if return_value == QMessageBox.Cancel:
-    #                 return
-    #
-    #             self.removeItem(item)
-    #     e.accept()
-    #
-    # def delete_point_warning(self):
-    #     msgBox = QMessageBox()
-    #     msgBox.setIcon(QMessageBox.Information)
-    #     msgBox.setText("Do you want to delete this point?")
-    #     msgBox.setWindowTitle("Delete Point")
-    #     msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
-    #     return msgBox.exec()
