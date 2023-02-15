@@ -3,7 +3,7 @@ from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, 
     QSlider, QLineEdit,QMessageBox, QTabWidget
 import numpy as np
 from pyqtgraph import PlotWidget, mkPen
-from dispim.compute_waveforms import generate_waveforms
+from ispim.compute_waveforms import generate_waveforms
 import logging
 from napari.qt.threading import thread_worker, create_worker
 from time import sleep
