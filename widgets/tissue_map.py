@@ -116,7 +116,7 @@ class TissueMap(WidgetBase):
 
             try:
                 self.map_pose = self.instrument.sample_pose.get_position()
-
+                #TODO: Map pose still in tigerbox coordinates need to rework when changed
                 coord = {'x': self.map_pose['X'] * 0.0001,
                          'y': self.map_pose['Y'] * 0.0001,
                          'z': -self.map_pose['Z'] * 0.0001}  # if not self.instrument.simulated \
@@ -145,7 +145,7 @@ class TissueMap(WidgetBase):
                         self.draw_tiles(volume_pos)
 
                 else:
-                    #   What coordinate system is start pos?
+                    #TODO: start still in tigerbox coordinates need to rework when changed
                     start = {}
                     for k in coord.keys(): start[k] = self.volume_pos_shift[k] + start[k]
 
@@ -154,8 +154,8 @@ class TissueMap(WidgetBase):
                     self.draw_volume(start, self.remap_axis({'X': self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
                                                              'Y': self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000,
                                                              'Z': self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000}))
-            # except:
-            #     sleep(2)
+            except:
+                sleep(2)
             finally:
                 sleep(.5)
                 yield
@@ -163,7 +163,7 @@ class TissueMap(WidgetBase):
     def draw_tiles(self, coord):
 
         "Coords in sample pose"
-
+        # TODO: coords still in tigerbox coordinates need to rework when changed
         if self.initial_volume != [self.cfg.volume_x_um, self.cfg.volume_y_um, self.cfg.volume_z_um]:
             self.set_tiling(2)
             self.initial_volume = [self.cfg.volume_x_um, self.cfg.volume_y_um, self.cfg.volume_z_um]
@@ -179,7 +179,6 @@ class TissueMap(WidgetBase):
                                                   'Y':(y * self.y_grid_step_um * .001),
                                                   'Z':0})
                 tile_pos = {}
-                print(tile_pos_shift)
                 for k in coord.keys(): tile_pos[k] = tile_pos_shift[k] + coord[k]
 
 
@@ -248,6 +247,15 @@ class TissueMap(WidgetBase):
 
         return remap_coords
 
+    def create_axes(self, rotation, size, translate, color=None):
+
+        axes = gl.GLGridItem()
+        axes.rotate(*rotation)
+        axes.setSize(*size)
+        axes.translate(*translate)  # Translate to lower end of x and origin of y and -z
+        if color is not None: axes.setColor(qtpy.QtGui.QColor(color))
+        self.plot.addItem(axes)
+
     def graph(self):
 
         self.plot = gl.GLViewWidget()
@@ -260,39 +268,24 @@ class TissueMap(WidgetBase):
         up = {'X': 60, 'Y': 60, 'Z': 60} if self.instrument.simulated else \
             self.instrument.tigerbox.get_upper_travel_limit(*['x', 'y', 'z'])
 
-
+        print(low)
+        print(up)
 
         axes_len = {}
         for directions in dirs:
-            axes_len[directions] = up[directions.upper()] - low[directions.upper()]
-            self.origin[directions] = low[directions.upper()] + (axes_len[directions] / 2)
-
+            axes_len[directions] = (up[directions.upper()] - low[directions.upper()])
+            self.origin[directions] = (low[directions.upper()] + (axes_len[directions] / 2))
         self.plot.opts['center'] = QtGui.QVector3D(self.origin['x'], self.origin['y'], -self.origin['z'])
-
+        print(axes_len)
+        print(self.origin)
         # Translate axis so origin of graph translate to center of stage limits
         # Z coords increase as stage moves down so z origin and coords are negative
 
-        axes_x = gl.GLGridItem()
-        axes_x.rotate(90, 0, 1, 0)
-        axes_x.setSize(x=round(axes_len['z']), y=round(axes_len['y']))
-        axes_x.translate(low['X'], self.origin['y'],
-                         -self.origin['z'])  # Translate to lower end of x and origin of y and -z
-        self.plot.addItem(axes_x)
+        self.create_axes((90, 0, 1, 0), (axes_len['z'], axes_len['y']),(low['X'], self.origin['y'], -self.origin['z']))#-self.origin['z']) )
 
-        axes_y = gl.GLGridItem()
-        axes_y.rotate(90, 1, 0, 0)
-        axes_y.setSize(x=round(axes_len['x']), y=round(axes_len['z']))
-        axes_y.translate(self.origin['x'], low['Y'],
-                         -self.origin['z'])  # Translate to lower end of y and origin of x and -z
-        self.plot.addItem(axes_y)
+        self.create_axes((90, 1, 0, 0), (axes_len['x'], axes_len['z']),(self.origin['x'], self.origin['y'], -self.origin['z']))#-self.origin['z']))
 
-        axes_z = gl.GLGridItem()
-        axes_z.setSize(x=round(axes_len['x']), y=round(axes_len['y']))
-        axes_z.translate(self.origin['x'], self.origin['y'], -up['Z'])  # Translate to origin of x, y, z
-        self.plot.addItem(axes_z)
-        coord = (1, 0, 0)
-        size = .5
-        color = (150.0/255.0, 111.0/255.0, 214.0/255.0, 1)
+        self.create_axes((0, 0, 0, 0),(axes_len['x'],axes_len['y']), (self.origin['x'], self.origin['y'], -up['Z']))
 
         self.scan_vol = gl.GLBoxItem()  # Representing scan volume
         self.scan_vol.translate(self.origin['x'], self.origin['y'], -up['Z'])
@@ -302,8 +295,11 @@ class TissueMap(WidgetBase):
         self.scan_vol.setSize(**scanning_volume)
         self.plot.addItem(self.scan_vol)
 
-        self.pos = gl.GLScatterPlotItem(pos=coord, size=size, color=color, pxMode=False)
+        self.pos = gl.GLScatterPlotItem(pos=(1, 0, 0), size=.5, color=(1,0,0,1), pxMode=False)
         self.plot.addItem(self.pos)
+
+        origin = gl.GLScatterPlotItem(pos=(self.origin['x'], self.origin['y'], -self.origin['z']), size=.5, color=(1, 0, 0, 1), pxMode=False)
+        self.plot.addItem(origin)
 
         return self.plot
 
