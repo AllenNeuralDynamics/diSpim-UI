@@ -119,10 +119,6 @@ class VolumetericAcquisition(WidgetBase):
     def waveform_update(self):
         t, voltages_t = generate_waveforms(self.cfg, self.cfg.imaging_wavelengths)
 
-        print('size of voltages waveform update', voltages_t[0].size)
-        print('size of t in waveform update', t.size)
-        t = np.linspace(0, voltages_t[0].size, voltages_t[0].size,
-                        endpoint=False)
         self.waveform['graph'].clear()
         for index, ao_name in enumerate(self.cfg.daq_ao_names_to_channels.keys()):
             self.waveform['graph'].addLegend(offset=(365, .5), horSpacing=20, verSpacing=0, labelTextSize='8pt')
