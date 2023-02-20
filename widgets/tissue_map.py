@@ -281,9 +281,9 @@ class TissueMap(WidgetBase):
         # Translate axis so origin of graph translate to center of stage limits
         # Z coords increase as stage moves down so z origin and coords are negative
 
-        self.create_axes((90, 0, 1, 0), (axes_len['z'], axes_len['y']),(low['X'], self.origin['y'], -self.origin['z']))#-self.origin['z']) )
+        self.create_axes((90, 0, 1, 0), (axes_len['z'], axes_len['y']),(low['X'], self.origin['y'],-self.origin['z']))
 
-        self.create_axes((90, 1, 0, 0), (axes_len['x'], axes_len['z']),(self.origin['x'], self.origin['y'], -self.origin['z']))#-self.origin['z']))
+        self.create_axes((90, 1, 0, 0), (axes_len['x'], axes_len['z']),(self.origin['x'], low['Y'], -self.origin['z']))
 
         self.create_axes((0, 0, 0, 0),(axes_len['x'],axes_len['y']), (self.origin['x'], self.origin['y'], -up['Z']))
 
@@ -297,9 +297,6 @@ class TissueMap(WidgetBase):
 
         self.pos = gl.GLScatterPlotItem(pos=(1, 0, 0), size=.5, color=(1,0,0,1), pxMode=False)
         self.plot.addItem(self.pos)
-
-        origin = gl.GLScatterPlotItem(pos=(self.origin['x'], self.origin['y'], -self.origin['z']), size=.5, color=(1, 0, 0, 1), pxMode=False)
-        self.plot.addItem(origin)
 
         return self.plot
 
