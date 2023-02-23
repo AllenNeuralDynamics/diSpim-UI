@@ -1,5 +1,5 @@
 from widgets.widget_base import WidgetBase
-from qtpy.QtWidgets import QPushButton, QComboBox, QSpinBox, QLineEdit, QTabWidget
+from qtpy.QtWidgets import QPushButton, QComboBox, QSpinBox, QLineEdit, QTabWidget,QListWidget,QListWidgetItem, QAbstractItemView, QScrollArea
 import qtpy.QtGui as QtGui
 import qtpy.QtCore as QtCore
 import numpy as np
@@ -53,8 +53,6 @@ class Livestream(WidgetBase):
         self.horz_start = -self.cfg.sensor_row_count * self.scale[1]
         self.horz_end = self.cfg.sensor_row_count * self.scale[1]
 
-        self.camera_id = ['Right', 'Left']
-
     def set_tab_widget(self, tab_widget: QTabWidget):
 
         self.tab_widget = tab_widget
@@ -79,7 +77,7 @@ class Livestream(WidgetBase):
         self.live_view['start'].clicked.connect(self.start_live_view)
 
         for streams in self.instrument.stream_ids:
-            self.live_view[str(streams)] = QPushButton(f'{self.camera_id[streams]}')
+            self.live_view[str(streams)] = QPushButton(str(streams))
             self.live_view[str(streams)].setHidden(True)
             self.live_view[str(streams)].pressed.connect(lambda stream_id=streams: self.toggle_camera_view(stream_id))
         self.camera_button_change(str(len(self.instrument.stream_ids)-1))   # Turns correct button green
@@ -97,17 +95,17 @@ class Livestream(WidgetBase):
         #self.camera_button_change('1')
 
         wv_strs = [str(x) for x in self.possible_wavelengths]
-        self.live_view['wavelength'] = QComboBox()
-        self.live_view['wavelength'].addItems(wv_strs)
-        self.live_view['wavelength'].currentIndexChanged.connect(self.color_change)
+        self.live_view['wavelength'] = QListWidget()
+        self.live_view['wavelength'].setSelectionMode(QAbstractItemView.MultiSelection)
 
-        i = 0
         for wavelength in wv_strs:
-            self.live_view['wavelength'].setItemData(i, QtGui.QColor(self.cfg.laser_specs[wavelength]['color']),
-                                                     QtCore.Qt.BackgroundRole)
-            i += 1
-        self.live_view['wavelength'].setStyleSheet(
-            f'QComboBox {{ background-color:{self.cfg.laser_specs[wv_strs[0]]["color"]}; color : black; }}')
+            wv_item = QListWidgetItem(wavelength)
+            wv_item.setBackground( QtGui.QColor(self.cfg.laser_specs[wavelength]['color']))
+            self.live_view['wavelength'].addItem(wv_item)
+        self.live_view['wavelength'].setStyleSheet(" QListWidget:item:selected:active {background: white;"
+                                                   "color: black;"
+                                                   "background-color:transparent;}")
+        #self.live_view['wavelength'].setMaximumHeight(20)
 
         return self.create_layout(struct='H', **self.live_view)
 
@@ -131,10 +129,10 @@ class Livestream(WidgetBase):
         self.viewer.grid.enabled = False
 
         for layers in self.viewer.layers:
-            if str(layers) == f"Video {self.camera_id[stream_id]}":
+            if str(layers) == f"Video {stream_id}":
                 self.viewer.layers[str(layers)].opacity = 1
                 self.viewer.layers.selection.active = self.viewer.layers[str(layers)]
-            elif str(layers) != 'line' and str(layers) != f"Video {self.camera_id[stream_id]}":
+            elif str(layers) != 'line' and str(layers) != f"Video {stream_id}":
 
                 self.viewer.layers[str(layers)].opacity = 0.0
 
@@ -183,8 +181,8 @@ class Livestream(WidgetBase):
             for buttons in self.live_view:
 
                 self.live_view[buttons].setHidden(False)
-
-        self.instrument.start_livestream(int(self.live_view['wavelength'].currentText()))
+        wavelengths = [int(item.text()) for item in self.live_view['wavelength'].selectedItems()]
+        self.instrument.start_livestream(wavelengths)
         self.livestream_worker = create_worker(self.instrument._livestream_worker)
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
@@ -226,8 +224,8 @@ class Livestream(WidgetBase):
 
         """Update right and left layers switching each iteration"""
 
-        (image, stream_id) = args
-        key = f"Video {self.camera_id[stream_id]}"
+        (image, stream_id, layer_num) = args
+        key = f"Video {stream_id} {layer_num}"
         try:
 
             layer = self.viewer.layers[key]
@@ -236,41 +234,7 @@ class Livestream(WidgetBase):
 
         except KeyError:
 
-            self.viewer.add_image(image, name=f"Video {self.camera_id[stream_id]}", scale=self.scale)
-            self.layer_index += 1
-
-            if self.layer_index == 2:
-                center = self.viewer.camera.center
-                self.viewer.camera.center = (0, center[1] + self.horz_start, center[2])
-                self.viewer.layers['Video Right'].rotate = self.viewer.layers['Video Left'].rotate = 90
-
-                vert_line = np.array([[self.vert_start, 0], [self.vert_end, 0]])
-                horz_line = np.array([[0, 0], [0, self.horz_end]])
-                l = [vert_line, horz_line]
-                color = ['blue', 'green']
-
-                shapes_layer = self.viewer.add_shapes(l, shape_type='line', edge_width=3, edge_color=color, name='line')
-                shapes_layer.mode = 'select'
-
-                self.viewer.layers.selection.active = self.viewer.layers["Video Left"]
-
-
-                @shapes_layer.mouse_drag_callbacks.append
-                def click_drag(layer, event):
-                    """Create draggable lines"""
-                    data_coordinates = layer.world_to_data(event.position)
-                    val = layer.get_value(data_coordinates)
-                    yield
-                    # on move
-                    while event.type == 'mouse_move':
-                        if val == (0, None) and self.cfg.sensor_column_count >= event.position[1] >= 0 or \
-                                val == (1, None) and self.horz_end >= event.position[0] >= self.horz_start:
-                            layer.data = [
-                                [[self.vert_start, event.position[1]], [self.vert_end, event.position[1]]],
-                                [[event.position[0], 0], [event.position[0], self.horz_end]]]
-                            yield
-                        else:
-                            yield
+            self.viewer.add_image(image, name=f"Video {stream_id} {layer_num}", scale=self.scale)
 
     def color_change(self):
 

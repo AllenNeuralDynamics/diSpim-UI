@@ -29,7 +29,6 @@ class VolumetericAcquisition(WidgetBase):
         self.waveform = {}
         self.selected = {}
         self.data_line = None       # Lines for graph
-        self.camera_id = ['Right', 'Left']
 
     def set_tab_widget(self, tab_widget: QTabWidget):
 

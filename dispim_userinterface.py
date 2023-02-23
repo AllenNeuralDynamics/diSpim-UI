@@ -85,6 +85,7 @@ class UserInterface:
         self.instrument_params = InstrumentParameters(self.instrument.frame_grabber, self.cfg.sensor_column_count,
                                                       self.simulated, self.instrument, self.cfg)
         widgets = {
+            'filetype_widget': self.instrument_params.filetype_widget(),
             'cpx_scan_direction_widget': self.instrument_params.shutter_direction_widgets(),
             'cpx_line_interval_widget': self.instrument_params.exposure_time_widget(),
             'cpx_exposure_widget': self.instrument_params.slit_width_widget(),

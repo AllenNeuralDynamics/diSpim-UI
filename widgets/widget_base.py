@@ -23,11 +23,11 @@ class WidgetBase:
         cfg_value = self.pathGet(dictionary, path)
         value_type = type(cfg_value)
         value = value_type(widget.text())
-        print(cfg_value != value)
         if cfg_value != value:
             self.pathSet(dictionary, path, value)
-            if self.instrument.live_status:
-                self.instrument._setup_waveform_hardware(self.instrument.active_laser, live = self.instrument.live_status)
+            if self.instrument.livestream_enabled.is_set():
+                print(self.instrument.active_lasers)
+                self.instrument._setup_waveform_hardware(self.instrument.active_lasers, live = True)
 
 
     def scan(self, dictionary: dict, attr: str, prev_key: str = None, QDictionary: dict = None,
@@ -103,8 +103,9 @@ class WidgetBase:
 
         if getattr(obj, var, value) != value:
             setattr(obj, var, value)
-            if self.instrument.live_status:
-                self.instrument._setup_waveform_hardware(self.instrument.active_laser, live = self.instrument.live_status)
+            if self.instrument.livestream_enabled.is_set():
+                print(self.instrument.active_lasers)
+                self.instrument._setup_waveform_hardware(self.instrument.active_lasers, live=True)
 
     def error_msg(self, title: str, msg: str):
 

@@ -25,8 +25,6 @@ class InstrumentParameters(WidgetBase):
         self.exposure_time = {}
         self.imaging_specs = {}
 
-        self.camera_id = ['camera_right', 'camera_left']
-
     def scan_config(self, config: object):
 
         """Scans config and finds property types with setter and getter attributes
@@ -35,8 +33,7 @@ class InstrumentParameters(WidgetBase):
         self.imaging_specs = {}  # dictionary to store attribute labels and input box
         imaging_specs_widgets = {}  # dictionary that holds layout of attribute labels/input pairs
 
-        cpx_attributes = ['exposure_time_s', 'slit_width_pix', 'line_time_us', 'scan_direction_left',
-                          'scan_direction_right']
+        cpx_attributes = ['exposure_time_s', 'slit_width_pix', 'line_time_us', 'scan_direction']
         directory = [i for i in dir(config) if i not in cpx_attributes]
         for attr in directory:
             value = getattr(config, attr)
@@ -111,7 +108,7 @@ class InstrumentParameters(WidgetBase):
         """Setting CPX line interval based on gui exposure time and column pix.
         Setting exposure time and line time in config object"""
 
-        set_et = self.cfg.exposure_time_s
+        set_et = self.cfg.exposure_time
         new_et = float(self.exposure_time['widget'].text())
         if set_et != new_et:
             line_interval = (new_et * 1000000) / self.column_pixels
@@ -133,36 +130,51 @@ class InstrumentParameters(WidgetBase):
         self.scan_widgets = {}
         self.scan_direction = {}
         directions = ['FORWARD', 'BACKWARD']
-        for stream_id in range(0, 2):
-            value = self.cfg.camera_specs[self.camera_id[stream_id]]['scan_direction']
-            index = 0 if value == 'FORWARD' else 1
 
-            self.scan_widgets['label'], self.scan_widgets[f'widget{stream_id}'] = \
-                self.create_widget(None, QComboBox, f'{self.camera_id[stream_id]}_scan_direction:')
-            self.scan_widgets[f'widget{stream_id}'].addItems(directions)
-            self.scan_widgets[f'widget{stream_id}'].setCurrentIndex(index)
-            self.scan_widgets[f'widget{stream_id}'].currentIndexChanged.connect(lambda index=None, camera=stream_id:
-                                                                                self.set_shutter_direction(index,
-                                                                                                           camera))
-            self.scan_direction[self.camera_id[stream_id]] = self.create_layout(struct='H',
-                                                                                label=self.scan_widgets['label'],
-                                                                                widget=
-                                                                                self.scan_widgets[f'widget{stream_id}'])
+        value = self.cfg.camera_specs['scan_direction']
+        index = directions.index(value)
+        self.scan_widgets['label'], self.scan_widgets['widget'] = \
+            self.create_widget(None, QComboBox, 'scan_direction:')
+        self.scan_widgets['widget'].addItems(directions)
+        self.scan_widgets['widget'].setCurrentIndex(index)
+        self.scan_widgets['widget'].currentIndexChanged.connect(lambda index=None, camera=0:
+                                                                            self.set_shutter_direction(index,
+                                                                                                       camera))
+        self.scan_direction['widget'] = self.create_layout(struct='H',
+                                                            label=self.scan_widgets['label'],
+                                                            widget=
+                                                            self.scan_widgets['widget'])
 
         return self.create_layout(struct='V', **self.scan_direction)
 
     def set_shutter_direction(self, index, stream_id):
 
-        direction = self.scan_widgets[f'widget{stream_id}'].currentText()
+        direction = self.scan_widgets[f'widget'].currentText()
         self.frame_grabber.set_scan_direction(stream_id, direction, self.instrument.live_status)
-        print(self.frame_grabber.get_scan_direction(stream_id))
-
-        if stream_id == 0:
-            self.cfg.scan_direction_right = direction
-        else:
-            self.cfg.scan_direction_left = direction
+        self.cfg.scan_direction = direction
 
         if self.instrument.live_status:
             self.instrument._setup_waveform_hardware(
                 self.instrument.active_laser,
                 live=True)
+
+    def filetype_widget(self):
+
+        self.filetype_widgets = {}
+        filetypes = ['Tiff', 'Zarr', 'ZarrBlosc1ZstdByteShuffle']
+
+        value = self.cfg.imaging_specs['filetype']
+        index = filetypes.index(value)
+        self.filetype_widgets['label'], self.filetype_widgets['widget'] = \
+            self.create_widget(None, QComboBox, 'filtype:')
+        self.filetype_widgets['widget'].addItems(filetypes)
+        self.filetype_widgets['widget'].setCurrentIndex(index)
+        self.filetype_widgets['widget'].currentIndexChanged.connect(self.set_filetype)
+
+        return self.create_layout(struct='H', **self.filetype_widgets)
+
+    def set_filetype(self, index):
+
+        filetype = self.filetype_widgets[f'widget'].currentText()
+        self.cfg.imaging_specs['filetype'] = filetype
+
