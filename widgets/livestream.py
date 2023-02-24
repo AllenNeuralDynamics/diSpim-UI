@@ -75,25 +75,6 @@ class Livestream(WidgetBase):
 
         self.live_view['start'] = QPushButton('Start Live View')
         self.live_view['start'].clicked.connect(self.start_live_view)
-
-        for streams in self.instrument.stream_ids:
-            self.live_view[str(streams)] = QPushButton(str(streams))
-            self.live_view[str(streams)].setHidden(True)
-            self.live_view[str(streams)].pressed.connect(lambda stream_id=streams: self.toggle_camera_view(stream_id))
-        self.camera_button_change(str(len(self.instrument.stream_ids)-1))   # Turns correct button green
-
-        if len(self.instrument.stream_ids) >= 2:
-
-            self.live_view['overlay'] = QPushButton('Blend')
-            self.live_view['overlay'].setHidden(True)
-            self.live_view['overlay'].clicked.connect(self.blending_views)
-
-            self.live_view['grid'] = QPushButton('Both')
-            self.live_view['grid'].setHidden(True)
-            self.live_view['grid'].clicked.connect(self.multi_stream)
-
-        #self.camera_button_change('1')
-
         wv_strs = [str(x) for x in self.possible_wavelengths]
         self.live_view['wavelength'] = QListWidget()
         self.live_view['wavelength'].setSelectionMode(QAbstractItemView.MultiSelection)
@@ -101,11 +82,14 @@ class Livestream(WidgetBase):
         for wavelength in wv_strs:
             wv_item = QListWidgetItem(wavelength)
             wv_item.setBackground( QtGui.QColor(self.cfg.laser_specs[wavelength]['color']))
+
             self.live_view['wavelength'].addItem(wv_item)
         self.live_view['wavelength'].setStyleSheet(" QListWidget:item:selected:active {background: white;"
                                                    "color: black;"
-                                                   "background-color:transparent;}")
-        #self.live_view['wavelength'].setMaximumHeight(20)
+                                                   "border: 2px solid green;"
+                                                   "foreground: red; }")
+        self.live_view['wavelength'].setMaximumHeight(70)
+        self.live_view['wavelength'].setSortingEnabled(True)
 
         return self.create_layout(struct='H', **self.live_view)
 
@@ -234,8 +218,8 @@ class Livestream(WidgetBase):
 
         except KeyError:
 
-            self.viewer.add_image(image, name=f"Video {stream_id} {layer_num}", scale=self.scale)
-
+            self.viewer.add_image(image, name = key, scale=self.scale)
+            self.viewer.layers[key].rotate = 90
     def color_change(self):
 
         """Changes color of drop down menu based on selected lasers """

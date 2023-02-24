@@ -23,7 +23,6 @@ class UserInterface:
         try:
             # TODO: Create logger tab at bottom of napari viewer. Also make logger for each class as well
             self.instrument = ispim.Ispim(config_filepath=config_filepath, simulated=simulated)
-            print(self.instrument)
             self.simulated = simulated
             self.cfg = self.instrument.cfg
             self.viewer = napari.Viewer(title='ISPIM control', ndisplay=2, axis_labels=('x', 'y'))

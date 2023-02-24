@@ -70,24 +70,29 @@ class VolumetericAcquisition(WidgetBase):
 
         while True:
             sleep(1/16)
-            if type(self.instrument.im) == np.ndarray:
-                im = self.instrument.im if not self.simulated else np.random.rand(self.cfg.sensor_row_count,
+            f = self.instrument.f
+            metadata = f.metadata()
+            layer_num = metadata.frame_id % (len(self.instrument.active_lasers)) - 1 \
+                if len(self.instrument.active_lasers) > 1 else -1
+            im = f.data().squeeze().copy() if not self.simulated else np.random.rand(self.cfg.sensor_row_count,
                                                                                   self.cfg.sensor_column_count)
-                yield im
 
-    def update_layer(self, im):
+            yield im, layer_num
+
+    def update_layer(self, args):
 
         """Update viewer with the newest image from scan"""
+        (im, layer_num) = args
+        key = f"'Volumeteric Run' {layer_num}"
 
         try:
-            key = 'Volumeteric Run'
             layer = self.viewer.layers[key]
             layer._slice.image._view = im
             layer.events.set_data()
 
         except KeyError:
-            self.viewer.layers.clear()
-            self.viewer.add_image(im, name='Volumeteric Run')
+            self.viewer.add_image(im, name=key)
+            self.viewer.layers[key].rotate = 90
 
     def end_scan(self):
 
