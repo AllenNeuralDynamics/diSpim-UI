@@ -36,7 +36,7 @@ class TissueMap(WidgetBase):
         """Set the tabwidget that contains main, wavelength, and tissue map tab"""
 
         self.tab_widget = tab_widget
-        self.tab_widget.tabBarClicked.connect(self.stage_positon_map)   # When tab bar is clicked see what tab its on
+        self.tab_widget.tabBarClicked.connect(self.stage_positon_map)  # When tab bar is clicked see what tab its on
 
     def stage_positon_map(self, index):
 
@@ -44,11 +44,11 @@ class TissueMap(WidgetBase):
         :param index: clicked tab index. Tissue map is last tab"""
 
         last_index = len(self.tab_widget) - 1
-        if index == last_index:                 # Start stage update when on tissue map tab
+        if index == last_index:  # Start stage update when on tissue map tab
             self.map_pos_worker = self._map_pos_worker()
             self.map_pos_worker.start()
 
-        else:                                   # Quit updating tissue map if not on tissue map tab
+        else:  # Quit updating tissue map if not on tissue map tab
             if self.map_pos_worker is not None:
                 self.map_pos_worker.quit()
 
@@ -59,16 +59,16 @@ class TissueMap(WidgetBase):
         """Mark graph with pertinent landmarks"""
 
         self.map['color'] = QComboBox()
-        self.map['color'].addItems(qtpy.QtGui.QColor.colorNames())      # Add all QtGui Colors to drop down box
+        self.map['color'].addItems(qtpy.QtGui.QColor.colorNames())  # Add all QtGui Colors to drop down box
 
         self.map['mark'] = QPushButton('Set Point')
-        self.map['mark'].clicked.connect(self.set_point)                # Add point when button is presses
+        self.map['mark'].clicked.connect(self.set_point)  # Add point when button is presses
 
         self.map['label'] = QLineEdit()
-        self.map['label'].returnPressed.connect(self.set_point)         # Add text when button is pressed
+        self.map['label'].returnPressed.connect(self.set_point)  # Add text when button is pressed
 
         self.map['tiling'] = QCheckBox('See Tiling')
-        self.map['tiling'].stateChanged.connect(self.set_tiling)        # Display tiling of scan when checked
+        self.map['tiling'].stateChanged.connect(self.set_tiling)  # Display tiling of scan when checked
 
         return self.create_layout(struct='H', **self.map)
 
@@ -103,16 +103,16 @@ class TissueMap(WidgetBase):
         gui_coord = self.remap_axis({'x': self.map_pose['x'] * 0.0001,
                                      'y': self.map_pose['y'] * 0.0001,
                                      'z': self.map_pose['z'] * 0.0001})  # if not self.instrument.simulated \
-                                    #     else np.random.randint(-60000, 60000, 3)
+        #     else np.random.randint(-60000, 60000, 3)
         gui_coord = [i for i in gui_coord.values()]  # Coords for point needs to be a list
-        hue = str(self.map['color'].currentText())   # Color of point determined by drop down box
+        hue = str(self.map['color'].currentText())  # Color of point determined by drop down box
         point = gl.GLScatterPlotItem(pos=gui_coord, size=.35, color=qtpy.QtGui.QColor(hue), pxMode=False)
-        info = self.map['label'].text()              # Text comes from textbox
-        info_point = gl.GLTextItem(pos=gui_coord, text=info, font=qtpy.QtGui.QFont('Helvetica', 10))
-        self.plot.addItem(info_point)               # Add items to plot
+        info = self.map['label'].text()  # Text comes from textbox
+        info_point = gl.GLTextItem(pos=gui_coord, text=info, font=qtpy.QtGui.QFont('Helvetica', 15))
+        self.plot.addItem(info_point)  # Add items to plot
         self.plot.addItem(point)
 
-        self.map['label'].clear()                   # Clear text box
+        self.map['label'].clear()  # Clear text box
 
     @thread_worker
     def _map_pos_worker(self):
@@ -133,7 +133,7 @@ class TissueMap(WidgetBase):
                 self.pos.setData(pos=[gui_coord['x'], gui_coord['y'], gui_coord['z']])  # Set position as list
 
                 if self.instrument.start_pos == None:
-                    for item in self.plot.items:        # Remove previous scan vol and tiles
+                    for item in self.plot.items:  # Remove previous scan vol and tiles
                         if type(item) == gl.GLBoxItem:
                             self.plot.removeItem(item)
 
@@ -147,16 +147,18 @@ class TissueMap(WidgetBase):
                                                        'z': self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000})
 
                     self.scan_vol = self.draw_volume(self.remap_axis(volume_pos), scanning_volume)  # Draw volume
-                    self.plot.addItem(self.scan_vol)    # Add volume to graph
+                    self.plot.addItem(self.scan_vol)  # Add volume to graph
 
                     if self.map['tiling'].isChecked():
-                        self.draw_tiles(volume_pos) # Draw tiles if checkbox is checked
+                        self.draw_tiles(volume_pos)  # Draw tiles if checkbox is checked
 
                 else:
 
                     # Remap start position and shift position of scan vol to center of camera fov and convert um to mm
-                    start = self.remap_axis({'x': self.instrument.start_pos['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
-                                             'y': self.instrument.start_pos['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
+                    start = self.remap_axis({'x': self.instrument.start_pos['x'] - (
+                                .5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
+                                             'y': self.instrument.start_pos['y'] - (
+                                                         .5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
                                              'z': self.instrument.start_pos['z']})
 
                     if self.map['tiling'].isChecked():
@@ -169,7 +171,7 @@ class TissueMap(WidgetBase):
                 sleep(2)
             finally:
                 sleep(.5)
-                yield   # Yeild so thread can stop
+                yield  # Yeild so thread can stop
 
     def draw_tiles(self, coord):
 
@@ -178,7 +180,7 @@ class TissueMap(WidgetBase):
 
         # Check if volume in config has changed
         if self.initial_volume != [self.cfg.volume_x_um, self.cfg.volume_y_um, self.cfg.volume_z_um]:
-            self.set_tiling(2)      # Update grid steps and tile numbers
+            self.set_tiling(2)  # Update grid steps and tile numbers
             self.initial_volume = [self.cfg.volume_x_um, self.cfg.volume_y_um, self.cfg.volume_z_um]
 
         for item in self.plot.items:
@@ -193,7 +195,7 @@ class TissueMap(WidgetBase):
 
                 tile_volume = self.remap_axis({'x': self.cfg.tile_specs['x_field_of_view_um'] * .001,
                                                'y': self.cfg.tile_specs['y_field_of_view_um'] * .001,
-                                               'z': self.cfg.tile_specs['z_field_of_view_um'] * .001})
+                                               'z': 0}) #'z': self.cfg.imaging_specs['volume_z_um'] * .001})
                 tile = self.draw_volume(tile_pos, tile_volume)
                 tile.setColor(qtpy.QtGui.QColor('cornflowerblue'))
                 self.plot.addItem(tile)
@@ -282,7 +284,7 @@ class TissueMap(WidgetBase):
         for dirs in limits:
             low[dirs] = limits[dirs][0] if limits[dirs][0] < limits[dirs][1] else limits[dirs][1]
             up[dirs] = limits[dirs][1] if limits[dirs][1] > limits[dirs][0] else limits[dirs][0]
-            axes_len[dirs] = abs(up[dirs] - low[dirs])
+            axes_len[dirs] = abs(round(up[dirs] - low[dirs]))
             self.origin[dirs] = low[dirs] + (axes_len[dirs] / 2)
 
         self.plot.opts['center'] = QtGui.QVector3D(self.origin['x'], self.origin['y'], self.origin['z'])
@@ -334,5 +336,3 @@ class TissueMap(WidgetBase):
         self.plot.addItem(self.pos)
 
         return self.plot
-
-

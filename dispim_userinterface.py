@@ -62,12 +62,16 @@ class UserInterface:
             self.tissue_map.set_tab_widget(tabbed_widgets)  # Passing in tab widget to tissue map
             self.livestream_parameters.set_tab_widget(tabbed_widgets)  # Passing in tab widget to livestream
             self.vol_acq_params.set_tab_widget(tabbed_widgets)
+            tabbed_widgets.setMinimumHeight(600)
 
-            test = self.livestream_parameters.create_layout(struct='V',
-                                                            live=self.livestream_parameters.liveview_widget(),
-                                                            tab=tabbed_widgets)
+            liveview_widget = self.livestream_parameters.liveview_widget()  # Widget contains start/stop and wl select
+            liveview_widget.setMaximumHeight(70)
 
-            self.viewer.window.add_dock_widget(test, name=' ')  # Adding tabs to window
+            # tabbed_widgets = self.livestream_parameters.create_layout(struct='V',
+            #                                                 live=self.livestream_parameters.liveview_widget(),
+            #                                                 tab=tabbed_widgets)     # Adding liveview on top of tabs
+
+            self.viewer.window.add_dock_widget(tabbed_widgets, name=' ')  # Adding tabs to window
             # TODO: Move set scan to tissue map tab?
 
             self.viewer.window.add_dock_widget(instr_params_window, name='Instrument Parameters', area='left')
@@ -126,7 +130,7 @@ class UserInterface:
 
     def laser_widget(self):
 
-        self.laser_parameters = Lasers(self.viewer, self.cfg, self.instrument, self.simulated)
+        self.laser_parameters = Lasers(self.viewer, self.cfg, self.instrument, self.simulated, r"C:\Users\Administrator\Projects\iSpim-control\ispim\devices\laser_linear_projections.txt")
         widgets = {
             'splitter': self.laser_parameters.laser_power_splitter(),
             'power': self.laser_parameters.laser_power_slider(),
@@ -153,7 +157,7 @@ class UserInterface:
 
         direction = ['X', 'Y', 'Z']
         current = self.livestream_parameters.sample_pos if self.instrument.livestream_enabled.is_set() \
-                                                      else self.instrument.tigerbox.get_position()
+                                                      else self.instrument.sample_pose.get_position()
         set_start = self.instrument.start_pos
 
         if set_start is None:
