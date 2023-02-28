@@ -67,9 +67,9 @@ class UserInterface:
             liveview_widget = self.livestream_parameters.liveview_widget()  # Widget contains start/stop and wl select
             liveview_widget.setMaximumHeight(70)
 
-            # tabbed_widgets = self.livestream_parameters.create_layout(struct='V',
-            #                                                 live=self.livestream_parameters.liveview_widget(),
-            #                                                 tab=tabbed_widgets)     # Adding liveview on top of tabs
+            tabbed_widgets = self.livestream_parameters.create_layout(struct='V',
+                                                            live=self.livestream_parameters.liveview_widget(),
+                                                            tab=tabbed_widgets)     # Adding liveview on top of tabs
 
             self.viewer.window.add_dock_widget(tabbed_widgets, name=' ')  # Adding tabs to window
             # TODO: Move set scan to tissue map tab?
@@ -111,11 +111,6 @@ class UserInterface:
             'position': self.livestream_parameters.sample_stage_position(),
         }
 
-        # Update config and instrument_params text of change of scan volume
-        self.livestream_parameters.set_volume['set_start'].clicked.connect(lambda clicked=None, state='start':
-                                                                           self.set_scan_volume(clicked, state))
-        self.livestream_parameters.set_volume['set_end'].clicked.connect(lambda clicked=None, state='stop':
-                                                                         self.set_scan_volume(clicked, state))
         return self.livestream_parameters.create_layout(struct='V', **widgets)
 
     def volumeteric_acquisition_widget(self):
@@ -149,55 +144,6 @@ class UserInterface:
         }
         widgets['functions'].setMaximumHeight(75)
         return self.tissue_map.create_layout(struct='V', **widgets)
-
-    # TODO: Can we calculate new volume in livestream and then when instrument_params_widget is clicked update widgets?
-    def set_scan_volume(self, clicked, state):
-
-        """When volume of scan is changed, the config and widgets are subsequently updated"""
-
-        direction = ['X', 'Y', 'Z']
-        current = self.livestream_parameters.sample_pos if self.instrument.livestream_enabled.is_set() \
-                                                      else self.instrument.sample_pose.get_position()
-        set_start = self.instrument.start_pos
-
-        if set_start is None:
-            self.livestream_parameters.set_volume['set_end'].setHidden(False)
-            self.livestream_parameters.set_volume['clear'].setHidden(False)
-            self.instrument.set_scan_start(current)
-
-        else:
-            if state == 'start':
-                self.instrument.set_scan_start(current)
-                if self.livestream_parameters.end_scan == None:
-                    return
-                else:
-                    self.update_volume(direction)
-
-            else:
-                self.livestream_parameters.end_scan = current
-                self.log.info(f'Scan end position set to {self.livestream_parameters.end_scan["X"]}, '
-                              f'{self.livestream_parameters.end_scan["Y"]}, '
-                              f'{self.livestream_parameters.end_scan["Z"]}')
-                self.update_volume(direction)
-
-    def update_volume(self, direction):
-        start = self.instrument.start_pos
-        end = self.livestream_parameters.end_scan
-        direction_samp = ['z', 'x', 'y']  # Remapping axis from tiger box to sample
-        for tiger, sample in zip(direction, direction_samp):
-            self.log.info(f"Setting volume limits. Tiger axis = {tiger}. "
-                          f"Setting {sample} volume")
-            volume = end[tiger] - start[tiger]
-            if volume < 0:
-                self.instrument_params.error_msg('Invalid Volume',
-                                                 'Invalid start and end coordinates '
-                                                 'resulting in negative volume values.\n'
-                                                 f'Start: {start["X"]}, {start["Y"]}, {start["Z"]}\n '
-                                                 f'End: {end["X"]}, {end["Y"]}, {end["Z"]}')
-                return
-            self.cfg.imaging_specs[f'volume_{sample}_um'] = volume * 1 / 10
-            self.instrument_params.imaging_specs[f'volume_{sample}_um']. \
-                setText(str(volume * 1 / 10))
 
     def close_instrument(self):
         self.instrument.cfg.save()

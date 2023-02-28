@@ -70,20 +70,21 @@ class VolumetericAcquisition(WidgetBase):
 
         while True:
             sleep(1/16)
-            f = self.instrument.f
-            metadata = f.metadata()
-            layer_num = metadata.frame_id % (len(self.instrument.active_lasers)) - 1 \
-                if len(self.instrument.active_lasers) > 1 else -1
-            im = f.data().squeeze().copy() if not self.simulated else np.random.rand(self.cfg.sensor_row_count,
-                                                                                  self.cfg.sensor_column_count)
+            if self.instrument.f != None:
+                f = self.instrument.f
+                metadata = f.metadata()
+                layer_num = metadata.frame_id % (len(self.instrument.active_lasers)) - 1 \
+                    if len(self.instrument.active_lasers) > 1 else -1
+                im = f.data().squeeze().copy() if not self.simulated else np.random.rand(self.cfg.sensor_row_count,
+                                                                                      self.cfg.sensor_column_count)
 
-            yield im, layer_num
+                yield im, layer_num
 
     def update_layer(self, args):
 
         """Update viewer with the newest image from scan"""
         (im, layer_num) = args
-        key = f"'Volumeteric Run' {layer_num}"
+        key = f"'Volumeteric Run' {self.cfg.imaging_wavelengths[layer_num]}"
 
         try:
             layer = self.viewer.layers[key]

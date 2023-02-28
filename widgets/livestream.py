@@ -299,11 +299,7 @@ class Livestream(WidgetBase):
         # Sets start position of scan to current position of sample
         self.set_volume['set_start'] = QPushButton()
         self.set_volume['set_start'].setText('Set Scan Start')
-
-        # Sets start position of scan to current position of sample
-        self.set_volume['set_end'] = QPushButton()
-        self.set_volume['set_end'].setText('Set Scan End')
-        self.set_volume['set_end'].setHidden(True)
+        self.set_volume['set_start'].clicked.connect(self.set_start_position)
 
         self.set_volume['clear'] = QPushButton()
         self.set_volume['clear'].setText('Clear')
@@ -313,6 +309,17 @@ class Livestream(WidgetBase):
         self.pos_widget['volume_widgets'] = self.create_layout(struct='V', **self.set_volume)
 
         return self.create_layout(struct='H', **self.pos_widget)
+    def set_start_position(self):
+
+        """Set the starting position of the scan"""
+
+        current = self.sample_pos if self.instrument.livestream_enabled.is_set() \
+            else self.instrument.sample_pose.get_position()
+        set_start = self.instrument.start_pos
+
+        if set_start is None:
+            self.set_volume['clear'].setHidden(False)
+            self.instrument.set_scan_start(current)
 
     def clear_start_position(self):
 
