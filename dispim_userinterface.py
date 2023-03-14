@@ -1,5 +1,5 @@
 import napari
-from qtpy.QtWidgets import QDockWidget, QTabWidget,QPlainTextEdit, QDialog, QFrame
+from qtpy.QtWidgets import QDockWidget, QTabWidget,QPlainTextEdit, QDialog, QFrame, QMessageBox, QInputDialog, QLineEdit, QWidget
 from PyQt5 import QtWidgets
 import ispim.ispim as ispim
 from widgets.instrument_parameters import InstrumentParameters
@@ -79,7 +79,13 @@ class UserInterface:
 
             self.viewer.scale_bar.visible = True
             self.viewer.scale_bar.unit = "um"
+
+            self.experimenters_name_popup()
+
             napari.run()
+
+
+
 
         finally:
             self.close_instrument()
@@ -145,6 +151,18 @@ class UserInterface:
         }
         widgets['functions'].setMaximumHeight(100)
         return self.tissue_map.create_layout(struct='V', **widgets)
+
+    def experimenters_name_popup(self):
+
+        """Pop up window asking for experimenters name"""
+
+        text, pressed = QInputDialog.getText(QWidget(), "Experimenter's Name",
+                                             "Please Enter Experimenter's Name")
+
+        if pressed is False or (text == '' and pressed is True):
+            self.experimenters_name_popup()
+
+        self.cfg.experimenters_name = text
 
     def close_instrument(self):
         self.instrument.cfg.save()
