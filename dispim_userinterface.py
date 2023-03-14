@@ -125,7 +125,7 @@ class UserInterface:
 
     def laser_widget(self):
 
-        self.laser_parameters = Lasers(self.viewer, self.cfg, self.instrument, self.simulated, r"C:\Users\Administrator\Projects\iSpim-control\ispim\devices\laser_linear_projections.txt")
+        self.laser_parameters = Lasers(self.viewer, self.cfg, self.instrument, self.simulated)
         widgets = {
             'splitter': self.laser_parameters.laser_power_splitter(),
             'power': self.laser_parameters.laser_power_slider(),
@@ -140,9 +140,10 @@ class UserInterface:
         widgets = {
             'graph': self.tissue_map.graph(),
             'functions': self.tissue_map.create_layout(struct='H', rotate=self.tissue_map.rotate_buttons(),
-                                                                    point=self.tissue_map.mark_graph())
+                                                                    point=self.tissue_map.mark_graph(),
+                                                       )#quick_scan = self.tissue_map.quick_scan_widget())
         }
-        widgets['functions'].setMaximumHeight(75)
+        widgets['functions'].setMaximumHeight(100)
         return self.tissue_map.create_layout(struct='V', **widgets)
 
     def close_instrument(self):

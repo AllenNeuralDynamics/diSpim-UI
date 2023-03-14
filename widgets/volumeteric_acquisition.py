@@ -56,7 +56,7 @@ class VolumetericAcquisition(WidgetBase):
         self.run_worker = self._run()
         self.run_worker.start()
         sleep(5)
-        self.volumetric_image_worker = self._volumetric_image()
+        self.volumetric_image_worker = create_worker(self.instrument._acquisition_livestream_worker)
         self.volumetric_image_worker.yielded.connect(self.update_layer)
         self.volumetric_image_worker.start()
 
@@ -65,26 +65,13 @@ class VolumetericAcquisition(WidgetBase):
         self.instrument.run(overwrite=self.volumetric_image['overwrite'].isChecked())
         self.end_scan()
 
-    @thread_worker
-    def _volumetric_image(self):
-
-        while True:
-            sleep(1/16)
-            if self.instrument.f != None:
-                f = self.instrument.f
-                metadata = f.metadata()
-                layer_num = metadata.frame_id % (len(self.instrument.active_lasers)) - 1 \
-                    if len(self.instrument.active_lasers) > 1 else -1
-                im = f.data().squeeze().copy() if not self.simulated else np.random.rand(self.cfg.sensor_row_count,
-                                                                                      self.cfg.sensor_column_count)
-
-                yield im, layer_num
-
     def update_layer(self, args):
 
         """Update viewer with the newest image from scan"""
-        (im, layer_num) = args
-        key = f"'Volumeteric Run' {self.cfg.imaging_wavelengths[layer_num]}"
+        (im, frame_num) = args
+
+        layer_num = frame_num % len(self.instrument.active_lasers) - 1 if len(self.instrument.active_lasers) > 1 else -1
+        key = f"'Volumeteric Run' {self.cfg.imaging_wavelengths[layer_num + 1]}"
 
         try:
             layer = self.viewer.layers[key]
@@ -94,10 +81,10 @@ class VolumetericAcquisition(WidgetBase):
         except KeyError:
             self.viewer.add_image(im, name=key)
             self.viewer.layers[key].rotate = 90
+            self.viewer.layers[key].blending = 'additive'
 
     def end_scan(self):
 
-        self.instrument.livestream_enabled.clear()
         self.run_worker.quit()
         self.volumetric_image_worker.quit()
 

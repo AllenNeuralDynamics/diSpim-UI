@@ -3,11 +3,14 @@ from widgets.widget_base import WidgetBase
 from qtpy.QtWidgets import QPushButton, QTabWidget, QWidget, QLineEdit, QComboBox, QMessageBox, QCheckBox
 import pyqtgraph.opengl as gl
 import numpy as np
+import pyqtgraph as pg
 from napari.qt.threading import thread_worker
 from time import sleep
 from pyqtgraph.Qt import QtCore, QtGui
 import qtpy.QtGui
-
+import cv2
+from skimage import data
+from PIL import Image
 
 class TissueMap(WidgetBase):
 
@@ -24,12 +27,15 @@ class TissueMap(WidgetBase):
         self.rotate = {}
         self.map = {}
         self.origin = {}
+        self.quick_scan = {}
 
         self.initial_volume = [self.cfg.volume_x_um, self.cfg.volume_y_um, self.cfg.volume_z_um]
         self.sample_pose_remap = self.cfg.sample_pose_kwds['axis_map']
         self.og_axis_remap = {v: k for k, v in self.sample_pose_remap.items()}
         self.tiles = {}  # Tile in sample pose coords
         self.grid_step_um = {}  # Grid steps in samplepose coords
+        self.scale = [self.cfg.tile_specs['x_field_of_view_um']/self.cfg.sensor_row_count*0.001,
+                      self.cfg.tile_specs['y_field_of_view_um']/self.cfg.sensor_column_count*0.001]
 
     def set_tab_widget(self, tab_widget: QTabWidget):
 
@@ -54,6 +60,53 @@ class TissueMap(WidgetBase):
 
             pass
 
+    def quick_scan_widget(self):
+
+        """Widgets for setting up a quick scan"""
+
+        self.quick_scan['start'] = QPushButton('Start quick scan')
+        # self.quick_scan['start'].clicked.connect(self.overview)
+
+        self.quick_scan['laser'] = QComboBox()
+        self.quick_scan['laser'].addItems([str(x) for x in self.cfg.laser_wavelengths])
+
+        return self.create_layout(struct='V', **self.quick_scan)
+
+    def overview(self):
+
+        """Start overview function of instrument"""
+        self.map_pos_worker.quit()  # Stopping tissue map update
+        for i in range(1,len(self.tab_widget)):self.tab_widget.setTabEnabled(i,False)      # Disable tabs during scan
+        scan_start = self.instrument.start_pos if self.instrument.start_pos is not None else self.map_pose
+        translation = self.remap_axis({k: v * 0.0001 for k, v in scan_start.items()})   # Save start of scan coords
+
+
+        wl = [int(self.quick_scan['laser'].currentText())]
+        overview_array = self.instrument.quick_scan(wl)                          # returns np array of overview image
+        overview_RGB = cv2.cvtColor(overview_array, cv2.COLOR_GRAY2RGBA)         # GLImage must be nparray (x, y, RGBA)
+        gl_overview = gl.GLImageItem(overview_RGB)
+        gl_overview.scale(self.cfg.tile_specs['x_field_of_view_um']/overview_array.size[0],
+                          self.cfg.tile_specs['x_field_of_view_um']/overview_array.size[1],
+                          0, local = False)                # Scale Image
+        gl_overview.translate(translation['x'], translation['y'], translation['z'])     # Set image to start of scan
+        self.plot.addItem(gl_overview)
+
+        self.map_pos_worker.start()     # Restart map update
+        for i in range(1, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, True) # Enabled tabs
+
+
+        cv2.imwrite(fr'{self.cfg.local_storage_dir}\overview_img_{wl[0]}.tiff', overview_array)
+
+
+        # image = cv2.imread(r"C:\test_tiff\test_tiff.tiff")
+        # image = data.astronaut()
+        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGBA)
+        # v1 = gl.GLImageItem(image)
+        # v1.scale(self.scale[0], self.scale[1],0, local = False)
+        # v1.translate(self.origin['x'], low['y'], self.origin['z'])
+        # self.plot.addItem(v1)
+
+
     def mark_graph(self):
 
         """Mark graph with pertinent landmarks"""
@@ -70,7 +123,7 @@ class TissueMap(WidgetBase):
         self.map['tiling'] = QCheckBox('See Tiling')
         self.map['tiling'].stateChanged.connect(self.set_tiling)  # Display tiling of scan when checked
 
-        return self.create_layout(struct='H', **self.map)
+        return self.create_layout(struct='V', **self.map)
 
     def set_tiling(self, state):
 
@@ -100,9 +153,7 @@ class TissueMap(WidgetBase):
         """Set current position as point on graph"""
 
         # Remap sample_pos to gui coords and convert 1/10um to mm
-        gui_coord = self.remap_axis({'x': self.map_pose['x'] * 0.0001,
-                                     'y': self.map_pose['y'] * 0.0001,
-                                     'z': self.map_pose['z'] * 0.0001})  # if not self.instrument.simulated \
+        gui_coord = self.remap_axis({k:v * 0.0001 for k,v in self.map_pose.items()})  # if not self.instrument.simulated \
         #     else np.random.randint(-60000, 60000, 3)
         gui_coord = [i for i in gui_coord.values()]  # Coords for point needs to be a list
         hue = str(self.map['color'].currentText())  # Color of point determined by drop down box
@@ -124,9 +175,7 @@ class TissueMap(WidgetBase):
             try:
                 self.map_pose = self.instrument.sample_pose.get_position()
                 # Convert 1/10um to mm
-                coord = {'x': self.map_pose['x'] * 0.0001,
-                         'y': self.map_pose['y'] * 0.0001,
-                         'z': self.map_pose['z'] * 0.0001}  # if not self.instrument.simulated \
+                coord = {k:v * 0.0001 for k,v in self.map_pose.items()} # if not self.instrument.simulated \
                 #     else np.random.randint(-60000, 60000, 3)
 
                 gui_coord = self.remap_axis(coord)  # Remap sample_pos to gui coords
@@ -169,9 +218,10 @@ class TissueMap(WidgetBase):
             except:
                 # In case Tigerbox throws an error
                 sleep(2)
+                yield  # Yield so thread can stop
             finally:
                 sleep(.5)
-                yield  # Yeild so thread can stop
+                yield  # Yield so thread can stop
 
     def draw_tiles(self, coord):
 
@@ -234,6 +284,15 @@ class TissueMap(WidgetBase):
 
         return self.create_layout(struct='V', **self.rotate)
 
+    def rotate_graph(self, click, center, elevation, azimuth):
+
+        """Rotate graph to specific view"""
+
+        self.plot.opts['center'] = center
+        self.plot.opts['elevation'] = elevation
+        self.plot.opts['azimuth'] = azimuth
+
+
     def create_axes(self, rotation, size, translate, color=None):
 
         axes = gl.GLGridItem()
@@ -242,14 +301,6 @@ class TissueMap(WidgetBase):
         axes.translate(*translate)  # Translate to lower end of x and origin of y and -z
         if color is not None: axes.setColor(qtpy.QtGui.QColor(color))
         self.plot.addItem(axes)
-
-    def rotate_graph(self, click, center, elevation, azimuth):
-
-        """Rotate graph to specific view"""
-
-        self.plot.opts['center'] = center
-        self.plot.opts['elevation'] = elevation
-        self.plot.opts['azimuth'] = azimuth
 
     def remap_axis(self, coords: dict):
 
@@ -314,25 +365,17 @@ class TissueMap(WidgetBase):
         self.scan_vol.setSize(**scanning_volume)
         self.plot.addItem(self.scan_vol)
 
-        # axis
-        # x = gl.GLBoxItem()
-        # x.translate(self.origin['x'], self.origin['y'], -up['Z'])
-        # x.setSize(x=33,y=0,z=0)
-        # x.setColor(qtpy.QtGui.QColor('cornflowerblue'))
-        # self.plot.addItem(x)
-        # y = gl.GLBoxItem()
-        # y.translate(self.origin['x'], self.origin['y'], -up['Z'])
-        # y.setSize(x=0, y=33, z=0)
-        # y.setColor(qtpy.QtGui.QColor('red'))
-        # z = gl.GLBoxItem()
-        # self.plot.addItem(y)
-        # z.translate(self.origin['x'], self.origin['y'], -up['Z'])
-        # z.setSize(x=0, y=0, z=33)
-        # z.setColor(qtpy.QtGui.QColor('green'))
-        # self.plot.addItem(z)
-
         # Representing stage position
         self.pos = gl.GLScatterPlotItem(pos=(1, 0, 0), size=1, color=(1.0, 0.0, 0.0, 0.5), pxMode=False)
         self.plot.addItem(self.pos)
+
+        # image = cv2.imread(r"C:\test_tiff\test_tiff.tiff")
+        # image = data.astronaut()
+        # image = np.max(image, axis=0)
+        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGBA)
+        # v1 = gl.GLImageItem(image)
+        # v1.scale(self.scale[0], self.scale[1],0, local = False)
+        # v1.translate(self.origin['x'], low['y'], self.origin['z'])
+        # self.plot.addItem(v1)
 
         return self.plot

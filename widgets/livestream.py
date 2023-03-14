@@ -35,15 +35,15 @@ class Livestream(WidgetBase):
         self.grid = {}
         self.pos_widget = {}
         self.pos_widget = {}  # Holds widgets related to sample position
-        self.set_volume = {}  # Holds widgets related to setting volume limits during scan
+        self.set_scan_start = {}  # Holds widgets related to setting volume limits during scan
         self.stage_position = None
         self.tab_widget = None
         self.sample_pos_worker = None
         self.end_scan = None
 
         self.livestream_worker = None
-        self.scale = [self.cfg.cfg['tile_specs']['x_field_of_view_um'] / self.cfg.sensor_row_count,
-                      self.cfg.cfg['tile_specs']['y_field_of_view_um'] / self.cfg.sensor_column_count]
+        self.scale = [self.cfg.tile_specs['x_field_of_view_um'] / self.cfg.sensor_row_count,
+                      self.cfg.tile_specs['y_field_of_view_um'] / self.cfg.sensor_column_count]
         # TODO:change to config params
         self.layer_index = 0
 
@@ -82,14 +82,24 @@ class Livestream(WidgetBase):
         for wavelength in wv_strs:
             wv_item = QListWidgetItem(wavelength)
             wv_item.setBackground( QtGui.QColor(self.cfg.laser_specs[wavelength]['color']))
-
             self.live_view['wavelength'].addItem(wv_item)
         self.live_view['wavelength'].setStyleSheet(" QListWidget:item:selected:active {background: white;"
                                                    "color: black;"
-                                                   "border: 2px solid green;"
-                                                   "foreground: red; }")
+                                                   "border: 2px solid green;}")
         self.live_view['wavelength'].setMaximumHeight(70)
         self.live_view['wavelength'].setSortingEnabled(True)
+
+        # Sets start position of scan to current position of sample
+        self.set_scan_start['set_start'] = QPushButton()
+        self.set_scan_start['set_start'].setText('Set Scan Start')
+        self.set_scan_start['set_start'].clicked.connect(self.set_start_position)
+
+        self.set_scan_start['clear'] = QPushButton()
+        self.set_scan_start['clear'].setText('Clear')
+        self.set_scan_start['clear'].clicked.connect(self.clear_start_position)
+        self.set_scan_start['clear'].setHidden(True)
+
+        self.live_view['scan_start'] = self.create_layout(struct='V', **self.set_scan_start)
 
         return self.create_layout(struct='H', **self.live_view)
 
@@ -156,20 +166,19 @@ class Livestream(WidgetBase):
     def start_live_view(self):
 
         """Start livestreaming"""
-
         self.disable_button(self.live_view['start'])
         self.live_view['start'].clicked.disconnect(self.start_live_view)
 
         if self.live_view['start'].text() == 'Start Live View':
             self.live_view['start'].setText('Stop Live View')
             for buttons in self.live_view:
-
                 self.live_view[buttons].setHidden(False)
         wavelengths = [int(item.text()) for item in self.live_view['wavelength'].selectedItems()]
         self.instrument.start_livestream(wavelengths)
         self.livestream_worker = create_worker(self.instrument._livestream_worker)
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
+
 
         sleep(2)    # Allow livestream to start
 
@@ -191,9 +200,6 @@ class Livestream(WidgetBase):
         self.livestream_worker.quit()
         self.sample_pos_worker.quit()
         self.live_view['start'].setText('Start Live View')
-        for buttons in self.live_view:
-            if buttons != 'start' and buttons != 'wavelength':
-                self.live_view[buttons].setHidden(True)
 
         self.live_view['start'].clicked.connect(self.start_live_view)
 
@@ -220,6 +226,9 @@ class Livestream(WidgetBase):
 
             self.viewer.add_image(image, name = key, scale=self.scale)
             self.viewer.layers[key].rotate = 90
+            self.viewer.layers[key].blending = 'additive'
+
+
     def color_change(self):
 
         """Changes color of drop down menu based on selected lasers """
@@ -296,18 +305,6 @@ class Livestream(WidgetBase):
                 self.create_widget(self.stage_position[direction]*1/10, QSpinBox, f'{direction} [um]:')
             self.pos_widget[direction].setReadOnly(True)
 
-        # Sets start position of scan to current position of sample
-        self.set_volume['set_start'] = QPushButton()
-        self.set_volume['set_start'].setText('Set Scan Start')
-        self.set_volume['set_start'].clicked.connect(self.set_start_position)
-
-        self.set_volume['clear'] = QPushButton()
-        self.set_volume['clear'].setText('Clear')
-        self.set_volume['clear'].clicked.connect(self.clear_start_position)
-        self.set_volume['clear'].setHidden(True)
-
-        self.pos_widget['volume_widgets'] = self.create_layout(struct='V', **self.set_volume)
-
         return self.create_layout(struct='H', **self.pos_widget)
     def set_start_position(self):
 
@@ -315,11 +312,10 @@ class Livestream(WidgetBase):
 
         current = self.sample_pos if self.instrument.livestream_enabled.is_set() \
             else self.instrument.sample_pose.get_position()
-        set_start = self.instrument.start_pos
 
-        if set_start is None:
-            self.set_volume['clear'].setHidden(False)
-            self.instrument.set_scan_start(current)
+        if self.instrument.start_pos is None:
+            self.set_scan_start['clear'].setHidden(False)
+        self.instrument.set_scan_start(current)
 
     def clear_start_position(self):
 
@@ -338,7 +334,7 @@ class Livestream(WidgetBase):
             while self.instrument.livestream_enabled.is_set() and self.tab_widget.currentIndex() == 0:
 
                 try:
-                    self.sample_pos = self.instrument.sample_pose.get_position()
+                    self.sample_pos = self.instrument.tigerbox.get_position()
                     for direction, value in self.sample_pos.items():
                         if direction in self.pos_widget:
                             self.pos_widget[direction].setValue(int(value * 1 / 10))  # Units in microns

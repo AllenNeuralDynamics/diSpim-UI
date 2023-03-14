@@ -11,7 +11,7 @@ def get_dict_attr(class_def, attr):
             return obj.__dict__[attr]
     raise AttributeError
 
-
+#TODO: popup window micah woodward
 class InstrumentParameters(WidgetBase):
 
     def __init__(self, frame_grabber, column_pixels, simulated, instrument, config):
@@ -83,12 +83,12 @@ class InstrumentParameters(WidgetBase):
         if set_sw != new_sw:
             cpx_line_interval = self.frame_grabber.get_line_interval()
             self.frame_grabber.set_exposure_time(new_sw * cpx_line_interval[0],
-                                                 live=self.instrument.live_status)
+                                                 live=self.instrument.livestream_enabled.is_set())
             self.cfg.slit_width_pix = new_sw
 
-            if self.instrument.live_status:
+            if self.instrument.livestream_enabled.is_set():
                 self.instrument._setup_waveform_hardware(
-                    self.instrument.active_laser,
+                    self.instrument.active_lasers,
                     live=True)
 
     def exposure_time_widget(self):
@@ -112,16 +112,16 @@ class InstrumentParameters(WidgetBase):
         new_et = float(self.exposure_time['widget'].text())
         if set_et != new_et:
             line_interval = (new_et * 1000000) / self.column_pixels
-            self.frame_grabber.set_line_interval(line_interval, live=self.instrument.live_status)
+            self.frame_grabber.set_line_interval(line_interval, live=self.instrument.livestream_enabled.is_set())
             self.frame_grabber.set_exposure_time(int(self.slit_width['widget'].text()) *
                                                  line_interval,
-                                                 live=self.instrument.live_status)
+                                                 live=self.instrument.livestream_enabled.is_set())
             self.cfg.line_time_us = line_interval
             self.cfg.exposure_time_s = new_et
 
-            if self.instrument.live_status:
+            if self.instrument.livestream_enabled.is_set():
                 self.instrument._setup_waveform_hardware(
-                    self.instrument.active_laser,
+                    self.instrument.active_lasers,
                     live=True)
 
     def shutter_direction_widgets(self):
@@ -150,12 +150,12 @@ class InstrumentParameters(WidgetBase):
     def set_shutter_direction(self, index, stream_id):
 
         direction = self.scan_widgets[f'widget'].currentText()
-        self.frame_grabber.set_scan_direction(stream_id, direction, self.instrument.live_status)
+        self.frame_grabber.set_scan_direction(stream_id, direction, self.instrument.livestream_enabled.is_set())
         self.cfg.scan_direction = direction
 
-        if self.instrument.live_status:
+        if self.instrument.livestream_enabled.is_set():
             self.instrument._setup_waveform_hardware(
-                self.instrument.active_laser,
+                self.instrument.active_lasers,
                 live=True)
 
     def filetype_widget(self):

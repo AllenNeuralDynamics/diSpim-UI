@@ -26,7 +26,6 @@ class WidgetBase:
         if cfg_value != value:
             self.pathSet(dictionary, path, value)
             if self.instrument.livestream_enabled.is_set():
-                print(self.instrument.active_lasers)
                 self.instrument._setup_waveform_hardware(self.instrument.active_lasers, live = True)
 
 
@@ -104,7 +103,6 @@ class WidgetBase:
         if getattr(obj, var, value) != value:
             setattr(obj, var, value)
             if self.instrument.livestream_enabled.is_set():
-                print(self.instrument.active_lasers)
                 self.instrument._setup_waveform_hardware(self.instrument.active_lasers, live=True)
 
     def error_msg(self, title: str, msg: str):
