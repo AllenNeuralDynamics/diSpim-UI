@@ -80,12 +80,9 @@ class UserInterface:
             self.viewer.scale_bar.visible = True
             self.viewer.scale_bar.unit = "um"
 
-            self.experimenters_name_popup()
+            #self.experimenters_name_popup()         # Popup for experimenters name
 
             napari.run()
-
-
-
 
         finally:
             self.close_instrument()
@@ -147,7 +144,7 @@ class UserInterface:
             'graph': self.tissue_map.graph(),
             'functions': self.tissue_map.create_layout(struct='H', rotate=self.tissue_map.rotate_buttons(),
                                                                     point=self.tissue_map.mark_graph(),
-                                                       )#quick_scan = self.tissue_map.quick_scan_widget())
+                                                       quick_scan = self.tissue_map.quick_scan_widget())
         }
         widgets['functions'].setMaximumHeight(100)
         return self.tissue_map.create_layout(struct='V', **widgets)
