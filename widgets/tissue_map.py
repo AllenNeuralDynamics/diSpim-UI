@@ -79,38 +79,31 @@ class TissueMap(WidgetBase):
         self.map_pos_worker.quit()  # Stopping tissue map update
         for i in range(1, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, False)  # Disable tabs during scan
 
-        wl = [int(self.quick_scan['laser'].currentText())]
-        overview_array = self.instrument.quick_scan(wl)                     # returns np array of overview image
-        cv2.imwrite(fr'{self.cfg.local_storage_dir}\overview_img_{wl[0]}.tiff', overview_array)     # Save overview
-        #overview_array = cv2.imread(fr'{self.cfg.local_storage_dir}\overview_img_488.tiff')
-        overview_array = np.rot90(overview_array)
-        overview_RGB = cv2.cvtColor(overview_array, cv2.COLOR_GRAY2RGBA)        # GLImage must be nparray (x, y, RGBA)
+        overview_array, xtiles, ytiles = self.instrument.quick_scan()                     # returns np array of overview image
+        cv2.imwrite(
+            fr'{self.cfg.local_storage_dir}\overview_img_{"_".join(map(str, self.instrument.imaging_lasers))}.tiff',
+            overview_array)     # Save overview
+        overview_RGB = cv2.cvtColor(np.rot90(overview_array), cv2.COLOR_GRAY2RGBA)        # GLImage must be nparray (x, y, RGBA)
         gl_overview = gl.GLImageItem(overview_RGB)
 
-        gl_overview.scale((self.cfg.tile_specs['y_field_of_view_um']*.001) / np.shape(overview_array)[0],  # columns
-                          (self.cfg.tile_specs['x_field_of_view_um']*.001*4) / np.shape(overview_array)[1],  # rows
+        gl_overview.scale((self.cfg.tile_specs['y_field_of_view_um']*.001*ytiles) / np.shape(overview_array)[0],  # columns
+                          (self.cfg.tile_specs['x_field_of_view_um']*.001*xtiles) / np.shape(overview_array)[1],  # rows
                           0, local=False)  # Scale Image
 
-        translation = self.remap_axis({k: v * 0.0001 for k, v in self.instrument.start_pos.items()})  # start of scan coords
+        start_pos = {k: v * 0.0001 for k, v in self.instrument.start_pos.items()}  # start of scan coords
+        translation = self.remap_axis({'x': start_pos['x'] - (.5 *self.cfg.tile_specs['x_field_of_view_um']),
+                                       'y': start_pos['y'] - (.5 *self.cfg.tile_specs['y_field_of_view_um']),
+                                       'z': start_pos['z']})
+
         self.instrument.start_pos = None                    # Reset start pos for instrument TODO: Should be in Ispim?
         gl_overview.translate(translation['x'], translation['y'], translation['z'])  # Set image to start of scan
         self.plot.addItem(gl_overview)
 
-        # self.map_pos_worker = self._map_pos_worker()
-        # self.map_pos_worker.start()  # Restart map update
         for i in range(1, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, True)  # Enabled tabs
+        self.tab_widget.setCurrentIndex(len(self.tab_widget) - 1)
 
-
-
-        # image = cv2.imread(r"C:\test_tiff\test_tiff.tiff")
-        # image = data.astronaut()
-        # print(np.shape(image)[1])
-        # print(np.shape(image)[0])
-        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGBA)
-        # v1 = gl.GLImageItem(image)
-        # v1.scale(self.scale[0], self.scale[1],0, local = False)
-        # v1.translate(translation['x'], translation['y'], translation['z'])
-        # self.plot.addItem(v1)
+        self.map_pos_worker = self._map_pos_worker()
+        self.map_pos_worker.start()  # Restart map update
 
     def mark_graph(self):
 
@@ -197,9 +190,9 @@ class TissueMap(WidgetBase):
                                   'y': coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
                                   'z': coord['z']}
                     # Translate volume of scan to gui coordinate plane
-                    scanning_volume = self.remap_axis({'x': self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
-                                                       'y': self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000,
-                                                       'z': self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000})
+                    scanning_volume = self.remap_axis({'x': self.cfg.imaging_specs[f'volume_x_um'] * 0.001,
+                                                       'y': self.cfg.imaging_specs[f'volume_y_um'] * 0.001,
+                                                       'z': self.cfg.imaging_specs[f'volume_z_um'] * 0.001})
 
                     self.scan_vol = self.draw_volume(self.remap_axis(volume_pos), scanning_volume)  # Draw volume
                     self.plot.addItem(self.scan_vol)  # Add volume to graph
@@ -210,17 +203,17 @@ class TissueMap(WidgetBase):
                 else:
 
                     # Remap start position and shift position of scan vol to center of camera fov and convert um to mm
-                    start = self.remap_axis({'x': self.instrument.start_pos['x'] - (
-                            .5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
-                                             'y': self.instrument.start_pos['y'] - (
-                                                     .5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
-                                             'z': self.instrument.start_pos['z']})
+                    start_pos = {k: v * 0.001 for k, v in self.instrument.start_pos.items()}  # start of scan coords
+                    start_pos = self.remap_axis(
+                        {'x': start_pos['x'] - (.5 * self.cfg.tile_specs['x_field_of_view_um']),
+                         'y': start_pos['y'] - (.5 * self.cfg.tile_specs['y_field_of_view_um']),
+                         'z': start_pos['z']})
 
                     if self.map['tiling'].isChecked():
-                        self.draw_tiles(start)
-                    self.draw_volume(start, self.remap_axis({'x': self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
-                                                             'y': self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000,
-                                                             'z': self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000}))
+                        self.draw_tiles(start_pos)
+                    self.draw_volume(start_pos, self.remap_axis({'x': self.cfg.imaging_specs[f'volume_x_um'] * 0.001,
+                                                                 'y': self.cfg.imaging_specs[f'volume_y_um'] * 0.001,
+                                                                 'z': self.cfg.imaging_specs[f'volume_z_um'] * 0.001}))
             except:
                 # In case Tigerbox throws an error
                 sleep(2)
@@ -251,7 +244,7 @@ class TissueMap(WidgetBase):
 
                 tile_volume = self.remap_axis({'x': self.cfg.tile_specs['x_field_of_view_um'] * .001,
                                                'y': self.cfg.tile_specs['y_field_of_view_um'] * .001,
-                                               'z': 0})  # 'z': self.cfg.imaging_specs['volume_z_um'] * .001})
+                                               'z': self.cfg.imaging_specs['volume_z_um'] * .001})
                 tile = self.draw_volume(tile_pos, tile_volume)
                 tile.setColor(qtpy.QtGui.QColor('cornflowerblue'))
                 self.plot.addItem(tile)
@@ -373,14 +366,5 @@ class TissueMap(WidgetBase):
         # Representing stage position
         self.pos = gl.GLScatterPlotItem(pos=(1, 0, 0), size=1, color=(1.0, 0.0, 0.0, 0.5), pxMode=False)
         self.plot.addItem(self.pos)
-
-        # image = cv2.imread(r"C:\test_tiff\test_tiff.tiff")
-        # image = data.astronaut()
-        # image = np.max(image, axis=0)
-        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGBA)
-        # v1 = gl.GLImageItem(image)
-        # v1.scale(self.scale[0], self.scale[1],0, local = False)
-        # v1.translate(self.origin['x'], low['y'], self.origin['z'])
-        # self.plot.addItem(v1)
 
         return self.plot

@@ -1,5 +1,6 @@
 import napari
-from qtpy.QtWidgets import QDockWidget, QTabWidget,QPlainTextEdit, QDialog, QFrame, QMessageBox, QInputDialog, QLineEdit, QWidget
+from qtpy.QtWidgets import QDockWidget, QTabWidget,QPlainTextEdit, QDialog, QFrame, QMessageBox, QInputDialog, \
+    QLineEdit, QWidget
 from PyQt5 import QtWidgets
 import ispim.ispim as ispim
 from widgets.instrument_parameters import InstrumentParameters
@@ -22,6 +23,7 @@ class UserInterface:
 
         try:
             # TODO: Create logger tab at bottom of napari viewer. Also make logger for each class as well
+
             self.instrument = ispim.Ispim(config_filepath=config_filepath, simulated=simulated)
             self.simulated = simulated
             self.cfg = self.instrument.cfg
