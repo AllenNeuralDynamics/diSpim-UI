@@ -81,22 +81,19 @@ class TissueMap(WidgetBase):
 
         overview_array, xtiles, ytiles = self.instrument.quick_scan()                     # returns np array of overview image
         cv2.imwrite(
-            fr'{self.cfg.local_storage_dir}\overview_img_{"_".join(map(str, self.instrument.imaging_lasers))}.tiff',
+            fr'{self.cfg.local_storage_dir}\overview_img_{"_".join(map(str, self.cfg.imaging_wavelengths))}.tiff',
             overview_array)     # Save overview
-        overview_RGB = cv2.cvtColor(np.rot90(overview_array), cv2.COLOR_GRAY2RGBA)        # GLImage must be nparray (x, y, RGBA)
-        gl_overview = gl.GLImageItem(overview_RGB)
 
-        gl_overview.scale((self.cfg.tile_specs['y_field_of_view_um']*.001*ytiles) / np.shape(overview_array)[0],  # columns
-                          (self.cfg.tile_specs['x_field_of_view_um']*.001*xtiles) / np.shape(overview_array)[1],  # rows
+        overview_RGB = cv2.cvtColor(overview_array.astype('uint8'), cv2.COLOR_GRAY2RGBA)        # GLImage must be nparray (x, y, RGBA)
+        gl_overview = gl.GLImageItem(np.rot90(overview_RGB))
+
+        gl_overview.scale((self.cfg.tile_specs['x_field_of_view_um']*.001*xtiles) / np.shape(overview_array)[0],  # columns
+                          (self.cfg.tile_specs['y_field_of_view_um']*.001*ytiles) / np.shape(overview_array)[1],  # rows
                           0, local=False)  # Scale Image
 
-        start_pos = {k: v * 0.0001 for k, v in self.instrument.start_pos.items()}  # start of scan coords
-        translation = self.remap_axis({'x': start_pos['x'] - (.5 *self.cfg.tile_specs['x_field_of_view_um']),
-                                       'y': start_pos['y'] - (.5 *self.cfg.tile_specs['y_field_of_view_um']),
-                                       'z': start_pos['z']})
+        gui_coord = self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
 
-        self.instrument.start_pos = None                    # Reset start pos for instrument TODO: Should be in Ispim?
-        gl_overview.translate(translation['x'], translation['y'], translation['z'])  # Set image to start of scan
+        gl_overview.translate([i for i in gui_coord.values()])
         self.plot.addItem(gl_overview)
 
         for i in range(1, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, True)  # Enabled tabs
@@ -140,6 +137,7 @@ class TissueMap(WidgetBase):
                                                                                     self.cfg.volume_x_um,
                                                                                     self.cfg.volume_y_um,
                                                                                     self.cfg.volume_z_um)
+
         # State is 0 if checkmark is unpressed
         if state == 0:
             for item in self.plot.items:
@@ -178,7 +176,7 @@ class TissueMap(WidgetBase):
                 #     else np.random.randint(-60000, 60000, 3)
 
                 gui_coord = self.remap_axis(coord)  # Remap sample_pos to gui coords
-                self.pos.setData(pos=[gui_coord['x'], gui_coord['y'], gui_coord['z']])  # Set position as list
+                self.pos.setData(pos=[i for i in gui_coord.values()])  # Set position as list
 
                 if self.instrument.start_pos == None:
                     for item in self.plot.items:  # Remove previous scan vol and tiles
@@ -190,9 +188,8 @@ class TissueMap(WidgetBase):
                                   'y': coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
                                   'z': coord['z']}
                     # Translate volume of scan to gui coordinate plane
-                    scanning_volume = self.remap_axis({'x': self.cfg.imaging_specs[f'volume_x_um'] * 0.001,
-                                                       'y': self.cfg.imaging_specs[f'volume_y_um'] * 0.001,
-                                                       'z': self.cfg.imaging_specs[f'volume_z_um'] * 0.001})
+                    scanning_volume = self.remap_axis({k : self.cfg.imaging_specs[f'volume_{k}_um'] * .001
+                                                       for k in self.map_pose.keys()})
 
                     self.scan_vol = self.draw_volume(self.remap_axis(volume_pos), scanning_volume)  # Draw volume
                     self.plot.addItem(self.scan_vol)  # Add volume to graph
@@ -244,7 +241,7 @@ class TissueMap(WidgetBase):
 
                 tile_volume = self.remap_axis({'x': self.cfg.tile_specs['x_field_of_view_um'] * .001,
                                                'y': self.cfg.tile_specs['y_field_of_view_um'] * .001,
-                                               'z': self.cfg.imaging_specs['volume_z_um'] * .001})
+                                               'z': self.ztiles * self.cfg.z_step_size_um * .001})
                 tile = self.draw_volume(tile_pos, tile_volume)
                 tile.setColor(qtpy.QtGui.QColor('cornflowerblue'))
                 self.plot.addItem(tile)

@@ -1,7 +1,7 @@
 from widgets.widget_base import WidgetBase
 from PyQt5.QtCore import Qt, QSize
 from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, QSlider, QLineEdit, \
-    QTabWidget, QVBoxLayout, QMessageBox
+    QTabWidget, QVBoxLayout, QMessageBox, QDial
 from oxxius_laser import Cmd, Query
 import qtpy.QtCore as QtCore
 import logging
@@ -127,11 +127,39 @@ class Lasers(WidgetBase):
         """Scans config for relevant laser wavelength parameters
         :param wavelength: the wavelength of the laser"""
 
-        laser_specs_wavelength = self.cfg.laser_specs[wavelength]
-        tab_widget_wl = self.scan(laser_specs_wavelength, 'laser_specs', wl=wavelength, subdict=True)
+        galvo_specs = self.cfg.laser_specs[wavelength]['galvo']
+        x_offset = galvo_specs['x_offset']
+
+        x_offset_label = QLineEdit()
+        x_offset_label.setReadOnly(True)
+
+        x_offset_dial = QDial()
+        x_offset_dial.setRange(0, 5000)
+        x_offset_dial.setNotchesVisible(True)
+        x_offset_dial.setValue(x_offset*1000)
+        x_offset_dial.setSingleStep(1)
+        x_offset_dial.valueChanged.connect(lambda: x_offset_label.setText(str(x_offset_dial.value()/1000)))
+        x_offset_label.textChanged.connect(self.change_x_offset)
+        tab_widget_wl = {'widget': x_offset_dial,
+                         'label': x_offset_label}
+
+
+        y_offset = galvo_specs['y_offset']
+
+        #tab_widget_wl = self.scan(self.cfg.laser_specs[wavelength], 'laser_specs', wl=wavelength, subdict=True)
+
+
+
         return self.create_layout(struct='V', **tab_widget_wl)
 
-    def calcualte_laser_current(self, func, num = 0):
+    def change_x_offset(self, value):
+
+        self.cfg.laser_specs['488']['galvo']['x_offset'] = float(value)
+        if self.instrument.livestream_enabled.is_set():
+            self.instrument._setup_waveform_hardware(self.instrument.active_lasers, live=True)
+        print(value)
+
+    def calculate_laser_current(self, func, num = 0):
 
         """Will find the solution of a polynomial function between 0 and 100
         coresponding to curent % of laser
@@ -244,7 +272,7 @@ class Lasers(WidgetBase):
             if int(wl) == 561 or unit != 'mW':
                 self.lasers[wl].set(command, float(laser_value))
             else:
-                power = self.calcualte_laser_current(curve, value)
+                power = self.calculate_laser_current(curve, value)
                 if power == QMessageBox.Ok:
                     return
 
@@ -263,7 +291,7 @@ class Lasers(WidgetBase):
         self.combiner_power_split['slider'].setOrientation(QtCore.Qt.Vertical)
         self.combiner_power_split['slider'].setMinimum(0)
         self.combiner_power_split['slider'].setMaximum(100)
-        self.combiner_power_split['slider'].setValue(int(split_percentage[0:-1]))
+        self.combiner_power_split['slider'].setValue(float(split_percentage[0:-1]))
         self.combiner_power_split['slider'].sliderReleased.connect(
             lambda value=None, released=True, command=Cmd.PercentageSplit:
             self.set_power_split(value, released, command))

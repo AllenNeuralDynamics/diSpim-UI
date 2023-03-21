@@ -33,7 +33,6 @@ class Livestream(WidgetBase):
         self.waveform = {}
         self.selected = {}
         self.grid = {}
-        self.pos_widget = {}
         self.pos_widget = {}  # Holds widgets related to sample position
         self.set_scan_start = {}  # Holds widgets related to setting volume limits during scan
         self.stage_position = None
@@ -203,7 +202,7 @@ class Livestream(WidgetBase):
 
         self.live_view['start'].clicked.connect(self.start_live_view)
 
-    def disable_button(self, button, pause=5000):
+    def disable_button(self, button, pause=3000):
 
         """Function to disable button clicks for a period of time to avoid crashing gui"""
 

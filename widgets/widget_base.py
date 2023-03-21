@@ -17,6 +17,8 @@ class WidgetBase:
         """
 
         dictionary = getattr(self.cfg, attribute)
+        print(attribute)
+        print(dictionary)
         path = self.pathFind(dictionary, specify)
         path = path + self.pathFind(dictionary, kw, path, True) if path is not None else self.pathFind(dictionary, kw)
 
