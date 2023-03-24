@@ -39,6 +39,8 @@ class Lasers(WidgetBase):
         self.selected_wl_layout = None
         self.tab_widget = None
         self.laser_power_conversion = {}
+        self.dial_widgets = {}
+        self.dials = {}
 
     def laser_wl_select(self):
 
@@ -123,41 +125,43 @@ class Lasers(WidgetBase):
                 tab_widget.setTabVisible(self.tab_map[wl], False)
         return self.tab_widget
 
-    def scan_wavelength_params(self, wavelength: str):
+    def scan_wavelength_params(self, wv: str):
         """Scans config for relevant laser wavelength parameters
         :param wavelength: the wavelength of the laser"""
 
-        galvo_specs = self.cfg.laser_specs[wavelength]['galvo']
-        x_offset = galvo_specs['x_offset']
 
-        x_offset_label = QLineEdit()
-        x_offset_label.setReadOnly(True)
+        galvo = {f'{wv}.galvo.{k}':v for k,v in self.cfg.laser_specs[wv]['galvo'].items()}
+        etl = {f'{wv}.etl.{k}': v for k, v in self.cfg.laser_specs[wv]['etl'].items()}
+        dial_values = {**galvo, **etl}
 
-        x_offset_dial = QDial()
-        x_offset_dial.setRange(0, 5000)
-        x_offset_dial.setNotchesVisible(True)
-        x_offset_dial.setValue(x_offset*1000)
-        x_offset_dial.setSingleStep(1)
-        x_offset_dial.valueChanged.connect(lambda: x_offset_label.setText(str(x_offset_dial.value()/1000)))
-        x_offset_label.textChanged.connect(self.change_x_offset)
-        tab_widget_wl = {'widget': x_offset_dial,
-                         'label': x_offset_label}
+        self.dials[wv] = {}
+        self.dial_widgets[wv] = {}
+        for k, v in dial_values.items():
 
+            self.dials[wv][k] = QDial()
+            self.dials[wv][k].setRange((v*1000)-1000, (v*1000)+1000)
+            self.dials[wv][k].setNotchesVisible(True)
+            self.dials[wv][k].setValue(v*1000)
+            self.dials[wv][k].setSingleStep(1)
 
-        y_offset = galvo_specs['y_offset']
-
-        #tab_widget_wl = self.scan(self.cfg.laser_specs[wavelength], 'laser_specs', wl=wavelength, subdict=True)
+            self.dials[wv][k+'value'] = QLineEdit(str(v))
+            self.dials[wv][k+'value'].setReadOnly(True)
+            self.dials[wv][k+'label'] = QLabel(" ".join(k.split('.')))
 
 
+            self.dials[wv][k].valueChanged.connect(lambda value = str(self.dials[wv][k].value() / 1000),
+                                                   widget = self.dials[wv][k+'value']: self.update_dial_label(value, widget))
+            self.dials[wv][k + 'value'].textChanged.connect(lambda value = self.dials[wv][k].value() / 1000,
+                                                                   path = k.split('.'),
+                                                                   dict = self.cfg.laser_specs:
+                                                            self.config_change(value, path, dict))
+            self.dial_widgets[wv][k] = self.create_layout(struct='V', **self.dials[wv])
 
-        return self.create_layout(struct='V', **tab_widget_wl)
+        return self.create_layout(struct='H', **self.dial_widgets[wv])
 
-    def change_x_offset(self, value):
+    def update_dial_label(self, value, widget):
 
-        self.cfg.laser_specs['488']['galvo']['x_offset'] = float(value)
-        if self.instrument.livestream_enabled.is_set():
-            self.instrument._setup_waveform_hardware(self.instrument.active_lasers, live=True)
-        print(value)
+        widget.setText(str(value/1000))
 
     def calculate_laser_current(self, func, num = 0):
 

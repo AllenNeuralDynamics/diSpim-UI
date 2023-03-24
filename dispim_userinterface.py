@@ -67,7 +67,7 @@ class UserInterface:
             tabbed_widgets.setMinimumHeight(600)
 
             liveview_widget = self.livestream_parameters.liveview_widget()  # Widget contains start/stop and wl select
-            liveview_widget.setMaximumHeight(70)
+            liveview_widget.setMaximumHeight(50)
 
             tabbed_widgets = self.livestream_parameters.create_layout(struct='V',
                                                             live=self.livestream_parameters.liveview_widget(),

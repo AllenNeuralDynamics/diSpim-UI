@@ -6,27 +6,18 @@ import qtpy.QtCore as QtCore
 
 class WidgetBase:
 
-    def config_change(self, widget, attribute, kw, specify = None):
+    def config_change(self, value, path, dict):
 
         """Changes instrument config when a changed value is entered
-        :param widget: the widget which input changed
-        :param attribute: the corresponding attribute that the widget represents
-        :param kw: the variable name in a nested dictionary
-        :param specify: the subdictionary key which the kw applies to. Used to map to multiple dictionaries with same kw
-        :param repeat = signals if there are multiple variables with the same kw in the dictionary
-        """
+        :param value: value from dial widget
+        :param path: path to value in cfg
+        :param dict: dictionary in cfg where value is saved"""
 
-        dictionary = getattr(self.cfg, attribute)
-        print(attribute)
-        print(dictionary)
-        path = self.pathFind(dictionary, specify)
-        path = path + self.pathFind(dictionary, kw, path, True) if path is not None else self.pathFind(dictionary, kw)
-
-        cfg_value = self.pathGet(dictionary, path)
+        cfg_value = self.pathGet(dict, path)
         value_type = type(cfg_value)
-        value = value_type(widget.text())
+        value = float(value)
         if cfg_value != value:
-            self.pathSet(dictionary, path, value)
+            self.pathSet(dict, path, value)
             if self.instrument.livestream_enabled.is_set():
                 self.instrument._setup_waveform_hardware(self.instrument.active_lasers, live = True)
 

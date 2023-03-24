@@ -37,8 +37,10 @@ class VolumetericAcquisition(WidgetBase):
     def volumeteric_imaging_button(self):
 
         self.volumetric_image = {'start': QPushButton('Start Volumetric Imaging'),
-                                 'overwrite': QCheckBox('Overwrite')}
+                                 'overwrite': QCheckBox('Overwrite'),
+                                 'save_config': QPushButton('Save Configuration')}
         self.volumetric_image['start'].clicked.connect(self.run_volumeteric_imaging)
+        self.volumetric_image['save_config'].clicked.connect(self.instrument.cfg.save)
         # Put in seperate function so upon initiation of gui, run() funtion does not start
 
         return self.create_layout(struct='H', **self.volumetric_image)
@@ -52,7 +54,7 @@ class VolumetericAcquisition(WidgetBase):
 
         for i in range(1,len(self.tab_widget)):
             self.tab_widget.setTabEnabled(i,False)
-
+        self.instrument.cfg.save()
         self.run_worker = self._run()
         self.run_worker.start()
         sleep(5)
