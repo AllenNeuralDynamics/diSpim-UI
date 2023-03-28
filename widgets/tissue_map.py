@@ -74,10 +74,10 @@ class TissueMap(WidgetBase):
 
         """Start overview function of instrument"""
 
-        if len(self.cfg.imaging_wavelengths) > 1:
-            self.error_msg('Too many wavelengths',
-                           'Overview can only image in one channel. Please deselect imaging channels.')
-            return
+        # if len(self.cfg.imaging_wavelengths) > 1:
+        #     self.error_msg('Too many wavelengths',
+        #                    'Overview can only image in one channel. Please deselect imaging channels.')
+        #     return
 
         self.map_pos_worker.quit()  # Stopping tissue map update
         for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, False)  # Disable tabs during scan
@@ -95,7 +95,7 @@ class TissueMap(WidgetBase):
     def overview_finish(self):
 
         """Function to be executed at the end of the overview"""
-
+        print('end overview')
         self.plot.addItem(self.gl_overview)     # GlImage doesn't like threads, do this outside of thread
         self.volumetric_image_worker.quit()
 

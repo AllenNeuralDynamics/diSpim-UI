@@ -62,6 +62,8 @@ class WidgetBase:
         """Update right and left layers switching each iteration"""
 
         (image, layer_num) = args
+        #TODO: Break if image equals none
+
         key = f"Video {layer_num}"
         try:
 
