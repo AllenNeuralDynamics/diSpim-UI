@@ -57,6 +57,31 @@ class WidgetBase:
 
         return WindowDictionary
 
+    def update_layer(self, args):
+
+        """Update right and left layers switching each iteration"""
+
+        (image, layer_num) = args
+        key = f"Video {layer_num}"
+        try:
+
+            layer = self.viewer.layers[key]
+            layer._slice.image._view = image
+            layer.events.set_data()
+
+        except KeyError:
+
+            self.viewer.add_image(image, name = key, scale=[self.cfg.tile_specs['x_field_of_view_um'] / self.cfg.sensor_row_count,
+                      self.cfg.tile_specs['y_field_of_view_um'] / self.cfg.sensor_column_count])
+            self.viewer.layers[key].rotate = 90
+            self.viewer.layers[key].blending = 'additive'
+
+            if len(self.viewer.layers) == 1:  # Center viewer due to rotation
+                center = self.viewer.camera.center
+                self.viewer.camera.center = (center[0],
+                                             -self.cfg.tile_specs['y_field_of_view_um'] * .5,  # Vertical
+                                             self.cfg.tile_specs['x_field_of_view_um'] * .5)  # Horizontal
+
     def scroll_box(self, widget: QWidget):
 
         """Create a scroll box area to put large vertical widgets.
@@ -161,16 +186,28 @@ class WidgetBase:
     def create_layout(self, struct: str, **kwargs):
 
         """Creates either a horizontal or vertical layout populated with widgets
-        :param struct: specifies whether the layout will be horizontal or vertical
+        :param struct: specifies whether the layout will be horizontal, vertical, or combo
         :param kwargs: all widgets contained in layout"""
 
+        layouts = {'H': QHBoxLayout(), 'V':QVBoxLayout()}
         widget = QFrame()
-        if struct == 'H':
-            layout = QHBoxLayout()
-        else:
-            layout = QVBoxLayout()
-        for arg in kwargs.values():
-            layout.addWidget(arg)
+        if struct == 'V' or struct == 'H':
+            layout = layouts[struct]
+            for arg in kwargs.values():
+                layout.addWidget(arg)
+
+        elif struct == 'VH' or 'HV':
+            bin0 = {}
+            bin1 = {}
+            j = 0
+            for v in kwargs.values():
+                bin0[str(v)] = v
+                j += 1
+                if j == 2:
+                    j = 0
+                    bin1[str(v)] = self.create_layout(struct=struct[0], **bin0)
+                    bin0 = {}
+            return self.create_layout(struct=struct[1], **bin1)
 
         layout.setContentsMargins(0, 0, 0, 0)
         widget.setLayout(layout)

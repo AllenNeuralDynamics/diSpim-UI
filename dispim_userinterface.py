@@ -67,7 +67,7 @@ class UserInterface:
             tabbed_widgets.setMinimumHeight(600)
 
             liveview_widget = self.livestream_parameters.liveview_widget()  # Widget contains start/stop and wl select
-            liveview_widget.setMaximumHeight(50)
+            liveview_widget.setMaximumHeight(0)
 
             tabbed_widgets = self.livestream_parameters.create_layout(struct='V',
                                                             live=self.livestream_parameters.liveview_widget(),
@@ -140,7 +140,7 @@ class UserInterface:
 
     def tissue_map_widget(self):
 
-        self.tissue_map = TissueMap(self.instrument)
+        self.tissue_map = TissueMap(self.instrument, self.viewer)
 
         widgets = {
             'graph': self.tissue_map.graph(),

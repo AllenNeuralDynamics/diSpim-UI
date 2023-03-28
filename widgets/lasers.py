@@ -1,7 +1,7 @@
 from widgets.widget_base import WidgetBase
 from PyQt5.QtCore import Qt, QSize
 from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, QSlider, QLineEdit, \
-    QTabWidget, QVBoxLayout, QMessageBox, QDial
+    QTabWidget, QVBoxLayout, QMessageBox, QDial, QFrame
 from oxxius_laser import Cmd, Query
 import qtpy.QtCore as QtCore
 import logging
@@ -139,25 +139,28 @@ class Lasers(WidgetBase):
         for k, v in dial_values.items():
 
             self.dials[wv][k] = QDial()
-            self.dials[wv][k].setRange((v*1000)-1000, (v*1000)+1000)
+            self.dials[wv][k].setRange((v*1000)-1000, (v*1000)+1000)        # QDials only do int values
             self.dials[wv][k].setNotchesVisible(True)
             self.dials[wv][k].setValue(v*1000)
             self.dials[wv][k].setSingleStep(1)
 
             self.dials[wv][k+'value'] = QLineEdit(str(v))
+            self.dials[wv][k+'value'].setAlignment(QtCore.Qt.AlignCenter)
             self.dials[wv][k+'value'].setReadOnly(True)
             self.dials[wv][k+'label'] = QLabel(" ".join(k.split('.')))
+            self.dials[wv][k + 'label'].setAlignment(QtCore.Qt.AlignCenter)
 
-
-            self.dials[wv][k].valueChanged.connect(lambda value = str(self.dials[wv][k].value() / 1000),
+            self.dials[wv][k].valueChanged.connect(lambda value = str(self.dials[wv][k].value() / 1000),    # Divide to get dec
                                                    widget = self.dials[wv][k+'value']: self.update_dial_label(value, widget))
             self.dials[wv][k + 'value'].textChanged.connect(lambda value = self.dials[wv][k].value() / 1000,
                                                                    path = k.split('.'),
                                                                    dict = self.cfg.laser_specs:
                                                             self.config_change(value, path, dict))
-            self.dial_widgets[wv][k] = self.create_layout(struct='V', **self.dials[wv])
+            self.dial_widgets[wv][k] = self.create_layout(struct='V', label =self.dials[wv][k+'label'],
+                                                       dial = self.dials[wv][k],
+                                                       value = self.dials[wv][k+'value'])
 
-        return self.create_layout(struct='H', **self.dial_widgets[wv])
+        return  self.create_layout(struct = 'HV', **self.dial_widgets[wv])
 
     def update_dial_label(self, value, widget):
 

@@ -4,25 +4,28 @@ from qtpy.QtWidgets import QPushButton, QTabWidget, QWidget, QLineEdit, QComboBo
 import pyqtgraph.opengl as gl
 import numpy as np
 import pyqtgraph as pg
-from napari.qt.threading import thread_worker
+from napari.qt.threading import thread_worker,create_worker
 from time import sleep
 from pyqtgraph.Qt import QtCore, QtGui
 import qtpy.QtGui
+from qtpy.QtCore import QObject, Signal, Slot
 import stl
 import cv2
 
 
 class TissueMap(WidgetBase):
 
-    def __init__(self, instrument):
+    def __init__(self, instrument, viewer):
 
         self.instrument = instrument
+        self.viewer = viewer
         self.cfg = self.instrument.cfg
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
         self.tab_widget = None
         self.map_pos_worker = None
         self.pos = None
         self.plot = None
+        self.gl_overview = None
 
         self.rotate = {}
         self.map = {}
@@ -34,8 +37,6 @@ class TissueMap(WidgetBase):
         self.og_axis_remap = {v: k for k, v in self.sample_pose_remap.items()}
         self.tiles = {}  # Tile in sample pose coords
         self.grid_step_um = {}  # Grid steps in samplepose coords
-        self.scale = [self.cfg.tile_specs['x_field_of_view_um'] / self.cfg.sensor_row_count * 0.001,
-                      self.cfg.tile_specs['y_field_of_view_um'] / self.cfg.sensor_column_count * 0.001]
 
     def set_tab_widget(self, tab_widget: QTabWidget):
 
@@ -67,40 +68,75 @@ class TissueMap(WidgetBase):
         self.quick_scan['start'] = QPushButton('Start quick scan')
         self.quick_scan['start'].clicked.connect(self.overview)
 
-        self.quick_scan['laser'] = QComboBox()
-        self.quick_scan['laser'].addItems([str(x) for x in self.cfg.laser_wavelengths])
-
         return self.create_layout(struct='V', **self.quick_scan)
 
     def overview(self):
 
         """Start overview function of instrument"""
+
+        if len(self.cfg.imaging_wavelengths) > 1:
+            self.error_msg('Too many wavelengths',
+                           'Overview can only image in one channel. Please deselect imaging channels.')
+            return
+
         self.map_pos_worker.quit()  # Stopping tissue map update
-        for i in range(1, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, False)  # Disable tabs during scan
+        for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, False)  # Disable tabs during scan
 
-        # overview_array, xtiles, ytiles = self.instrument.quick_scan()                     # returns np array of overview image
-        # cv2.imwrite(
-        #     fr'{self.cfg.local_storage_dir}\overview_img_{"_".join(map(str, self.cfg.imaging_wavelengths))}.tiff',
-        #     overview_array)     # Save overview
-        overview_array = cv2.imread(fr'{self.cfg.local_storage_dir}\overview_img_{"_".join(map(str, self.cfg.imaging_wavelengths))}.tiff', -1)
-        overview_RGBA = pg.makeRGBA(np.rot90(overview_array) ,levels=[overview_array.min(), overview_array.max()])[0]   # GLImage needs to be RGBA
-        gl_overview = gl.GLImageItem(overview_RGBA)
-        gl_overview.scale((overview_RGBA.shape[1]/self.cfg.imaging_specs[f'volume_x_um'] * 0.001)/2,  # columns
-                          (overview_RGBA.shape[0]/self.cfg.imaging_specs[f'volume_z_um'] * 0.001)/2,  # rows
-                          0, local=False)  # Scale Image
+        self.overview_worker = self._overview_worker()
+        self.overview_worker.finished.connect(lambda:self.overview_finish())    # Napari threads have finished signals
+        self.overview_worker.start()
 
-        coord = {k: v * 0.0001 for k, v in self.map_pose.items()}
-        gui_coord = self.remap_axis({'x': coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
-                      'y': coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
-                      'z': coord['z']})
-        gl_overview.translate(gui_coord['x'], gui_coord['y'], gui_coord['z'])
-        self.plot.addItem(gl_overview)
+        sleep(5)
+        self.viewer.layers.clear()     # Clear existing layers
+        self.volumetric_image_worker = create_worker(self.instrument._acquisition_livestream_worker)
+        self.volumetric_image_worker.yielded.connect(self.update_layer)
+        self.volumetric_image_worker.start()
+
+    def overview_finish(self):
+
+        """Function to be executed at the end of the overview"""
+
+        self.plot.addItem(self.gl_overview)     # GlImage doesn't like threads, do this outside of thread
+        self.volumetric_image_worker.quit()
 
         for i in range(1, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, True)  # Enabled tabs
         self.tab_widget.setCurrentIndex(len(self.tab_widget) - 1)
 
         self.map_pos_worker = self._map_pos_worker()
         self.map_pos_worker.start()  # Restart map update
+
+
+    @thread_worker
+    def _overview_worker(self):
+
+        self.x_grid_step_um, self.y_grid_step_um = self.instrument.get_xy_grid_step(self.cfg.tile_overlap_x_percent,
+                                                                                    self.cfg.tile_overlap_y_percent)
+
+        overview_array, xtiles = self.instrument.quick_scan()
+        cv2.imwrite(
+            fr'{self.cfg.local_storage_dir}\overview_img_{"_".join(map(str, self.cfg.imaging_wavelengths))}_3.tiff',
+            overview_array)  # Save overview
+        # overview_array = cv2.imread(
+        #     fr'{self.cfg.local_storage_dir}\overview_img_{"_".join(map(str, self.cfg.imaging_wavelengths))}_3.tiff', -1)
+        # xtiles = 3
+        overview_RGBA = \
+            pg.makeRGBA(np.rot90(overview_array), levels=[overview_array.min(), overview_array.max()])[
+                0]  # GLImage needs to be RGBA
+        overlap_um = round((self.cfg.tile_overlap_x_percent / 100) * self.cfg.tile_specs['x_field_of_view_um'])
+        scale_y = ((((self.cfg.tile_specs['x_field_of_view_um'] * xtiles)-(overlap_um *(xtiles-1)))*0.001 )
+                   / overview_RGBA.shape[1]) * 2
+        scale_x = ((self.cfg.imaging_specs[f'volume_z_um'] * 0.001) / overview_RGBA.shape[0]) * 2
+
+        self.gl_overview = gl.GLImageItem(overview_RGBA)
+        self.gl_overview.scale(scale_x / 2, scale_y / 2, 0, local=False)  # Scale Image
+
+        coord = {k: v * 0.0001 for k, v in self.map_pose.items()}
+        gui_coord = self.remap_axis({'x': coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
+                                     'y': coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
+                                     'z': coord['z']})
+        self.gl_overview.translate(gui_coord['x'],
+                                   gui_coord['y'],
+                                   gui_coord['z'])
 
     def mark_graph(self):
 
@@ -176,50 +212,53 @@ class TissueMap(WidgetBase):
                 #     else np.random.randint(-60000, 60000, 3)
 
                 gui_coord = self.remap_axis(coord)  # Remap sample_pos to gui coords
-                
-                self.stage = gl.GLMeshItem(meshdata=self.stage_data, smooth=True, drawFaces=True, drawEdges=False,
-                                          color=(0.5, 0.5, 0.5, 0.5),
-                                          shader='edgeHilight')
-                self.stage.scale(.01, .01, .01)
-                self.stage.translate(gui_coord['x'], gui_coord['y'], gui_coord['z'])
-                self.plot.addItem(self.stage)
-                # if self.instrument.start_pos == None:
-                #     for item in self.plot.items:  # Remove previous scan vol and tiles
-                #         if type(item) == gl.GLBoxItem and item != self.scan_vol:
-                #             self.plot.removeItem(item)
-                #
-                #     # Shift position of scan vol to center of camera fov and convert um to mm
-                #     volume_pos = {'x': coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
-                #                   'y': coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
-                #                   'z': coord['z']}
-                #     # Translate volume of scan to gui coordinate plane
-                #     scanning_volume = self.remap_axis({k : self.cfg.imaging_specs[f'volume_{k}_um'] * .001
-                #                                        for k in self.map_pose.keys()})
-                #
-                #     self.scan_vol = self.draw_volume(self.remap_axis(volume_pos), scanning_volume)  # Draw volume
-                #     self.plot.addItem(self.scan_vol)  # Add volume to graph
-                #
-                #     if self.map['tiling'].isChecked():
-                #         self.draw_tiles(volume_pos)  # Draw tiles if checkbox is checked
+                self.pos.setData(pos=[gui_coord['x'], gui_coord['y'], gui_coord['z']])
 
-                # else:
-                #
-                #     # Remap start position and shift position of scan vol to center of camera fov and convert um to mm
-                #     start_pos = {k: v * 0.001 for k, v in self.instrument.start_pos.items()}  # start of scan coords
-                #     start_pos = self.remap_axis(
-                #         {'x': start_pos['x'] - (.5 * self.cfg.tile_specs['x_field_of_view_um']),
-                #          'y': start_pos['y'] - (.5 * self.cfg.tile_specs['y_field_of_view_um']),
-                #          'z': start_pos['z']})
-                #
-                #     if self.map['tiling'].isChecked():
-                #         self.draw_tiles(start_pos)
-                #     self.draw_volume(start_pos, self.remap_axis({'x': self.cfg.imaging_specs[f'volume_x_um'] * 0.001,
-                #                                                  'y': self.cfg.imaging_specs[f'volume_y_um'] * 0.001,
-                #                                                  'z': self.cfg.imaging_specs[f'volume_z_um'] * 0.001}))
-            # except:
-            #     # In case Tigerbox throws an error
-            #     sleep(2)
-            #     yield  # Yield so thread can stop
+                # self.plot.removeItem(self.stage)
+                # self.stage = gl.GLMeshItem(meshdata=self.stage_data, smooth=True, drawFaces=True, drawEdges=False,
+                #                           color=(0.5, 0.5, 0.5, 0.5),
+                #                           shader='edgeHilight')
+                # self.stage.scale(.01, .01, .01)
+                # self.stage.translate(gui_coord['x'], gui_coord['y'], gui_coord['z'])
+                # self.plot.addItem(self.stage)
+
+                if self.instrument.start_pos == None:
+                    for item in self.plot.items:  # Remove previous scan vol and tiles
+                        if type(item) == gl.GLBoxItem:  # and item != self.scan_vol:
+                            self.plot.removeItem(item)
+
+                    # Shift position of scan vol to center of camera fov and convert um to mm
+                    volume_pos = {'x': coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
+                                  'y': coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
+                                  'z': coord['z']}
+                    # Translate volume of scan to gui coordinate plane
+                    scanning_volume = self.remap_axis({k: self.cfg.imaging_specs[f'volume_{k}_um'] * .001
+                                                       for k in self.map_pose.keys()})
+
+                    self.scan_vol = self.draw_volume(self.remap_axis(volume_pos)
+                                                     , scanning_volume)  # Draw volume
+                    self.plot.addItem(self.scan_vol)  # Add volume to graph
+
+                    if self.map['tiling'].isChecked():
+                        self.draw_tiles(volume_pos)  # Draw tiles if checkbox is checked
+
+                else:
+
+                    # Remap start position and shift position of scan vol to center of camera fov and convert um to mm
+                    start_pos = {k: v * 0.001 for k, v in self.instrument.start_pos.items()}  # start of scan coords
+                    start_pos = self.remap_axis(
+                        {'x': start_pos['x'] - (.5 * self.cfg.tile_specs['x_field_of_view_um']),
+                         'y': start_pos['y'] - (.5 * self.cfg.tile_specs['y_field_of_view_um']),
+                         'z': start_pos['z']})
+
+                    if self.map['tiling'].isChecked():
+                        self.draw_tiles(start_pos)
+                    self.draw_volume(start_pos, self.remap_axis({k: self.cfg.imaging_specs[f'volume_{k}_um'] * .001
+                                                                 for k in self.map_pose.keys()}))
+            except:
+                # In case Tigerbox throws an error
+                sleep(2)
+                yield  # Yield so thread can stop
             finally:
                 sleep(.5)
                 yield  # Yield so thread can stop
@@ -243,7 +282,6 @@ class TissueMap(WidgetBase):
                 tile_pos = self.remap_axis({'x': (x * self.x_grid_step_um * .001) + coord['x'],
                                             'y': (y * self.y_grid_step_um * .001) + coord['y'],
                                             'z': coord['z']})
-
                 tile_volume = self.remap_axis({'x': self.cfg.tile_specs['x_field_of_view_um'] * .001,
                                                'y': self.cfg.tile_specs['y_field_of_view_um'] * .001,
                                                'z': self.ztiles * self.cfg.z_step_size_um * .001})
@@ -337,7 +375,8 @@ class TissueMap(WidgetBase):
             up[dirs] = limits[dirs][1] if limits[dirs][1] > limits[dirs][0] else limits[dirs][0]
             axes_len[dirs] = abs(round(up[dirs] - low[dirs]))
             self.origin[dirs] = low[dirs] + (axes_len[dirs] / 2)
-
+        self.up = up
+        self.axes_len = axes_len
         self.plot.opts['center'] = QtGui.QVector3D(self.origin['x'], self.origin['y'], self.origin['z'])
 
         # x axes: Translate axis so origin of graph translate to center of stage limits
@@ -358,9 +397,9 @@ class TissueMap(WidgetBase):
 
         # Representing scan volume
         self.scan_vol = gl.GLBoxItem()
-        self.scan_vol.translate(self.origin['x']- (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
-                                self.origin['y']- (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
-                                up['z']-(axes_len['z']/2))
+        self.scan_vol.translate(self.origin['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
+                                self.origin['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
+                                up['z'] - (axes_len['z'] / 4))
         scanning_volume = self.remap_axis({'x': self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
                                            'y': self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000,
                                            'z': self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000})
@@ -368,38 +407,41 @@ class TissueMap(WidgetBase):
         self.scan_vol.setSize(**scanning_volume)
         self.plot.addItem(self.scan_vol)
 
-        stl_mesh = stl.mesh.Mesh.from_file(r'C:\Users\Administrator\Downloads\objective_1.stl')
-        points = stl_mesh.points.reshape(-1, 3)
-        faces = np.arange(points.shape[0]).reshape(-1, 3)
+        self.pos = gl.GLScatterPlotItem(pos=(1, 0, 0), size=1, color=(1, 0, 0, .5), pxMode=False)
+        self.plot.addItem(self.pos)
 
-        mesh_data = gl.MeshData(vertexes=points, faces=faces)
-        mesh = gl.GLMeshItem(meshdata=mesh_data, smooth=True, drawFaces=True, drawEdges=False, color=(0.5, 0.5, 0.5, 0.5),
-                          shader='edgeHilight')
-        mesh.scale(.05, .05, .05)
-        mesh.translate(self.origin['x'], self.origin['y'], up['z'])
-        self.plot.addItem(mesh)
-
-        stl_mesh = stl.mesh.Mesh.from_file(r'C:\Users\Administrator\Downloads\objective_2.stl')
-        points = stl_mesh.points.reshape(-1, 3)
-        faces = np.arange(points.shape[0]).reshape(-1, 3)
-
-        mesh_data = gl.MeshData(vertexes=points, faces=faces)
-        mesh = gl.GLMeshItem(meshdata=mesh_data, smooth=True, drawFaces=True, drawEdges=False,
-                             color=(0.5, 0.5, 0.5, 0.5),
-                             shader='edgeHilight')
-        mesh.scale(.05, .05, .05)
-        mesh.translate(self.origin['x'], self.origin['y'], up['z'])
-        self.plot.addItem(mesh)
-
-        stl_mesh = stl.mesh.Mesh.from_file(r'C:\Users\Administrator\Downloads\stage.stl')
-        points = stl_mesh.points.reshape(-1, 3)
-        faces = np.arange(points.shape[0]).reshape(-1, 3)
-
-        self.stage_data = gl.MeshData(vertexes=points, faces=faces)
-        self.stage = gl.GLMeshItem(meshdata=self.stage_data, smooth=True, drawFaces=True, drawEdges=False,
-                                   color=(0.5, 0.5, 0.5, 0.5),
-                                   shader='edgeHilight')
-        self.stage.scale(.01, .01, .01)
-        self.plot.addItem(self.stage)
+        # objective_1 = stl.mesh.Mesh.from_file(r'C:\Users\Administrator\Downloads\objective_1.stl')
+        # points = objective_1.points.reshape(-1, 3)
+        # faces = np.arange(points.shape[0]).reshape(-1, 3)
+        #
+        # objective_1 = gl.MeshData(vertexes=points, faces=faces)
+        # objective_1 = gl.GLMeshItem(meshdata=objective_1, smooth=True, drawFaces=True, drawEdges=False, color=(0.5, 0.5, 0.5, 0.5),
+        #                   shader='edgeHilight')
+        # objective_1.scale(.05, .05, .05)
+        # objective_1.translate(self.origin['x'], self.origin['y'], up['z'])
+        # self.plot.addItem(objective_1)
+        #
+        # objective_2 = stl.mesh.Mesh.from_file(r'C:\Users\Administrator\Downloads\objective_1.stl')
+        # points = objective_2.points.reshape(-1, 3)
+        # faces = np.arange(points.shape[0]).reshape(-1, 3)
+        #
+        # objective_2 = gl.MeshData(vertexes=points, faces=faces)
+        # objective_2 = gl.GLMeshItem(meshdata=objective_2, smooth=True, drawFaces=True, drawEdges=False,
+        #                             color=(0.5, 0.5, 0.5, 0.5),
+        #                             shader='edgeHilight')
+        # objective_2.scale(.05, .05, .05)
+        # objective_2.translate(self.origin['x'], self.origin['y'], up['z'])
+        # self.plot.addItem(objective_2)
+        #
+        # stage = stl.mesh.Mesh.from_file(r'C:\Users\Administrator\Downloads\stage.stl')
+        # points = stage.points.reshape(-1, 3)
+        # faces = np.arange(points.shape[0]).reshape(-1, 3)
+        #
+        # self.stage_data = gl.MeshData(vertexes=points, faces=faces)
+        # self.stage = gl.GLMeshItem(meshdata=self.stage_data, smooth=True, drawFaces=True, drawEdges=False,
+        #                            color=(49/255, 51/255, 53/255, 0.5),
+        #                            shader='edgeHilight')
+        # self.stage.scale(.01, .01, .01)
+        # self.plot.addItem(self.stage)
 
         return self.plot
