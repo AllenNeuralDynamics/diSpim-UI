@@ -139,7 +139,7 @@ class Lasers(WidgetBase):
         for k, v in dial_values.items():
 
             self.dials[wv][k] = QDial()
-            self.dials[wv][k].setRange((v*1000)-1000, (v*1000)+1000)        # QDials only do int values
+            self.dials[wv][k].setRange((v*1000)-5000, (v*1000)+5000)        # QDials only do int values
             self.dials[wv][k].setNotchesVisible(True)
             self.dials[wv][k].setValue(v*1000)
             self.dials[wv][k].setSingleStep(1)

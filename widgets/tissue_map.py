@@ -74,10 +74,15 @@ class TissueMap(WidgetBase):
 
         """Start overview function of instrument"""
 
-        # if len(self.cfg.imaging_wavelengths) > 1:
-        #     self.error_msg('Too many wavelengths',
-        #                    'Overview can only image in one channel. Please deselect imaging channels.')
-        #     return
+        if len(self.cfg.imaging_wavelengths) > 1:
+            self.error_msg('Too many wavelengths',
+                           'Overview can only image in one channel. Please deselect imaging channels.')
+            return
+
+        if self.instrument.livestream_enabled.is_set():
+            self.error_msg('Livestreaming',
+                           'Please stop the livestream before starting overview.')
+            return
 
         self.map_pos_worker.quit()  # Stopping tissue map update
         for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, False)  # Disable tabs during scan
@@ -85,7 +90,6 @@ class TissueMap(WidgetBase):
         self.overview_worker = self._overview_worker()
         self.overview_worker.finished.connect(lambda:self.overview_finish())    # Napari threads have finished signals
         self.overview_worker.start()
-
         sleep(5)
         self.viewer.layers.clear()     # Clear existing layers
         self.volumetric_image_worker = create_worker(self.instrument._acquisition_livestream_worker)
@@ -95,11 +99,11 @@ class TissueMap(WidgetBase):
     def overview_finish(self):
 
         """Function to be executed at the end of the overview"""
-        print('end overview')
+
         self.plot.addItem(self.gl_overview)     # GlImage doesn't like threads, do this outside of thread
         self.volumetric_image_worker.quit()
 
-        for i in range(1, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, True)  # Enabled tabs
+        for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, True)  # Enabled tabs
         self.tab_widget.setCurrentIndex(len(self.tab_widget) - 1)
 
         self.map_pos_worker = self._map_pos_worker()
@@ -113,9 +117,6 @@ class TissueMap(WidgetBase):
                                                                                     self.cfg.tile_overlap_y_percent)
 
         overview_array, xtiles = self.instrument.quick_scan()
-        cv2.imwrite(
-            fr'{self.cfg.local_storage_dir}\overview_img_{"_".join(map(str, self.cfg.imaging_wavelengths))}_3.tiff',
-            overview_array)  # Save overview
         # overview_array = cv2.imread(
         #     fr'{self.cfg.local_storage_dir}\overview_img_{"_".join(map(str, self.cfg.imaging_wavelengths))}_3.tiff', -1)
         # xtiles = 3

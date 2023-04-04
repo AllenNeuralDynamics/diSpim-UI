@@ -157,6 +157,13 @@ class Livestream(WidgetBase):
     def start_live_view(self):
 
         """Start livestreaming"""
+
+        wavelengths = [int(item.text()) for item in self.live_view['wavelength'].selectedItems()]
+        if len(wavelengths) == 0:
+            self.error_msg('No channel selected',
+                           'Please select at least one channel to image in.')
+            return
+
         self.disable_button(self.live_view['start'])
         self.live_view['start'].clicked.disconnect(self.start_live_view)
 
@@ -164,13 +171,12 @@ class Livestream(WidgetBase):
             self.live_view['start'].setText('Stop Live View')
             for buttons in self.live_view:
                 self.live_view[buttons].setHidden(False)
-        wavelengths = [int(item.text()) for item in self.live_view['wavelength'].selectedItems()]
+
         self.instrument.start_livestream(wavelengths)
         self.viewer.layers.clear()  # Clear existing layers
         self.livestream_worker = create_worker(self.instrument._livestream_worker)
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
-
 
         sleep(2)    # Allow livestream to start
 

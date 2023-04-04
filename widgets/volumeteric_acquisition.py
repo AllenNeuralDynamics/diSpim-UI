@@ -70,10 +70,9 @@ class VolumetericAcquisition(WidgetBase):
     @thread_worker
     def _run(self):
         self.instrument.run(overwrite=self.volumetric_image['overwrite'].isChecked())
-
+        yield
     def end_scan(self):
 
-        print('enter end scan')
         self.run_worker.quit()
         self.volumetric_image_worker.quit()
 
