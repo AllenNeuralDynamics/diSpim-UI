@@ -19,7 +19,6 @@ class WidgetBase:
         value = float(value)
         if cfg_value != value:
             self.pathSet(dict, path, value)
-            print(value)
             if self.instrument.livestream_enabled.is_set():
                 self.instrument._setup_waveform_hardware(self.instrument.active_lasers, live = True)
 

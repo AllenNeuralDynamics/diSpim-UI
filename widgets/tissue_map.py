@@ -234,9 +234,13 @@ class TissueMap(WidgetBase):
                 gui_coord = self.remap_axis(coord)  # Remap sample_pos to gui coords
                 #self.pos.setData(pos=[gui_coord['x'], gui_coord['y'], gui_coord['z']])
 
-                self.objectives.setTransform(qtpy.QtGui.QMatrix4x4(0, 0, 1/2, gui_coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
-                                                              1/2, 0, 0, gui_coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
-                                                              0, 1/2, 0, gui_coord['z'],
+                self.objectives.setTransform(qtpy.QtGui.QMatrix4x4(0, 0, 1, gui_coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
+                                                              1, 0, 0, gui_coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
+                                                              0, 1, 0, self.up['z'],
+                                                              0, 0, 0, 1))
+                self.stage.setTransform(qtpy.QtGui.QMatrix4x4(0, 0, 1, self.origin['x'],
+                                                              1, 0, 0, self.origin['y'],
+                                                              0, 1, 0, gui_coord['z'],
                                                               0, 0, 0, 1))
 
                 if self.instrument.start_pos == None:
@@ -397,22 +401,6 @@ class TissueMap(WidgetBase):
         self.up = up
         self.axes_len = axes_len
         self.plot.opts['center'] = QtGui.QVector3D(self.origin['x'], self.origin['y'], self.origin['z'])
-
-        # x axes: Translate axis so origin of graph translate to center of stage limits
-        # Z coords increase as stage moves down so z origin and coords are negative
-        self.create_axes((90, 0, 1, 0),
-                         (axes_len['z'], axes_len['y']),
-                         (low['x'], self.origin['y'], self.origin['z']))
-
-        # y axes: Translate to lower end of y and origin of x and -z
-        self.create_axes((90, 1, 0, 0),
-                         (axes_len['x'], axes_len['z']),
-                         (self.origin['x'], low['y'], self.origin['z']))
-
-        # z axes: Translate to origin of x, y, z
-        self.create_axes((0, 0, 0, 0),
-                         (axes_len['x'], axes_len['y']),
-                         (self.origin['x'], self.origin['y'], low['z']))
 
         # Representing scan volume
         self.scan_vol = gl.GLBoxItem()
