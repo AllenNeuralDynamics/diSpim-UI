@@ -152,10 +152,29 @@ class TissueMap(WidgetBase):
         self.map['label'] = QLineEdit()
         self.map['label'].returnPressed.connect(self.set_point)  # Add text when button is pressed
 
-        self.map['tiling'] = QCheckBox('See Tiling')
-        self.map['tiling'].stateChanged.connect(self.set_tiling)  # Display tiling of scan when checked
+        self.checkbox = {}
+
+        self.checkbox['tiling'] = QCheckBox('See Tiling')
+        self.checkbox['tiling'].stateChanged.connect(self.set_tiling)  # Display tiling of scan when checked
+
+        self.checkbox['objectives'] = QCheckBox('See Objectives')
+        self.checkbox['objectives'].setChecked(True)
+        self.checkbox['objectives'].stateChanged.connect(self.objective_display)
+
+        self.map['checkboxes'] = self.create_layout(struct='H', **self.checkbox)
 
         return self.create_layout(struct='V', **self.map)
+
+    def objective_display(self, state):
+
+        """ Toggle on or off weather objectives are visible or not"""
+
+        if state == 2:
+            self.objectives.setVisible(True)
+            self.stage.setVisible(True)
+        if state == 0:
+            self.objectives.setVisible(False)
+            self.stage.setVisible(False)
 
     def set_tiling(self, state):
 
@@ -213,35 +232,29 @@ class TissueMap(WidgetBase):
                 #     else np.random.randint(-60000, 60000, 3)
 
                 gui_coord = self.remap_axis(coord)  # Remap sample_pos to gui coords
-                self.pos.setData(pos=[gui_coord['x'], gui_coord['y'], gui_coord['z']])
+                #self.pos.setData(pos=[gui_coord['x'], gui_coord['y'], gui_coord['z']])
 
-                # self.plot.removeItem(self.stage)
-                # self.stage = gl.GLMeshItem(meshdata=self.stage_data, smooth=True, drawFaces=True, drawEdges=False,
-                #                           color=(0.5, 0.5, 0.5, 0.5),
-                #                           shader='edgeHilight')
-                # self.stage.scale(.01, .01, .01)
-                # self.stage.translate(gui_coord['x'], gui_coord['y'], gui_coord['z'])
-                # self.plot.addItem(self.stage)
+                self.objectives.setTransform(qtpy.QtGui.QMatrix4x4(0, 0, 1/2, gui_coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
+                                                              1/2, 0, 0, gui_coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
+                                                              0, 1/2, 0, gui_coord['z'],
+                                                              0, 0, 0, 1))
 
                 if self.instrument.start_pos == None:
                     for item in self.plot.items:  # Remove previous scan vol and tiles
-                        if type(item) == gl.GLBoxItem:  # and item != self.scan_vol:
+                        if type(item) == gl.GLBoxItem and item != self.scan_vol:  # and item != self.scan_vol:
                             self.plot.removeItem(item)
 
-                    # Shift position of scan vol to center of camera fov and convert um to mm
-                    volume_pos = {'x': coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
-                                  'y': coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
-                                  'z': coord['z']}
                     # Translate volume of scan to gui coordinate plane
                     scanning_volume = self.remap_axis({k: self.cfg.imaging_specs[f'volume_{k}_um'] * .001
                                                        for k in self.map_pose.keys()})
 
-                    self.scan_vol = self.draw_volume(self.remap_axis(volume_pos)
-                                                     , scanning_volume)  # Draw volume
-                    self.plot.addItem(self.scan_vol)  # Add volume to graph
-
-                    if self.map['tiling'].isChecked():
-                        self.draw_tiles(volume_pos)  # Draw tiles if checkbox is checked
+                    self.scan_vol.setSize(**scanning_volume)
+                    self.scan_vol.setTransform((qtpy.QtGui.QMatrix4x4(1, 0, 0, gui_coord['x'],
+                                                      0, 1, 0, gui_coord['y'],
+                                                      0, 0, 1, gui_coord['z'],
+                                                      0, 0, 0, 1)))
+                    if self.checkbox['tiling'].isChecked():
+                        self.draw_tiles(gui_coord)  # Draw tiles if checkbox is checked
 
                 else:
 
@@ -256,6 +269,7 @@ class TissueMap(WidgetBase):
                         self.draw_tiles(start_pos)
                     self.draw_volume(start_pos, self.remap_axis({k: self.cfg.imaging_specs[f'volume_{k}_um'] * .001
                                                                  for k in self.map_pose.keys()}))
+
             except:
                 # In case Tigerbox throws an error
                 sleep(2)
@@ -280,9 +294,13 @@ class TissueMap(WidgetBase):
 
         for x in range(0, self.xtiles):
             for y in range(0, self.ytiles):
-                tile_pos = self.remap_axis({'x': (x * self.x_grid_step_um * .001) + coord['x'],
-                                            'y': (y * self.y_grid_step_um * .001) + coord['y'],
-                                            'z': coord['z']})
+                tile_offset = self.remap_axis({'x': (x * self.x_grid_step_um * .001),
+                                            'y': (y * self.y_grid_step_um * .001),
+                                            'z': 0})
+                tile_pos = {'x': tile_offset['x'] + coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
+                            'y': tile_offset['y'] + coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
+                            'z': tile_offset['z'] + coord['z']
+                }
                 tile_volume = self.remap_axis({'x': self.cfg.tile_specs['x_field_of_view_um'] * .001,
                                                'y': self.cfg.tile_specs['y_field_of_view_um'] * .001,
                                                'z': self.ztiles * self.cfg.z_step_size_um * .001})
@@ -400,7 +418,7 @@ class TissueMap(WidgetBase):
         self.scan_vol = gl.GLBoxItem()
         self.scan_vol.translate(self.origin['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
                                 self.origin['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
-                                up['z'] - (axes_len['z'] / 4))
+                                up['z'])
         scanning_volume = self.remap_axis({'x': self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
                                            'y': self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000,
                                            'z': self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000})
@@ -408,41 +426,34 @@ class TissueMap(WidgetBase):
         self.scan_vol.setSize(**scanning_volume)
         self.plot.addItem(self.scan_vol)
 
-        self.pos = gl.GLScatterPlotItem(pos=(1, 0, 0), size=1, color=(1, 0, 0, .5), pxMode=False)
-        self.plot.addItem(self.pos)
+        # self.pos = gl.GLScatterPlotItem(pos=(1, 0, 0), size=1, color=(1, 0, 0, .5), pxMode=False)
+        # self.plot.addItem(self.pos)
 
-        # objective_1 = stl.mesh.Mesh.from_file(r'C:\Users\Administrator\Downloads\objective_1.stl')
-        # points = objective_1.points.reshape(-1, 3)
-        # faces = np.arange(points.shape[0]).reshape(-1, 3)
-        #
-        # objective_1 = gl.MeshData(vertexes=points, faces=faces)
-        # objective_1 = gl.GLMeshItem(meshdata=objective_1, smooth=True, drawFaces=True, drawEdges=False, color=(0.5, 0.5, 0.5, 0.5),
-        #                   shader='edgeHilight')
-        # objective_1.scale(.05, .05, .05)
-        # objective_1.translate(self.origin['x'], self.origin['y'], up['z'])
-        # self.plot.addItem(objective_1)
-        #
-        # objective_2 = stl.mesh.Mesh.from_file(r'C:\Users\Administrator\Downloads\objective_1.stl')
-        # points = objective_2.points.reshape(-1, 3)
-        # faces = np.arange(points.shape[0]).reshape(-1, 3)
-        #
-        # objective_2 = gl.MeshData(vertexes=points, faces=faces)
-        # objective_2 = gl.GLMeshItem(meshdata=objective_2, smooth=True, drawFaces=True, drawEdges=False,
-        #                             color=(0.5, 0.5, 0.5, 0.5),
-        #                             shader='edgeHilight')
-        # objective_2.scale(.05, .05, .05)
-        # objective_2.translate(self.origin['x'], self.origin['y'], up['z'])
-        # self.plot.addItem(objective_2)
-        #
-        # stage = stl.mesh.Mesh.from_file(r'C:\Users\Administrator\Downloads\stage.stl')
-        # points = stage.points.reshape(-1, 3)
-        # faces = np.arange(points.shape[0]).reshape(-1, 3)
-        #
-        # self.stage_data = gl.MeshData(vertexes=points, faces=faces)
-        # self.stage = gl.GLMeshItem(meshdata=self.stage_data, smooth=True, drawFaces=True, drawEdges=False,
-        #                            color=(49/255, 51/255, 53/255, 0.5),
-        #                            shader='edgeHilight')
-        # self.stage.scale(.01, .01, .01)
-        # self.plot.addItem(self.stage)
+        objectives = stl.mesh.Mesh.from_file(r'C:\Users\Administrator\Downloads\stl-test (1)\stl-test\di-spim-tissue-map.stl')
+        points = objectives.points.reshape(-1, 3)
+        faces = np.arange(points.shape[0]).reshape(-1, 3)
+
+        objectives = gl.MeshData(vertexes=points, faces=faces)
+        self.objectives = gl.GLMeshItem(meshdata=objectives, smooth=True, drawFaces=True, drawEdges=False, color=(0.5, 0.5, 0.5, 0.5),
+                          shader='edgeHilight')
+        self.objectives.setTransform(qtpy.QtGui.QMatrix4x4(0, 0, 1/2, self.origin['x'],
+                                                      1/2, 0, 0, self.origin['y'],
+                                                      0, 1/2, 0, up['z'],
+                                                      0, 0, 0, 1))
+        self.plot.addItem(self.objectives)
+
+        stage = stl.mesh.Mesh.from_file(r'C:\Users\Administrator\Downloads\stl-test (1)\stl-test\di-spim-holder.stl')
+        points = stage.points.reshape(-1, 3)
+        faces = np.arange(points.shape[0]).reshape(-1, 3)
+
+        stage = gl.MeshData(vertexes=points, faces=faces)
+        self.stage = gl.GLMeshItem(meshdata=stage, smooth=True, drawFaces=True, drawEdges=False,
+                                   color=(49/255, 51/255, 53/255, 0.5),
+                                   shader='edgeHilight')
+        self.stage.setTransform(qtpy.QtGui.QMatrix4x4(0,0,1/2,self.origin['x'],
+                                                      1/2,0,0,self.origin['y'],
+                                                      0,1/2,0,low['z'],
+                                                      0,0,0,1))
+        self.plot.addItem(self.stage)
 
         return self.plot

@@ -173,7 +173,6 @@ class Livestream(WidgetBase):
                 self.live_view[buttons].setHidden(False)
 
         self.instrument.start_livestream(wavelengths)
-        self.viewer.layers.clear()  # Clear existing layers
         self.livestream_worker = create_worker(self.instrument._livestream_worker)
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
