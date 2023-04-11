@@ -30,6 +30,9 @@ class VolumetericAcquisition(WidgetBase):
         self.selected = {}
         self.data_line = None       # Lines for graph
 
+        self.scale = [self.cfg.tile_specs['x_field_of_view_um'] / self.cfg.sensor_row_count,
+                      self.cfg.tile_specs['y_field_of_view_um'] / self.cfg.sensor_column_count]
+
     def set_tab_widget(self, tab_widget: QTabWidget):
 
         self.tab_widget = tab_widget
@@ -37,8 +40,10 @@ class VolumetericAcquisition(WidgetBase):
     def volumeteric_imaging_button(self):
 
         self.volumetric_image = {'start': QPushButton('Start Volumetric Imaging'),
-                                 'overwrite': QCheckBox('Overwrite')}
+                                 'overwrite': QCheckBox('Overwrite'),
+                                 'save_config': QPushButton('Save Configuration')}
         self.volumetric_image['start'].clicked.connect(self.run_volumeteric_imaging)
+        self.volumetric_image['save_config'].clicked.connect(self.instrument.cfg.save)
         # Put in seperate function so upon initiation of gui, run() funtion does not start
 
         return self.create_layout(struct='H', **self.volumetric_image)
@@ -52,10 +57,12 @@ class VolumetericAcquisition(WidgetBase):
 
         for i in range(1,len(self.tab_widget)):
             self.tab_widget.setTabEnabled(i,False)
-
+        self.instrument.cfg.save()
         self.run_worker = self._run()
+        self.run_worker.finished.connect(lambda: self.end_scan())  # Napari threads have finished signals
         self.run_worker.start()
         sleep(5)
+        self.viewer.layers.clear()     # Clear existing layers
         self.volumetric_image_worker = create_worker(self.instrument._acquisition_livestream_worker)
         self.volumetric_image_worker.yielded.connect(self.update_layer)
         self.volumetric_image_worker.start()
@@ -63,26 +70,7 @@ class VolumetericAcquisition(WidgetBase):
     @thread_worker
     def _run(self):
         self.instrument.run(overwrite=self.volumetric_image['overwrite'].isChecked())
-        self.end_scan()
-
-    def update_layer(self, args):
-
-        """Update viewer with the newest image from scan"""
-        (im, frame_num) = args
-
-        layer_num = frame_num % len(self.instrument.active_lasers) - 1 if len(self.instrument.active_lasers) > 1 else -1
-        key = f"'Volumeteric Run' {self.cfg.imaging_wavelengths[layer_num + 1]}"
-
-        try:
-            layer = self.viewer.layers[key]
-            layer._slice.image._view = im
-            layer.events.set_data()
-
-        except KeyError:
-            self.viewer.add_image(im, name=key)
-            self.viewer.layers[key].rotate = 90
-            self.viewer.layers[key].blending = 'additive'
-
+        yield
     def end_scan(self):
 
         self.run_worker.quit()

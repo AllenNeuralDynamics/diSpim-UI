@@ -3,28 +3,23 @@ from qtpy.QtWidgets import  QMessageBox, QLineEdit, QVBoxLayout, QWidget, \
     QHBoxLayout, QLabel, QDoubleSpinBox,  QScrollArea, QFrame, QSpinBox, QSlider,\
     QComboBox
 import qtpy.QtCore as QtCore
+import numpy as np
 
 class WidgetBase:
 
-    def config_change(self, widget, attribute, kw, specify = None):
+    def config_change(self, value, path, dict):
 
         """Changes instrument config when a changed value is entered
-        :param widget: the widget which input changed
-        :param attribute: the corresponding attribute that the widget represents
-        :param kw: the variable name in a nested dictionary
-        :param specify: the subdictionary key which the kw applies to. Used to map to multiple dictionaries with same kw
-        :param repeat = signals if there are multiple variables with the same kw in the dictionary
-        """
+        :param value: value from dial widget
+        :param path: path to value in cfg
+        :param dict: dictionary in cfg where value is saved"""
 
-        dictionary = getattr(self.cfg, attribute)
-        path = self.pathFind(dictionary, specify)
-        path = path + self.pathFind(dictionary, kw, path, True) if path is not None else self.pathFind(dictionary, kw)
-
-        cfg_value = self.pathGet(dictionary, path)
+        cfg_value = self.pathGet(dict, path)
         value_type = type(cfg_value)
-        value = value_type(widget.text())
+        value = float(value)
         if cfg_value != value:
-            self.pathSet(dictionary, path, value)
+            self.pathSet(dict, path, value)
+            print(value)
             if self.instrument.livestream_enabled.is_set():
                 self.instrument._setup_waveform_hardware(self.instrument.active_lasers, live = True)
 
@@ -64,6 +59,41 @@ class WidgetBase:
 
         return WindowDictionary
 
+    def update_layer(self, args):
+
+        """Update right and left layers switching each iteration"""
+
+        (image, layer_num) = args
+        #TODO: Break if image equals none
+
+        key = f"Video {layer_num}"
+        try:
+
+            layer = self.viewer.layers[key]
+            layer._slice.image._view = image
+            layer.events.set_data()
+
+        except KeyError:
+
+            self.viewer.add_image(image, name = key, scale=[self.cfg.tile_specs['x_field_of_view_um'] / self.cfg.sensor_row_count,
+                      self.cfg.tile_specs['y_field_of_view_um'] / self.cfg.sensor_column_count])
+            self.viewer.layers[key].rotate = 90
+            self.viewer.layers[key].blending = 'additive'
+
+            if len(self.viewer.layers) == 1:  # Center viewer due to rotation
+                center = self.viewer.camera.center
+                self.viewer.camera.center = (center[0],
+                                             -self.cfg.tile_specs['y_field_of_view_um'] * .5,  # Vertical
+                                             self.cfg.tile_specs['x_field_of_view_um'] * .5)  # Horizontal
+                #TODO: Maybe add checkbox to add lines?
+                vert_line = np.array([[0, self.cfg.tile_specs['x_field_of_view_um'] * .5], [-self.cfg.tile_specs['y_field_of_view_um'], self.cfg.tile_specs['x_field_of_view_um'] * .5]])
+                horz_line = np.array([[-self.cfg.tile_specs['y_field_of_view_um'] * .5, 0], [-self.cfg.tile_specs['y_field_of_view_um'] * .5, self.cfg.tile_specs['x_field_of_view_um']]])
+                l = [vert_line, horz_line]
+                color = ['blue', 'green']
+
+                shapes_layer = self.viewer.add_shapes(l, shape_type='line', edge_width=1, edge_color=color, name='line')
+                shapes_layer.mode = 'select'
+
     def scroll_box(self, widget: QWidget):
 
         """Create a scroll box area to put large vertical widgets.
@@ -98,8 +128,6 @@ class WidgetBase:
 
         value_type = type(getattr(obj, var))
         value = value_type(widget.text())
-        setattr(obj, var, value)
-
         if getattr(obj, var, value) != value:
             setattr(obj, var, value)
             if self.instrument.livestream_enabled.is_set():
@@ -168,16 +196,28 @@ class WidgetBase:
     def create_layout(self, struct: str, **kwargs):
 
         """Creates either a horizontal or vertical layout populated with widgets
-        :param struct: specifies whether the layout will be horizontal or vertical
+        :param struct: specifies whether the layout will be horizontal, vertical, or combo
         :param kwargs: all widgets contained in layout"""
 
+        layouts = {'H': QHBoxLayout(), 'V':QVBoxLayout()}
         widget = QFrame()
-        if struct == 'H':
-            layout = QHBoxLayout()
-        else:
-            layout = QVBoxLayout()
-        for arg in kwargs.values():
-            layout.addWidget(arg)
+        if struct == 'V' or struct == 'H':
+            layout = layouts[struct]
+            for arg in kwargs.values():
+                layout.addWidget(arg)
+
+        elif struct == 'VH' or 'HV':
+            bin0 = {}
+            bin1 = {}
+            j = 0
+            for v in kwargs.values():
+                bin0[str(v)] = v
+                j += 1
+                if j == 2:
+                    j = 0
+                    bin1[str(v)] = self.create_layout(struct=struct[0], **bin0)
+                    bin0 = {}
+            return self.create_layout(struct=struct[1], **bin1)
 
         layout.setContentsMargins(0, 0, 0, 0)
         widget.setLayout(layout)

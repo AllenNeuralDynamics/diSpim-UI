@@ -140,7 +140,7 @@ class UserInterface:
 
     def tissue_map_widget(self):
 
-        self.tissue_map = TissueMap(self.instrument)
+        self.tissue_map = TissueMap(self.instrument, self.viewer)
 
         widgets = {
             'graph': self.tissue_map.graph(),

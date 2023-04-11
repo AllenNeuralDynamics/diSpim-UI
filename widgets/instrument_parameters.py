@@ -11,7 +11,6 @@ def get_dict_attr(class_def, attr):
             return obj.__dict__[attr]
     raise AttributeError
 
-#TODO: popup window micah woodward
 class InstrumentParameters(WidgetBase):
 
     def __init__(self, frame_grabber, column_pixels, simulated, instrument, config):

@@ -33,7 +33,6 @@ class Livestream(WidgetBase):
         self.waveform = {}
         self.selected = {}
         self.grid = {}
-        self.pos_widget = {}
         self.pos_widget = {}  # Holds widgets related to sample position
         self.set_scan_start = {}  # Holds widgets related to setting volume limits during scan
         self.stage_position = None
@@ -44,14 +43,6 @@ class Livestream(WidgetBase):
         self.livestream_worker = None
         self.scale = [self.cfg.tile_specs['x_field_of_view_um'] / self.cfg.sensor_row_count,
                       self.cfg.tile_specs['y_field_of_view_um'] / self.cfg.sensor_column_count]
-        # TODO:change to config params
-        self.layer_index = 0
-
-        # Start and end points for lines
-        self.vert_start = -self.cfg.sensor_column_count * self.scale[0]  # I can just change this to um in field of view
-        self.vert_end = 0
-        self.horz_start = -self.cfg.sensor_row_count * self.scale[1]
-        self.horz_end = self.cfg.sensor_row_count * self.scale[1]
 
     def set_tab_widget(self, tab_widget: QTabWidget):
 
@@ -166,6 +157,13 @@ class Livestream(WidgetBase):
     def start_live_view(self):
 
         """Start livestreaming"""
+
+        wavelengths = [int(item.text()) for item in self.live_view['wavelength'].selectedItems()]
+        if len(wavelengths) == 0:
+            self.error_msg('No channel selected',
+                           'Please select at least one channel to image in.')
+            return
+
         self.disable_button(self.live_view['start'])
         self.live_view['start'].clicked.disconnect(self.start_live_view)
 
@@ -173,18 +171,16 @@ class Livestream(WidgetBase):
             self.live_view['start'].setText('Stop Live View')
             for buttons in self.live_view:
                 self.live_view[buttons].setHidden(False)
-        wavelengths = [int(item.text()) for item in self.live_view['wavelength'].selectedItems()]
+
         self.instrument.start_livestream(wavelengths)
         self.livestream_worker = create_worker(self.instrument._livestream_worker)
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
 
-
         sleep(2)    # Allow livestream to start
 
         self.sample_pos_worker = self._sample_pos_worker()
         self.sample_pos_worker.start()
-
 
         self.live_view['start'].clicked.connect(self.stop_live_view)
         # Only allow stopping once everything is initialized
@@ -203,31 +199,12 @@ class Livestream(WidgetBase):
 
         self.live_view['start'].clicked.connect(self.start_live_view)
 
-    def disable_button(self, button, pause=5000):
+    def disable_button(self, button, pause=3000):
 
         """Function to disable button clicks for a period of time to avoid crashing gui"""
 
         button.setEnabled(False)
         QtCore.QTimer.singleShot(pause, lambda: button.setDisabled(False))
-
-    def update_layer(self, args):
-
-        """Update right and left layers switching each iteration"""
-
-        (image, stream_id, layer_num) = args
-        key = f"Video {stream_id} {layer_num}"
-        try:
-
-            layer = self.viewer.layers[key]
-            layer._slice.image._view = image
-            layer.events.set_data()
-
-        except KeyError:
-
-            self.viewer.add_image(image, name = key, scale=self.scale)
-            self.viewer.layers[key].rotate = 90
-            self.viewer.layers[key].blending = 'additive'
-
 
     def color_change(self):
 
