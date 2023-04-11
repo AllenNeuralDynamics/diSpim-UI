@@ -234,8 +234,8 @@ class TissueMap(WidgetBase):
                 gui_coord = self.remap_axis(coord)  # Remap sample_pos to gui coords
                 #self.pos.setData(pos=[gui_coord['x'], gui_coord['y'], gui_coord['z']])
 
-                self.objectives.setTransform(qtpy.QtGui.QMatrix4x4(0, 0, 1, gui_coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
-                                                              1, 0, 0, gui_coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
+                self.objectives.setTransform(qtpy.QtGui.QMatrix4x4(0, 0, 1, gui_coord['x'],
+                                                              1, 0, 0, gui_coord['y'],
                                                               0, 1, 0, self.up['z'],
                                                               0, 0, 0, 1))
                 self.stage.setTransform(qtpy.QtGui.QMatrix4x4(0, 0, 1, self.origin['x'],
@@ -253,10 +253,10 @@ class TissueMap(WidgetBase):
                                                        for k in self.map_pose.keys()})
 
                     self.scan_vol.setSize(**scanning_volume)
-                    self.scan_vol.setTransform((qtpy.QtGui.QMatrix4x4(1, 0, 0, gui_coord['x'],
-                                                      0, 1, 0, gui_coord['y'],
-                                                      0, 0, 1, gui_coord['z'],
-                                                      0, 0, 0, 1)))
+                    self.scan_vol.setTransform(qtpy.QtGui.QMatrix4x4(1, 0, 0, gui_coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
+                                                              0, 1, 0, gui_coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
+                                                              0, 0, 1, gui_coord['z'],
+                                                              0, 0, 0, 1))
                     if self.checkbox['tiling'].isChecked():
                         self.draw_tiles(gui_coord)  # Draw tiles if checkbox is checked
 
@@ -424,10 +424,6 @@ class TissueMap(WidgetBase):
         objectives = gl.MeshData(vertexes=points, faces=faces)
         self.objectives = gl.GLMeshItem(meshdata=objectives, smooth=True, drawFaces=True, drawEdges=False, color=(0.5, 0.5, 0.5, 0.5),
                           shader='edgeHilight')
-        self.objectives.setTransform(qtpy.QtGui.QMatrix4x4(0, 0, 1/2, self.origin['x'],
-                                                      1/2, 0, 0, self.origin['y'],
-                                                      0, 1/2, 0, up['z'],
-                                                      0, 0, 0, 1))
         self.plot.addItem(self.objectives)
 
         stage = stl.mesh.Mesh.from_file(r'C:\Users\Administrator\Downloads\stl-test (1)\stl-test\di-spim-holder.stl')
@@ -438,10 +434,6 @@ class TissueMap(WidgetBase):
         self.stage = gl.GLMeshItem(meshdata=stage, smooth=True, drawFaces=True, drawEdges=False,
                                    color=(49/255, 51/255, 53/255, 0.5),
                                    shader='edgeHilight')
-        self.stage.setTransform(qtpy.QtGui.QMatrix4x4(0,0,1/2,self.origin['x'],
-                                                      1/2,0,0,self.origin['y'],
-                                                      0,1/2,0,low['z'],
-                                                      0,0,0,1))
         self.plot.addItem(self.stage)
 
         return self.plot
