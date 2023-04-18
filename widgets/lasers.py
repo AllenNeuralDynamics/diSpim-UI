@@ -86,8 +86,8 @@ class Lasers(WidgetBase):
         widget_wavelength = widget.text()
         widget.setHidden(True)
         self.tab_widget.setTabVisible(self.tab_map[widget_wavelength], False)
-        self.laser_power[widget_wavelength].setHidden(True)
-        self.laser_power[f'{widget_wavelength} label'].setHidden(True)
+        # self.laser_power[widget_wavelength].setHidden(True)
+        # self.laser_power[f'{widget_wavelength} label'].setHidden(True)
         self.imaging_wavelengths.remove(int(widget_wavelength))
         self.imaging_wavelengths.sort()
         self.wavelength_selection['unselected'].addItem(widget.text())
@@ -104,8 +104,8 @@ class Lasers(WidgetBase):
             self.wavelength_selection['unselected'].removeItem(index)
             self.selected[widget_wavelength].setHidden(False)
             self.tab_widget.setTabVisible(self.tab_map[widget_wavelength], True)
-            self.laser_power[widget_wavelength].setHidden(False)
-            self.laser_power[f'{widget_wavelength} label'].setHidden(False)
+            # self.laser_power[widget_wavelength].setHidden(False)
+            # self.laser_power[f'{widget_wavelength} label'].setHidden(False)
 
     def add_wavelength_tabs(self, tab_widget: QTabWidget):
 
@@ -137,11 +137,10 @@ class Lasers(WidgetBase):
         self.dials[wv] = {}
         self.dial_widgets[wv] = {}
         for k, v in dial_values.items():
-
             self.dials[wv][k] = QDial()
-            self.dials[wv][k].setRange((v*1000)-5000, (v*1000)+5000)        # QDials only do int values
+            self.dials[wv][k].setRange(round((v*1000)-5000), round((v*1000)+5000))        # QDials only do int values
             self.dials[wv][k].setNotchesVisible(True)
-            self.dials[wv][k].setValue(v*1000)
+            self.dials[wv][k].setValue(round(v*1000))
             self.dials[wv][k].setSingleStep(1)
 
             self.dials[wv][k+'value'] = QLineEdit(str(v))

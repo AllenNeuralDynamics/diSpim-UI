@@ -417,7 +417,7 @@ class TissueMap(WidgetBase):
         # self.pos = gl.GLScatterPlotItem(pos=(1, 0, 0), size=1, color=(1, 0, 0, .5), pxMode=False)
         # self.plot.addItem(self.pos)
 
-        objectives = stl.mesh.Mesh.from_file(r'C:\Users\Administrator\Downloads\stl-test (1)\stl-test\di-spim-tissue-map.stl')
+        objectives = stl.mesh.Mesh.from_file(r'C:\Users\hcr-fish\Downloads\di-spim-tissue-map.stl')
         points = objectives.points.reshape(-1, 3)
         faces = np.arange(points.shape[0]).reshape(-1, 3)
 
@@ -426,7 +426,7 @@ class TissueMap(WidgetBase):
                           shader='edgeHilight')
         self.plot.addItem(self.objectives)
 
-        stage = stl.mesh.Mesh.from_file(r'C:\Users\Administrator\Downloads\stl-test (1)\stl-test\di-spim-holder.stl')
+        stage = stl.mesh.Mesh.from_file(r'C:\Users\hcr-fish\Downloads\di-spim-holder.stl')
         points = stage.points.reshape(-1, 3)
         faces = np.arange(points.shape[0]).reshape(-1, 3)
 
