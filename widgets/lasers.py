@@ -2,7 +2,7 @@ from widgets.widget_base import WidgetBase
 from PyQt5.QtCore import Qt, QSize
 from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, QSlider, QLineEdit, \
     QTabWidget, QVBoxLayout, QMessageBox, QDial, QFrame
-from oxxius_laser import Cmd, Query
+from vortran_laser.stradus import Cmd, Query
 import qtpy.QtCore as QtCore
 import logging
 import numpy as np
@@ -86,8 +86,9 @@ class Lasers(WidgetBase):
         widget_wavelength = widget.text()
         widget.setHidden(True)
         self.tab_widget.setTabVisible(self.tab_map[widget_wavelength], False)
-        # self.laser_power[widget_wavelength].setHidden(True)
-        # self.laser_power[f'{widget_wavelength} label'].setHidden(True)
+        if int(widget_wavelength) in self.laser_power:
+            self.laser_power[int(widget_wavelength)].setHidden(True)
+            self.laser_power[f'{widget_wavelength} label'].setHidden(True)
         self.imaging_wavelengths.remove(int(widget_wavelength))
         self.imaging_wavelengths.sort()
         self.wavelength_selection['unselected'].addItem(widget.text())
@@ -104,8 +105,9 @@ class Lasers(WidgetBase):
             self.wavelength_selection['unselected'].removeItem(index)
             self.selected[widget_wavelength].setHidden(False)
             self.tab_widget.setTabVisible(self.tab_map[widget_wavelength], True)
-            # self.laser_power[widget_wavelength].setHidden(False)
-            # self.laser_power[f'{widget_wavelength} label'].setHidden(False)
+            if int(widget_wavelength) in self.laser_power:
+                self.laser_power[int(widget_wavelength)].setHidden(False)
+                self.laser_power[f'{widget_wavelength} label'].setHidden(False)
 
     def add_wavelength_tabs(self, tab_widget: QTabWidget):
 
@@ -186,10 +188,6 @@ class Lasers(WidgetBase):
         msgBox.setStandardButtons(QMessageBox.Ok)
         return msgBox.exec()
 
-
-
-
-
     def laser_power_slider(self):
 
         """Create slider for every possible laser and hides ones not in use
@@ -197,34 +195,16 @@ class Lasers(WidgetBase):
 
         laser_power_layout = {}
 
-        for wl in self.possible_wavelengths:
-            wl = str(wl)
-            laser_id = self.lasers[wl].get(Query.LaserIdentification) if not self.simulated else  'LAS' # Check what type of laser
+        for wl in self.lasers:  # TODO: allow for obis lasers
+            if self.cfg.laser_specs[str(wl)]['driver'] == "ObisLS":
+                self.log.warning(f'Not setting up {wl} slider because it"s obis')
+                continue
+            value = int(float(self.lasers[wl].get(Query.LaserPowerSetting)) if not self.simulated else 15)
+            min = 0
+            max = int(float(self.lasers[wl].get(Query.MaximumLaserPower))) # string to float to int
+            unit = 'mW'
+            command = Cmd.LaserPower
 
-            if laser_id[0:3] == 'LAS' or self.simulated:  # LAS lasers output current%
-
-                coeffiecients = self.cfg.laser_specs[str(wl)]['coeffecients'] if not self.simulated else {}  # Coeffiecients and order of coeffs
-                # describing power vs current curve
-
-                # Populating function with coefficients and exponents
-                x = symbols('x')
-                func = 0
-                for order, co in coeffiecients.items():
-                    func = func + float(co) * x ** int(order)
-
-                current_pct = float(self.lasers[wl].get(Query.LaserCurrentSetting)) if not self.simulated else 15
-                value = current_pct if coeffiecients == {} else round(func.subs(x, current_pct))
-                min = 0
-                max = 100 if coeffiecients == {} else floor(func.subs(x, 100))
-                unit = 'mW' if coeffiecients != {} else '%'
-                command = Cmd.LaserCurrent
-
-            else:  # output power already
-                value = float(self.lasers[wl].get(Query.LaserPowerSetting)) if not self.simulated else 15
-                min = 0
-                max = float(self.lasers[wl].get(Query.MaximumLaserPower))
-                command = Cmd.LaserPower
-                unit = f'mW'
 
             # Create slider and label
             self.laser_power[f'{wl} label'], self.laser_power[wl] = self.create_widget(
@@ -241,8 +221,8 @@ class Lasers(WidgetBase):
             # Setting activity when slider is moved (update label value)
             # or released (update laser current or power to slider setpoint)
             self.laser_power[wl].sliderReleased.connect(
-                lambda value = value, unit=unit, wl=wl, curve = func, released=True, command=command:
-                self.laser_power_label(value, unit, wl, curve, released, command))
+                lambda value = value, unit=unit, wl=wl, released=True, command=command:
+                self.laser_power_label(value, unit, wl, released, command))
             self.laser_power[wl].sliderMoved.connect(
                 lambda value = value, unit=unit, wl=wl: self.laser_power_label(value,unit, wl))
 
@@ -258,7 +238,7 @@ class Lasers(WidgetBase):
 
         return self.create_layout(struct='V', **laser_power_layout)
 
-    def laser_power_label(self, value, unit, wl: int, curve = None, release=False, command=None):
+    def laser_power_label(self, value, unit, wl: int, release=False, command=None):
 
         """Set laser current or power to slider set point if released and update label if slider moved
         :param value: value of slider
@@ -273,15 +253,7 @@ class Lasers(WidgetBase):
 
         if release:
             self.log.info(f'Setting laser {wl} to {value} {unit}')
-            laser_value = value
-            if int(wl) == 561 or unit != 'mW':
-                self.lasers[wl].set(command, float(laser_value))
-            else:
-                power = self.calculate_laser_current(curve, value)
-                if power == QMessageBox.Ok:
-                    return
-
-                self.lasers[wl].set(command, float(round(power)))
+            self.lasers[wl].set(command, int(value))
 
     def laser_power_splitter(self):
 

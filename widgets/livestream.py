@@ -66,19 +66,19 @@ class Livestream(WidgetBase):
 
         self.live_view['start'] = QPushButton('Start Live View')
         self.live_view['start'].clicked.connect(self.start_live_view)
-        wv_strs = [str(x) for x in self.possible_wavelengths]
-        self.live_view['wavelength'] = QListWidget()
-        self.live_view['wavelength'].setSelectionMode(QAbstractItemView.MultiSelection)
 
+        wv_strs = [str(x) for x in self.possible_wavelengths]
+        wv_strs.sort()
+        self.live_view['wavelength'] = QComboBox()
+        self.live_view['wavelength'].addItems(wv_strs)
+        self.live_view['wavelength'].currentIndexChanged.connect(self.color_change)
+        i = 0
         for wavelength in wv_strs:
-            wv_item = QListWidgetItem(wavelength)
-            wv_item.setBackground( QtGui.QColor(self.cfg.laser_specs[wavelength]['color']))
-            self.live_view['wavelength'].addItem(wv_item)
-        self.live_view['wavelength'].setStyleSheet(" QListWidget:item:selected:active {background: white;"
-                                                   "color: black;"
-                                                   "border: 2px solid green;}")
-        self.live_view['wavelength'].setMaximumHeight(70)
-        self.live_view['wavelength'].setSortingEnabled(True)
+            self.live_view['wavelength'].setItemData(i, QtGui.QColor(self.cfg.laser_specs[wavelength]['color']),
+                                                     QtCore.Qt.BackgroundRole)
+            i += 1
+        self.live_view['wavelength'].setStyleSheet(
+            f'QComboBox {{ background-color:{self.cfg.laser_specs[wv_strs[0]]["color"]}; color : black; }}')
 
         # Sets start position of scan to current position of sample
         self.set_scan_start['set_start'] = QPushButton()
@@ -158,11 +158,11 @@ class Livestream(WidgetBase):
 
         """Start livestreaming"""
 
-        wavelengths = [int(item.text()) for item in self.live_view['wavelength'].selectedItems()]
-        if len(wavelengths) == 0:
-            self.error_msg('No channel selected',
-                           'Please select at least one channel to image in.')
-            return
+        # wavelengths = [int(item.text()) for item in self.live_view['wavelength'].selectedItems()]
+        # if len(wavelengths) == 0:
+        #     self.error_msg('No channel selected',
+        #                    'Please select at least one channel to image in.')
+        #     return
 
         self.disable_button(self.live_view['start'])
         self.live_view['start'].clicked.disconnect(self.start_live_view)
@@ -172,7 +172,7 @@ class Livestream(WidgetBase):
             for buttons in self.live_view:
                 self.live_view[buttons].setHidden(False)
 
-        self.instrument.start_livestream(wavelengths)
+        self.instrument.start_livestream([int(self.live_view['wavelength'].currentText())]) # Needs to be list
         self.livestream_worker = create_worker(self.instrument._livestream_worker)
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()

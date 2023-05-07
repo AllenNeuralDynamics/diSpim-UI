@@ -8,10 +8,10 @@ from widgets.volumeteric_acquisition import VolumetericAcquisition
 from widgets.livestream import Livestream
 from widgets.lasers import Lasers
 from widgets.tissue_map import TissueMap
-import logging
 import traceback
 import pyqtgraph.opengl as gl
 import io
+import logging
 
 class UserInterface:
 
@@ -23,7 +23,8 @@ class UserInterface:
 
         try:
             # TODO: Create logger tab at bottom of napari viewer. Also make logger for each class as well
-
+            logger = logging.getLogger()
+            logger.setLevel('INFO')
             self.instrument = ispim.Ispim(config_filepath=config_filepath, simulated=simulated)
             self.simulated = simulated
             self.cfg = self.instrument.cfg
@@ -47,7 +48,7 @@ class UserInterface:
             # Set up laser window combining laser sliders and selection
             laser_window = QDockWidget()
             laser_widget = {
-                #'laser_slider': self.laser_slider,
+                'laser_slider': self.laser_slider,
                 'laser_select': self.laser_wl_select,
             }
             laser_window.setWidget(self.laser_parameters.create_layout(struct='H', **laser_widget))
@@ -131,12 +132,12 @@ class UserInterface:
     def laser_widget(self):
 
         self.laser_parameters = Lasers(self.viewer, self.cfg, self.instrument, self.simulated)
-        # widgets = {
-        #     'splitter': self.laser_parameters.laser_power_splitter(),
-        #     'power': self.laser_parameters.laser_power_slider(),
-        # }
+        widgets = {
+            #'splitter': self.laser_parameters.laser_power_splitter(),
+            'power': self.laser_parameters.laser_power_slider(),
+        }
         self.laser_wl_select = self.laser_parameters.laser_wl_select()
-        #self.laser_slider = self.laser_parameters.create_layout(struct='H', **widgets)
+        self.laser_slider = self.laser_parameters.create_layout(struct='H', **widgets)
 
     def tissue_map_widget(self):
 

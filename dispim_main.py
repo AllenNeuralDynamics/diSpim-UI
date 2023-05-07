@@ -6,7 +6,7 @@ import traceback
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_path", type=str, default=None)
-    parser.add_argument("--log_level", type=str, default="DEBUG",
+    parser.add_argument("--log_level", type=str, default="INFO",
                         choices=["INFO", "DEBUG"])
     parser.add_argument("--simulated", default=False, action="store_true",
                         help="Simulate hardware device connections.")
