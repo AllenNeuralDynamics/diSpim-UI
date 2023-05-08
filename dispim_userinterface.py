@@ -132,10 +132,17 @@ class UserInterface:
     def laser_widget(self):
 
         self.laser_parameters = Lasers(self.viewer, self.cfg, self.instrument, self.simulated)
-        widgets = {
-            #'splitter': self.laser_parameters.laser_power_splitter(),
-            'power': self.laser_parameters.laser_power_slider(),
-        }
+        #FIXME: Bulky and can be slimmed done but error at first attempt
+
+        if 'main' in self.cfg.laser_specs.keys():
+            widgets = {
+                'splitter': self.laser_parameters.laser_power_splitter(),
+                'power': self.laser_parameters.laser_power_slider(),
+            }
+        else:
+            widgets = {
+                'power': self.laser_parameters.laser_power_slider(),
+            }
         self.laser_wl_select = self.laser_parameters.laser_wl_select()
         self.laser_slider = self.laser_parameters.create_layout(struct='H', **widgets)
 

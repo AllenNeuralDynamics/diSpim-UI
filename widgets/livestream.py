@@ -69,6 +69,20 @@ class Livestream(WidgetBase):
 
         wv_strs = [str(x) for x in self.possible_wavelengths]
         wv_strs.sort()
+
+        if self.cfg.acquisition_style
+        for wavelength in wv_strs:
+            wv_item = QListWidgetItem(wavelength)
+            wv_item.setBackground(QtGui.QColor(self.cfg.laser_specs[wavelength]['color']))
+            self.live_view['wavelength'].addItem(wv_item)
+        self.live_view['wavelength'].setStyleSheet(" QListWidget:item:selected:active {background: white;"
+                                                   "color: black;"
+                                                   "border: 2px solid green;}")
+        self.live_view['wavelength'].setMaximumHeight(70)
+        self.live_view['wavelength'].setSortingEnabled(True)
+
+        wv_strs = [str(x) for x in self.possible_wavelengths]
+        wv_strs.sort()
         self.live_view['wavelength'] = QComboBox()
         self.live_view['wavelength'].addItems(wv_strs)
         self.live_view['wavelength'].currentIndexChanged.connect(self.color_change)
