@@ -86,8 +86,8 @@ class Lasers(WidgetBase):
         widget_wavelength = widget.text()
         widget.setHidden(True)
         self.tab_widget.setTabVisible(self.tab_map[widget_wavelength], False)
-        if int(widget_wavelength) in self.laser_power:
-            self.laser_power[int(widget_wavelength)].setHidden(True)
+        if widget_wavelength in self.laser_power:
+            self.laser_power[widget_wavelength].setHidden(True)
             self.laser_power[f'{widget_wavelength} label'].setHidden(True)
         self.imaging_wavelengths.remove(int(widget_wavelength))
         self.imaging_wavelengths.sort()
@@ -105,8 +105,8 @@ class Lasers(WidgetBase):
             self.wavelength_selection['unselected'].removeItem(index)
             self.selected[widget_wavelength].setHidden(False)
             self.tab_widget.setTabVisible(self.tab_map[widget_wavelength], True)
-            if int(widget_wavelength) in self.laser_power:
-                self.laser_power[int(widget_wavelength)].setHidden(False)
+            if widget_wavelength in self.laser_power:
+                self.laser_power[widget_wavelength].setHidden(False)
                 self.laser_power[f'{widget_wavelength} label'].setHidden(False)
 
     def add_wavelength_tabs(self, tab_widget: QTabWidget):
