@@ -75,13 +75,16 @@ class Livestream(WidgetBase):
         if self.cfg.acquisition_style == 'interleaved':
             self.live_view['wavelength'] = QListWidget()
             self.live_view['wavelength'].setSelectionMode(QAbstractItemView.MultiSelection)
+            wv_item = {}
             for wavelength in wv_strs:
-                wv_item = QListWidgetItem(wavelength)
-                wv_item.setBackground(QtGui.QColor(self.cfg.laser_specs[wavelength]['color']))
-                self.live_view['wavelength'].addItem(wv_item)
-            self.live_view['wavelength'].setStyleSheet(" QListWidget:item:selected:active {background: white;"
-                                                       "color: black;"
-                                                       "border: 2px solid green;}")
+                wv_item[wavelength] = QListWidgetItem(wavelength)
+
+                wv_item[wavelength].setBackground(QtGui.QColor(65, 72, 81,255))
+                self.live_view['wavelength'].addItem(wv_item[wavelength])
+            self.live_view['wavelength'].itemPressed.connect(self.color_change_list)
+            # self.live_view['wavelength'].setStyleSheet(" QListWidget:item:selected:active {background: white;"
+            #                                            "color: black;"
+            #                                            "border: 2px solid green;}")
             self.live_view['wavelength'].setMaximumHeight(70)
             self.live_view['wavelength'].setSortingEnabled(True)
 
@@ -89,7 +92,7 @@ class Livestream(WidgetBase):
 
             self.live_view['wavelength'] = QComboBox()
             self.live_view['wavelength'].addItems(wv_strs)
-            self.live_view['wavelength'].currentIndexChanged.connect(self.color_change)
+            self.live_view['wavelength'].currentIndexChanged.connect(self.color_change_combbox)
             i = 0
             for wavelength in wv_strs:
                 self.live_view['wavelength'].setItemData(i, QtGui.QColor(self.cfg.laser_specs[wavelength]['color']),
@@ -175,7 +178,8 @@ class Livestream(WidgetBase):
     def start_live_view(self):
 
         """Start livestreaming"""
-        wavelengths = [int(item.text()) for item in self.live_view['wavelength'].selectedItems()] if self.cfg.acquisition_style == 'interleaved' else [int(self.live_view['wavelength'].currentText())]
+        wavelengths = [int(item.text()) for item in self.live_view['wavelength'].selectedItems()] if \
+            self.cfg.acquisition_style == 'interleaved' else [int(self.live_view['wavelength'].currentText())]
         if len(wavelengths) == 0:
             self.error_msg('No channel selected',
                            'Please select at least one channel to image in.')
@@ -223,7 +227,17 @@ class Livestream(WidgetBase):
         button.setEnabled(False)
         QtCore.QTimer.singleShot(pause, lambda: button.setDisabled(False))
 
-    def color_change(self):
+    def color_change_list(self, item):
+
+        """Changes selected iteams color in Qlistwidget"""
+
+        wl = item.text()
+        if item.isSelected():
+            item.setBackground(QtGui.QColor(self.cfg.laser_specs[wl]['color']))
+        else:
+            item.setBackground(QtGui.QColor(65, 72, 81,255))
+
+    def color_change_combbox(self):
 
         """Changes color of drop down menu based on selected lasers """
 

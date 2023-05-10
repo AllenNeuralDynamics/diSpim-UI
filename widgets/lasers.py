@@ -2,7 +2,6 @@ from widgets.widget_base import WidgetBase
 from PyQt5.QtCore import Qt, QSize
 from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, QSlider, QLineEdit, \
     QTabWidget, QVBoxLayout, QMessageBox, QDial, QFrame
-from vortran_laser.stradus import Cmd, Query
 import qtpy.QtCore as QtCore
 import logging
 import numpy as np
@@ -201,8 +200,8 @@ class Lasers(WidgetBase):
                 continue
 
             # Coeffiecients and order of coeffs describing power vs current curve
-            if hasattr(self.cfg.laser_specs[str(wl)], 'coeffecients'):
-                coeffiecients =  self.cfg.laser_specs[str(wl)][ 'coeffecients']
+            if 'coeffecients' in self.cfg.laser_specs[str(wl)]:
+                coeffiecients =  self.cfg.laser_specs[str(wl)]['coeffecients']
             else:
                 coeffiecients = {}
 
@@ -216,7 +215,7 @@ class Lasers(WidgetBase):
             value = intensity if coeffiecients == {} else round(func.subs(x, intensity))
             unit = '%' if coeffiecients == {} and self.cfg.laser_specs[wl]['intensity_mode'] == 'current' else 'mW'
             min = 0
-            max = self.lasers[wl].get_max_power() if unit != '%' else 0
+            max = self.lasers[wl].get_max_power() if unit != '%' else 100
 
             # Create slider and label
             self.laser_power[f'{wl} label'], self.laser_power[wl] = self.create_widget(

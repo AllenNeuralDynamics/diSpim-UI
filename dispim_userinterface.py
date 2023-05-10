@@ -65,7 +65,7 @@ class UserInterface:
             self.tissue_map.set_tab_widget(tabbed_widgets)  # Passing in tab widget to tissue map
             self.livestream_parameters.set_tab_widget(tabbed_widgets)  # Passing in tab widget to livestream
             self.vol_acq_params.set_tab_widget(tabbed_widgets)
-            tabbed_widgets.setMinimumHeight(800)
+            tabbed_widgets.setMinimumHeight(700)
 
             liveview_widget = self.livestream_parameters.liveview_widget()  # Widget contains start/stop and wl select
             liveview_widget.setMaximumHeight(70)
@@ -112,7 +112,7 @@ class UserInterface:
         self.livestream_parameters = Livestream(self.viewer, self.cfg, self.instrument, self.simulated)
 
         widgets = {
-            'grid': self.livestream_parameters.grid_widget(),
+            #'grid': self.livestream_parameters.grid_widget(),
             'screenshot': self.livestream_parameters.screenshot_button(),
             'position': self.livestream_parameters.sample_stage_position(),
         }
