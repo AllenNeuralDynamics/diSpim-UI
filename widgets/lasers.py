@@ -211,11 +211,11 @@ class Lasers(WidgetBase):
             for order, co in coeffiecients.items():
                 func = func + float(co) * x ** int(order)
 
-            intensity = float(self.lasers[wl].get_intensity()) if not self.simulated else 15
+            intensity = float(self.lasers[wl].get_setpoint()) if not self.simulated else 15
             value = intensity if coeffiecients == {} else round(func.subs(x, intensity))
             unit = '%' if coeffiecients == {} and self.cfg.laser_specs[wl]['intensity_mode'] == 'current' else 'mW'
             min = 0
-            max = self.lasers[wl].get_max_power() if unit != '%' else 100
+            max = self.lasers[wl].get_max_setpoint() if unit != '%' else 100
 
             # Create slider and label
             self.laser_power[f'{wl} label'], self.laser_power[wl] = self.create_widget(

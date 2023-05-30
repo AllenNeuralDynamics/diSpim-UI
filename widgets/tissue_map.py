@@ -8,9 +8,8 @@ from napari.qt.threading import thread_worker,create_worker
 from time import sleep
 from pyqtgraph.Qt import QtCore, QtGui
 import qtpy.QtGui
-from qtpy.QtCore import QObject, Signal, Slot
 import stl
-import cv2
+from math import cos, sin, pi
 
 
 class TissueMap(WidgetBase):
@@ -34,8 +33,6 @@ class TissueMap(WidgetBase):
 
         self.initial_volume = [self.cfg.volume_x_um, self.cfg.volume_y_um, self.cfg.volume_z_um]
         self.sample_pose_remap = self.cfg.sample_pose_kwds['axis_map']
-        self.og_axis_remap = {v: k for k, v in self.sample_pose_remap.items()}
-        self.tiles = {}  # Tile in sample pose coords
         self.grid_step_um = {}  # Grid steps in samplepose coords
 
     def set_tab_widget(self, tab_widget: QTabWidget):
@@ -222,7 +219,6 @@ class TissueMap(WidgetBase):
     def _map_pos_worker(self):
 
         """Update position of stage for tissue map, draw scanning volume, and tiling"""
-
         while True:
 
             try:
@@ -232,7 +228,10 @@ class TissueMap(WidgetBase):
                 #     else np.random.randint(-60000, 60000, 3)
 
                 gui_coord = self.remap_axis(coord)  # Remap sample_pos to gui coords
-                #self.pos.setData(pos=[gui_coord['x'], gui_coord['y'], gui_coord['z']])
+                self.pos.setTransform(qtpy.QtGui.QMatrix4x4(cos(pi/4), 0, -sin(pi/4), gui_coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
+                                                              0, 1, 0, gui_coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
+                                                              sin(pi/4), 0, cos(pi/4), gui_coord['z'],
+                                                              0, 0, 0, 1))
 
                 self.objectives.setTransform(qtpy.QtGui.QMatrix4x4(0, 0, 1, gui_coord['x'],
                                                               1, 0, 0, gui_coord['y'],
@@ -245,7 +244,7 @@ class TissueMap(WidgetBase):
 
                 if self.instrument.start_pos == None:
                     for item in self.plot.items:  # Remove previous scan vol and tiles
-                        if type(item) == gl.GLBoxItem and item != self.scan_vol:  # and item != self.scan_vol:
+                        if type(item) == gl.GLBoxItem and item != self.scan_vol and item != self.pos:
                             self.plot.removeItem(item)
 
                     # Translate volume of scan to gui coordinate plane
@@ -293,7 +292,7 @@ class TissueMap(WidgetBase):
             self.initial_volume = [self.cfg.volume_x_um, self.cfg.volume_y_um, self.cfg.volume_z_um]
 
         for item in self.plot.items:
-            if type(item) == gl.GLBoxItem and item != self.scan_vol:
+            if type(item) == gl.GLBoxItem and item != self.scan_vol and item != self.pos:
                 self.plot.removeItem(item)
 
         for x in range(0, self.xtiles):
@@ -386,6 +385,11 @@ class TissueMap(WidgetBase):
 
         self.plot = gl.GLViewWidget()
         self.plot.opts['distance'] = 40
+        self.map_pose = self.instrument.sample_pose.get_position()
+        coord = {k: v * 0.0001 for k, v in self.map_pose.items()}
+        gui_coord = self.remap_axis(coord)
+        self.plot.opts['center'] = QtGui.QVector3D(gui_coord['x'], gui_coord['y'], gui_coord['z'])  #Centering map on stage position
+
 
         limits = self.remap_axis({'x': [0, 45], 'y': [0, 60], 'z': [0, 55]}) if self.instrument.simulated else \
             self.remap_axis(self.instrument.sample_pose.get_travel_limits(*['x', 'y', 'z']))
@@ -400,24 +404,28 @@ class TissueMap(WidgetBase):
             self.origin[dirs] = low[dirs] + (axes_len[dirs] / 2)
         self.up = up
         self.axes_len = axes_len
-        self.plot.opts['center'] = QtGui.QVector3D(self.origin['x'], self.origin['y'], self.origin['z'])
 
         # Representing scan volume
         self.scan_vol = gl.GLBoxItem()
+        self.scan_vol.setColor(qtpy.QtGui.QColor('gold'))
         self.scan_vol.translate(self.origin['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
                                 self.origin['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
                                 up['z'])
-        scanning_volume = self.remap_axis({'x': self.cfg.imaging_specs[f'volume_x_um'] * 1 / 1000,
-                                           'y': self.cfg.imaging_specs[f'volume_y_um'] * 1 / 1000,
-                                           'z': self.cfg.imaging_specs[f'volume_z_um'] * 1 / 1000})
+        scanning_volume = self.remap_axis({'x': self.cfg.imaging_specs[f'volume_x_um'] * 0.001,
+                                           'y': self.cfg.imaging_specs[f'volume_y_um'] * 0.001,
+                                           'z': self.cfg.imaging_specs[f'volume_z_um'] * 0.001})
 
         self.scan_vol.setSize(**scanning_volume)
         self.plot.addItem(self.scan_vol)
 
-        # self.pos = gl.GLScatterPlotItem(pos=(1, 0, 0), size=1, color=(1, 0, 0, .5), pxMode=False)
-        # self.plot.addItem(self.pos)
+        self.pos = gl.GLBoxItem()
+        self.pos.setSize(**self.remap_axis({'x': 0.001 * self.cfg.tile_specs['x_field_of_view_um'],
+                                            'y': 0.001 * self.cfg.tile_specs['y_field_of_view_um'],
+                                            'z':0}))
+        self.pos.setColor(qtpy.QtGui.QColor('red'))
+        self.plot.addItem(self.pos)
 
-        objectives = stl.mesh.Mesh.from_file(r'C:\Users\Administrator\Downloads\stl-test (1)\stl-test\di-spim-tissue-map.stl')
+        objectives = stl.mesh.Mesh.from_file(r'C:\Users\hcr-fish\Downloads\di-spim-tissue-map.stl')
         points = objectives.points.reshape(-1, 3)
         faces = np.arange(points.shape[0]).reshape(-1, 3)
 
@@ -426,7 +434,7 @@ class TissueMap(WidgetBase):
                           shader='edgeHilight')
         self.plot.addItem(self.objectives)
 
-        stage = stl.mesh.Mesh.from_file(r'C:\Users\Administrator\Downloads\stl-test (1)\stl-test\di-spim-holder.stl')
+        stage = stl.mesh.Mesh.from_file(r'C:\Users\hcr-fish\Downloads\di-spim-holder.stl')
         points = stage.points.reshape(-1, 3)
         faces = np.arange(points.shape[0]).reshape(-1, 3)
 

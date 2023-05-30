@@ -20,7 +20,7 @@ if __name__ == '__main__':
         if args.simulated:
             args.config_path = r'C:\Users\micah.woodard\ispim-control\examples\config.toml'
         else:
-            args.config_path = r'C:\Users\Administrator\Projects\ispim-control\examples\config.toml'
+            args.config_path = r'C:\Users\hcr-fish\Projects\ispim-control\examples\config.toml'
 
         run = UserInterface(config_filepath=args.config_path,
                             console_output_level=args.log_level,
