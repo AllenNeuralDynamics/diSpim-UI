@@ -1,27 +1,17 @@
-import argparse
 import os
 from dispim_userinterface import UserInterface
 import traceback
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config_path", type=str, default=None)
-    parser.add_argument("--log_level", type=str, default="INFO",
-                        choices=["INFO", "DEBUG"])
-    parser.add_argument("--simulated", default=False, action="store_true",
-                        help="Simulate hardware device connections.")
-    # Note: colored console output is buggy on Windows.
-    parser.add_argument("--color_console_output", type=bool,
-                        default=True)
 
-    args = parser.parse_args()
-    # Check if we didn't supply a config file and populate a safe guess.
-    if not args.config_path:
-        if args.simulated:
-            args.config_path = r'C:\Users\micah.woodard\ispim-control\examples\config.toml'
-        else:
-            args.config_path = r'C:\Users\hcr-fish\Projects\ispim-control\examples\config.toml'
+    simulated = False
+    log_level = "INFO"      # ["INFO", "DEBUG"]
 
-        run = UserInterface(config_filepath=args.config_path,
-                            console_output_level=args.log_level,
-                            simulated=args.simulated)
+    if simulated:
+        config_path =  rf'C:\Users\{os.getlogin()}\Documents\dispim_files\config.toml'
+    else:
+        config_path = rf'C:\Users\{os.getlogin()}\Documents\dispim_files\config.toml'
+
+    run = UserInterface(config_filepath=config_path,
+                        console_output_level=log_level,
+                        simulated=simulated)

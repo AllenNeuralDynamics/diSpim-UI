@@ -60,14 +60,11 @@ class WidgetBase:
 
     def update_layer(self, args):
 
-        """Update right and left layers switching each iteration"""
-
-        (image, layer_num) = args
-        #TODO: Break if image equals none
-
-        key = f"Video {layer_num}"
+        """Update viewer with latest image"""
         try:
+            (image, layer) = args
 
+            key = f"Video {layer}"
             layer = self.viewer.layers[key]
             layer._slice.image._view = image
             layer.events.set_data()
@@ -92,6 +89,8 @@ class WidgetBase:
 
                 shapes_layer = self.viewer.add_shapes(l, shape_type='line', edge_width=1, edge_color=color, name='line')
                 shapes_layer.mode = 'select'
+        except:
+            pass
 
     def scroll_box(self, widget: QWidget):
 

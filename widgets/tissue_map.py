@@ -10,6 +10,7 @@ from pyqtgraph.Qt import QtCore, QtGui
 import qtpy.QtGui
 import stl
 from math import cos, sin, pi
+import os
 
 
 class TissueMap(WidgetBase):
@@ -97,7 +98,9 @@ class TissueMap(WidgetBase):
 
         """Function to be executed at the end of the overview"""
 
-        self.plot.addItem(self.gl_overview)     # GlImage doesn't like threads, do this outside of thread
+        self.plot.removeItem(self.objectives)
+        self.plot.addItem(self.gl_overview)  # GlImage doesn't like threads, do this outside of thread
+        self.plot.addItem(self.objectives)  # Remove and add objectives to see view through them
         self.volumetric_image_worker.quit()
 
         for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, True)  # Enabled tabs
@@ -118,22 +121,18 @@ class TissueMap(WidgetBase):
         #     fr'{self.cfg.local_storage_dir}\overview_img_{"_".join(map(str, self.cfg.imaging_wavelengths))}_3.tiff', -1)
         # xtiles = 3
         overview_RGBA = \
-            pg.makeRGBA(np.rot90(overview_array), levels=[overview_array.min(), overview_array.max()])[
+            pg.makeRGBA(np.flip(np.rot90(overview_array, 3), axis=1), levels=[overview_array.min(), 255])[
                 0]  # GLImage needs to be RGBA
         overlap_um = round((self.cfg.tile_overlap_x_percent / 100) * self.cfg.tile_specs['x_field_of_view_um'])
         scale_y = ((((self.cfg.tile_specs['x_field_of_view_um'] * xtiles)-(overlap_um *(xtiles-1)))*0.001 )
                    / overview_RGBA.shape[1]) * 2
         scale_x = ((self.cfg.imaging_specs[f'volume_z_um'] * 0.001) / overview_RGBA.shape[0]) * 2
-
         self.gl_overview = gl.GLImageItem(overview_RGBA)
         self.gl_overview.scale(scale_x / 2, scale_y / 2, 0, local=False)  # Scale Image
 
-        coord = {k: v * 0.0001 for k, v in self.map_pose.items()}
-        gui_coord = self.remap_axis({'x': coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
-                                     'y': coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
-                                     'z': coord['z']})
-        self.gl_overview.translate(gui_coord['x'],
-                                   gui_coord['y'],
+        gui_coord = self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
+        self.gl_overview.translate(gui_coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
+                                   gui_coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
                                    gui_coord['z'])
 
     def mark_graph(self):
@@ -194,7 +193,7 @@ class TissueMap(WidgetBase):
         # State is 0 if checkmark is unpressed
         if state == 0:
             for item in self.plot.items:
-                if type(item) == gl.GLBoxItem and item != self.scan_vol:
+                if type(item) == gl.GLBoxItem and item != self.scan_vol and item != self.pos:
                     self.plot.removeItem(item)
 
     def set_point(self):
@@ -309,7 +308,9 @@ class TissueMap(WidgetBase):
                                                'z': self.ztiles * self.cfg.z_step_size_um * .001})
                 tile = self.draw_volume(tile_pos, tile_volume)
                 tile.setColor(qtpy.QtGui.QColor('cornflowerblue'))
+                self.plot.removeItem(self.objectives)
                 self.plot.addItem(tile)
+                self.plot.addItem(self.objectives)  # remove and add objectives to see tiles through objective
 
     def draw_volume(self, coord: dict, size: dict):
 
@@ -425,7 +426,7 @@ class TissueMap(WidgetBase):
         self.pos.setColor(qtpy.QtGui.QColor('red'))
         self.plot.addItem(self.pos)
 
-        objectives = stl.mesh.Mesh.from_file(r'C:\Users\hcr-fish\Downloads\di-spim-tissue-map.stl')
+        objectives = stl.mesh.Mesh.from_file(rf'C:\Users\{os.getlogin()}\Documents\dispim_files\di-spim-tissue-map.stl')
         points = objectives.points.reshape(-1, 3)
         faces = np.arange(points.shape[0]).reshape(-1, 3)
 
@@ -434,7 +435,7 @@ class TissueMap(WidgetBase):
                           shader='edgeHilight')
         self.plot.addItem(self.objectives)
 
-        stage = stl.mesh.Mesh.from_file(r'C:\Users\hcr-fish\Downloads\di-spim-holder.stl')
+        stage = stl.mesh.Mesh.from_file(rf'C:\Users\{os.getlogin()}\Documents\dispim_files\di-spim-holder.stl')
         points = stage.points.reshape(-1, 3)
         faces = np.arange(points.shape[0]).reshape(-1, 3)
 
