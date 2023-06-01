@@ -248,58 +248,6 @@ class Livestream(WidgetBase):
         if self.instrument.livestream_enabled.is_set():
             self.instrument.setup_imaging_for_laser(wavelength, True)
 
-    def grid_widget(self):
-
-        """Creates input widget for how many horz/vert lines in created grid.
-            Create widget displaying area contained in grid box"""
-
-        self.grid['label'], self.grid['widget'] = self.create_widget(2, QSpinBox, 'Grid Lines: ')
-        self.grid['widget'].setValue(2)
-        self.grid['widget'].setMinimum(2)
-        self.grid['widget'].valueChanged.connect(self.create_grid)
-
-        self.grid['pixel label'], self.grid['pixel widget'] = self.create_widget(
-            f'{ceil(self.cfg.sensor_row_count * self.scale[0])}x'
-            f'{ceil(self.cfg.sensor_column_count * self.scale[1])}', QLineEdit, 'um per Area:')
-        self.grid['pixel widget'].setReadOnly(True)
-
-        return self.create_layout(struct='H', **self.grid)
-
-    def create_grid(self, n):
-
-        """Creates grid layers"""
-
-        try:
-            self.viewer.layers.remove(self.viewer.layers['grid'])
-        except:
-            pass
-
-        dim = [self.cfg.sensor_row_count, self.cfg.sensor_column_count]  # rows
-        vert = [None] * n
-        horz = [None] * n
-        vert[0] = np.array([[0, 0], [dim[0], 0]])
-        horz[0] = np.array([[0, 0], [0, dim[1]]])
-        v_coord = ceil((dim[1] / (n - 1)))
-        h_coord = ceil((dim[0] / (n - 1)))
-        for i in range(0, n - 1):
-            vert[i] = np.array([[0, v_coord * i], [dim[0], v_coord * i]])
-            horz[i] = np.array([[h_coord * i, 0], [h_coord * i, dim[1]]])
-
-        vert[n - 1] = np.array([[0, dim[1]], [dim[0], dim[1]]])
-        horz[n - 1] = np.array([[dim[0], 0], [dim[0], dim[1]]])
-        lines = vert + horz
-        self.viewer.add_shapes(
-            lines,
-            shape_type='line',
-            name='grid',
-            edge_width=10,
-            edge_color='white',
-            scale=self.scale)
-
-        self.grid['pixel widget'].setText(f'{ceil(v_coord * self.scale[0])}x'
-                                          f'{ceil(h_coord * self.scale[1])}')
-        self.viewer.layers['grid'].rotate = 90
-
     def sample_stage_position(self):
 
         """Creates labels and boxs to indicate sample position"""

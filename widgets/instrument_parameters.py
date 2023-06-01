@@ -24,7 +24,7 @@ class InstrumentParameters(WidgetBase):
         self.exposure_time = {}
         self.imaging_specs = {}
 
-    def scan_config(self, config: object):
+    def scan_config(self, config: object, x_game_mode: bool = True):
 
         """Scans config and finds property types with setter and getter attributes
         :param config: config object from the instrument class"""
@@ -32,18 +32,23 @@ class InstrumentParameters(WidgetBase):
         self.imaging_specs = {}  # dictionary to store attribute labels and input box
         imaging_specs_widgets = {}  # dictionary that holds layout of attribute labels/input pairs
 
-        cpx_attributes = ['exposure_time_s', 'slit_width_pix', 'line_time_us', 'scan_direction']
-        directory = [i for i in dir(config) if i not in cpx_attributes]
+        if not x_game_mode:
+            weenie_hut_jr_param = ['ext_storage_dir', 'immersion_medium', 'local_storage_dir',
+                                  'subject_id', 'tile_prefix', 'volume_x_um', 'volume_y_um',
+                                  'volume_z_um']
+            directory = [i for i in dir(config) if i in weenie_hut_jr_param]
+        else:
+            cpx_attributes = ['exposure_time_s', 'slit_width_pix', 'line_time_us', 'scan_direction']
+            directory = [i for i in dir(config) if i not in cpx_attributes]
+
         for attr in directory:
             value = getattr(config, attr)
-
             if isinstance(value, list):
                 continue
             elif isinstance(getattr(type(config), attr, None), property):
                 prop_obj = get_dict_attr(config, attr)
 
                 if prop_obj.fset is not None and prop_obj.fget is not None:
-
                     self.imaging_specs[attr, '_label'], self.imaging_specs[attr] = \
                         self.create_widget(getattr(config, attr), QLineEdit, label=attr)
 

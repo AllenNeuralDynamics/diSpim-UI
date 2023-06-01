@@ -30,6 +30,9 @@ class UserInterface:
             self.cfg = self.instrument.cfg
             self.viewer = napari.Viewer(title='ISPIM control', ndisplay=2, axis_labels=('x', 'y'))
 
+            self.experimenters_name_popup()         # Popup for experimenters name.
+                                                    # Determines what parameters will be exposed
+
             # Set up laser sliders and tabs
             self.laser_widget()
 
@@ -83,8 +86,6 @@ class UserInterface:
             self.viewer.scale_bar.visible = True
             self.viewer.scale_bar.unit = "um"
 
-            #self.experimenters_name_popup()         # Popup for experimenters name
-
             napari.run()
 
         finally:
@@ -93,13 +94,17 @@ class UserInterface:
     def instrument_params_widget(self):
         self.instrument_params = InstrumentParameters(self.instrument.frame_grabber, self.cfg.sensor_column_count,
                                                       self.simulated, self.instrument, self.cfg)
-        widgets = {
-            'filetype_widget': self.instrument_params.filetype_widget(),
-            'cpx_scan_direction_widget': self.instrument_params.shutter_direction_widgets(),
-            'cpx_line_interval_widget': self.instrument_params.exposure_time_widget(),
-            'cpx_exposure_widget': self.instrument_params.slit_width_widget(),
-            'config_properties': self.instrument_params.scan_config(self.cfg),
-        }
+        x_game_mode = ['Micah Woodard', 'Xiaoyun Jiang', 'Adam Glaser', 'Joshua Vasquez']
+        if self.cfg.experimenters_name not in x_game_mode:
+            widgets = {'config_properties': self.instrument_params.scan_config(self.cfg, False)}
+        else:
+            widgets = {
+                'filetype_widget': self.instrument_params.filetype_widget(),
+                'cpx_scan_direction_widget': self.instrument_params.shutter_direction_widgets(),
+                'cpx_line_interval_widget': self.instrument_params.exposure_time_widget(),
+                'cpx_exposure_widget': self.instrument_params.slit_width_widget(),
+                'config_properties': self.instrument_params.scan_config(self.cfg, x_game_mode),
+            }
         instrument_params_widget = self.instrument_params.create_layout('V', **widgets)
         scroll_box = self.instrument_params.scroll_box(instrument_params_widget)
         instrument_params_dock = QDockWidget()
@@ -112,7 +117,6 @@ class UserInterface:
         self.livestream_parameters = Livestream(self.viewer, self.cfg, self.instrument, self.simulated)
 
         widgets = {
-            #'grid': self.livestream_parameters.grid_widget(),
             'screenshot': self.livestream_parameters.screenshot_button(),
             'position': self.livestream_parameters.sample_stage_position(),
         }
