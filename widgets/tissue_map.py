@@ -432,7 +432,7 @@ class TissueMap(WidgetBase):
 
         objectives = gl.MeshData(vertexes=points, faces=faces)
         self.objectives = gl.GLMeshItem(meshdata=objectives, smooth=True, drawFaces=True, drawEdges=False, color=(0.5, 0.5, 0.5, 0.5),
-                          shader='edgeHilight')
+                          shader='edgeHilight', glOptions='translucent')
         self.plot.addItem(self.objectives)
 
         stage = stl.mesh.Mesh.from_file(rf'C:\Users\{os.getlogin()}\Documents\dispim_files\di-spim-holder.stl')
@@ -442,7 +442,7 @@ class TissueMap(WidgetBase):
         stage = gl.MeshData(vertexes=points, faces=faces)
         self.stage = gl.GLMeshItem(meshdata=stage, smooth=True, drawFaces=True, drawEdges=False,
                                    color=(49/255, 51/255, 53/255, 0.5),
-                                   shader='edgeHilight')
+                                   shader='edgeHilight',glOptions='translucent')
         self.plot.addItem(self.stage)
 
         return self.plot
