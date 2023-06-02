@@ -280,7 +280,7 @@ class Lasers(WidgetBase):
         Create slider for laser combiner power split
                 """
 
-        split_percentage = self.lasers['main'].laser_object.get_percentage_split() if not self.simulated else '15%'
+        split_percentage = self.lasers['main'].get_percentage_split() if not self.simulated else '15%'
         self.combiner_power_split['Left label'] = QLabel(
             f'Left: {100 - float(split_percentage[0:-1])}%')  # Left laser is set to 100 - percentage entered
         self.combiner_power_split['slider'] = QSlider()
@@ -306,5 +306,5 @@ class Lasers(WidgetBase):
         self.combiner_power_split['Left label'].setText(f'Left: {100 - int(value)}%')
 
         if released:
-            self.lasers['main'].laser_object.set_percentage_split()
+            self.lasers['main'].set_percentage_split()
             self.log.info(f'Laser power split set. Right: {value}%  Left: {100 - int(value)}%')

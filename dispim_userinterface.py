@@ -94,7 +94,7 @@ class UserInterface:
     def instrument_params_widget(self):
         self.instrument_params = InstrumentParameters(self.instrument.frame_grabber, self.cfg.sensor_column_count,
                                                       self.simulated, self.instrument, self.cfg)
-        x_game_mode = ['Micah Woodard', 'Xiaoyun Jiang', 'Adam Glaser', 'Joshua Vasquez']
+        x_game_mode = ['Micah Woodard', 'Xiaoyun Jiang', 'Adam Glaser', 'Joshua Vasquez', 'Kevin Cao']
         if self.cfg.experimenters_name not in x_game_mode:
             widgets = {'config_properties': self.instrument_params.scan_config(self.cfg, False)}
         else:
@@ -136,7 +136,6 @@ class UserInterface:
     def laser_widget(self):
 
         self.laser_parameters = Lasers(self.viewer, self.cfg, self.instrument, self.simulated)
-        #FIXME: Bulky and can be slimmed done but error at first attempt
 
         if 'main' in self.cfg.laser_specs.keys():
             widgets = {
