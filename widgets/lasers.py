@@ -270,9 +270,9 @@ class Lasers(WidgetBase):
                 if power == QMessageBox.Ok:
                     return
 
-                self.lasers[wl].set_intensity(float(round(power)))
+                self.lasers[wl].set_setpoint(float(round(power)))
             else:
-                self.lasers[wl].set_intensity(float(round(value)))
+                self.lasers[wl].set_setpoint(float(round(value)))
 
     def laser_power_splitter(self):
 
