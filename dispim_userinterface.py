@@ -24,7 +24,7 @@ class UserInterface:
         try:
             # TODO: Create logger tab at bottom of napari viewer. Also make logger for each class as well
             logger = logging.getLogger()
-            logger.setLevel('INFO')
+            logger.setLevel(console_output_level)
             self.instrument = ispim.Ispim(config_filepath=config_filepath, simulated=simulated)
             self.simulated = simulated
             self.cfg = self.instrument.cfg

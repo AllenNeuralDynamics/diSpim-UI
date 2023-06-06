@@ -10,8 +10,8 @@ from pyqtgraph.Qt import QtCore, QtGui
 import qtpy.QtGui
 import stl
 from math import cos, sin, pi
+import cv2
 import os
-
 
 class TissueMap(WidgetBase):
 
