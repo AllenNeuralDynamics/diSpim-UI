@@ -1,12 +1,12 @@
 from widgets.widget_base import WidgetBase
 from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, \
-    QSlider, QLineEdit,QMessageBox, QTabWidget
+    QSlider, QLineEdit,QMessageBox, QTabWidget, QProgressBar
 import numpy as np
 from pyqtgraph import PlotWidget, mkPen
 from ispim.compute_waveforms import generate_waveforms
 import logging
 from napari.qt.threading import thread_worker, create_worker
-from time import sleep
+from time import sleep, time
 
 class VolumetericAcquisition(WidgetBase):
 
@@ -28,10 +28,6 @@ class VolumetericAcquisition(WidgetBase):
 
         self.waveform = {}
         self.selected = {}
-        self.data_line = None       # Lines for graph
-
-        self.scale = [self.cfg.tile_specs['x_field_of_view_um'] / self.cfg.sensor_row_count,
-                      self.cfg.tile_specs['y_field_of_view_um'] / self.cfg.sensor_column_count]
 
     def set_tab_widget(self, tab_widget: QTabWidget):
 
@@ -61,11 +57,17 @@ class VolumetericAcquisition(WidgetBase):
         self.run_worker = self._run()
         self.run_worker.finished.connect(lambda: self.end_scan())  # Napari threads have finished signals
         self.run_worker.start()
+
         sleep(5)
         self.viewer.layers.clear()     # Clear existing layers
         self.volumetric_image_worker = create_worker(self.instrument._acquisition_livestream_worker)
         self.volumetric_image_worker.yielded.connect(self.update_layer)
         self.volumetric_image_worker.start()
+
+        sleep(5)
+        self.progress_bar.setHidden(False)
+        self.progress_bar_worker = self._progress_bar_worker()
+        self.progress_bar_worker.start()
 
     @thread_worker
     def _run(self):
@@ -75,6 +77,32 @@ class VolumetericAcquisition(WidgetBase):
 
         self.run_worker.quit()
         self.volumetric_image_worker.quit()
+        self.progress_bar_worker.quit()
+    def progress_bar_widget(self):
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setHidden(True)
+        return self.create_layout(struct='H', widget = self.progress_bar)
+
+    @thread_worker
+    def _progress_bar_worker(self):
+        """Displays progress bar of the current scan"""
+
+        xtiles, ytiles, ztiles = self.instrument.get_tile_counts(self.cfg.tile_overlap_x_percent,
+                                                      self.cfg.tile_overlap_y_percent,
+                                                      self.cfg.z_step_size_um,
+                                                      self.cfg.volume_x_um,
+                                                      self.cfg.volume_y_um,
+                                                      self.cfg.volume_z_um)
+        total_time_s = self.instrument.acquisition_time(xtiles, ytiles, ztiles)
+        start = time()
+        end_time = start + total_time_s
+        while time() < end_time:
+            time_elapsed = time()-start
+            pct = int(round((time_elapsed/total_time_s)*100))
+            self.progress_bar.setValue(pct)
+            sleep(2)
+            yield  # So thread can stop
 
     def overwrite_warning(self):
         msgBox = QMessageBox()
