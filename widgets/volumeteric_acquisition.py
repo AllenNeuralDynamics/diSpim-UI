@@ -7,7 +7,10 @@ from ispim.compute_waveforms import generate_waveforms
 import logging
 from napari.qt.threading import thread_worker, create_worker
 from time import sleep, time
-
+from datetime import timedelta, datetime
+import calendar
+from  qtpy.QtGui import QOffscreenSurface
+import qtpy.QtCore as QtCore
 class VolumetericAcquisition(WidgetBase):
 
     def __init__(self,viewer, cfg, instrument, simulated):
@@ -28,6 +31,7 @@ class VolumetericAcquisition(WidgetBase):
 
         self.waveform = {}
         self.selected = {}
+        self.progress = {}
 
     def set_tab_widget(self, tab_widget: QTabWidget):
 
@@ -65,9 +69,10 @@ class VolumetericAcquisition(WidgetBase):
         self.volumetric_image_worker.start()
 
         sleep(5)
-        self.progress_bar.setHidden(False)
-        self.progress_bar_worker = self._progress_bar_worker()
-        self.progress_bar_worker.start()
+        self.progress['bar'].setHidden(False)
+        self.progress['end_time'].setHidden(False)
+        self.progress_worker = self._progress_bar_worker()
+        self.progress_worker.start()
 
     @thread_worker
     def _run(self):
@@ -77,31 +82,52 @@ class VolumetericAcquisition(WidgetBase):
 
         self.run_worker.quit()
         self.volumetric_image_worker.quit()
-        self.progress_bar_worker.quit()
+        self.progress_worker.quit()
     def progress_bar_widget(self):
 
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setHidden(True)
-        return self.create_layout(struct='H', widget = self.progress_bar)
+
+        self.progress['bar'] = QProgressBar()
+        self.progress['bar'].setHidden(True)
+
+        self.progress['end_time'] = QLabel()
+        self.progress['end_time'].setHidden(True)
+
+        self.offscreen = QOffscreenSurface()
+
+        return self.create_layout(struct='H', **self.progress)
 
     @thread_worker
     def _progress_bar_worker(self):
         """Displays progress bar of the current scan"""
 
-        xtiles, ytiles, ztiles = self.instrument.get_tile_counts(self.cfg.tile_overlap_x_percent,
-                                                      self.cfg.tile_overlap_y_percent,
-                                                      self.cfg.z_step_size_um,
-                                                      self.cfg.volume_x_um,
-                                                      self.cfg.volume_y_um,
-                                                      self.cfg.volume_z_um)
-        total_time_s = self.instrument.acquisition_time(xtiles, ytiles, ztiles)
-        start = time()
-        end_time = start + total_time_s
-        while time() < end_time:
-            time_elapsed = time()-start
-            pct = int(round((time_elapsed/total_time_s)*100))
-            self.progress_bar.setValue(pct)
-            sleep(2)
+        while self.instrument.total_tiles == None and self.instrument.est_run_time == None:
+            sleep(.5)
+        # Calculate total tiles within all stacks
+        total_tiles = self.instrument.total_tiles if self.cfg.acquisition_style == 'interleaved' else \
+            self.instrument.total_tiles*self.cfg.imaging_wavelengths
+        remaining_tiles = total_tiles
+
+        while remaining_tiles > 0:     # May lose some frames so this thread should be able to quit before this
+            remaining_tiles += -(self.instrument.latest_frame_layer*self.instrument.tiles_acquired)
+            pct = (self.instrument.latest_frame_layer*(self.instrument.tiles_acquired+1))/total_tiles
+            QtCore.QMetaObject.invokeMethod(self.progress['bar'], f'setValue', QtCore.Q_ARG(int, round(pct*100)))
+            # Qt threads are so weird. Can't invoke repaint method outside of main thread and Qthreads don't play nice
+            # with napari threads so QMetaObject is static read-only instances
+
+            if self.instrument.tiles_acquired == 0:
+                completion_date = self.instrument.start_time + timedelta(days=self.instrument.est_run_time)
+                date_str = completion_date.strftime("%d %b, %Y at %H:%M %p")
+                weekday = calendar.day_name[completion_date.weekday()]
+                self.progress['end_time'].setText(f"End Time: {weekday}, {date_str}")
+
+            else:
+                total_time_days = (self.instrument.tile_time_s * self.instrument.x_y_tiles)/ 86400
+                completion_date = self.instrument.start_time + timedelta(days=total_time_days)
+                date_str = completion_date.strftime("%d %b, %Y at %H:%M %p")
+                weekday = calendar.day_name[completion_date.weekday()]
+                self.progress['end_time'].setText(f"End Time: {weekday}, {date_str}")
+
+            sleep(.5)
             yield  # So thread can stop
 
     def overwrite_warning(self):

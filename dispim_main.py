@@ -4,11 +4,11 @@ import traceback
 
 if __name__ == '__main__':
 
-    simulated = False
+    simulated = True
     log_level = "INFO"      # ["INFO", "DEBUG"]
 
     if simulated:
-        config_path =  rf'C:\Users\{os.getlogin()}\Documents\dispim_files\config.toml'
+        config_path =  rf'C:\Users\{os.getlogin()}\Downloads\dispim_files\config.toml'
     else:
         config_path = rf'C:\Users\{os.getlogin()}\Documents\dispim_files\config.toml'
 

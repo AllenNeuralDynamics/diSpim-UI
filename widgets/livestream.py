@@ -82,9 +82,6 @@ class Livestream(WidgetBase):
                 wv_item[wavelength].setBackground(QtGui.QColor(65, 72, 81,255))
                 self.live_view['wavelength'].addItem(wv_item[wavelength])
             self.live_view['wavelength'].itemPressed.connect(self.color_change_list)
-            # self.live_view['wavelength'].setStyleSheet(" QListWidget:item:selected:active {background: white;"
-            #                                            "color: black;"
-            #                                            "border: 2px solid green;}")
             self.live_view['wavelength'].setMaximumHeight(70)
             self.live_view['wavelength'].setSortingEnabled(True)
 
