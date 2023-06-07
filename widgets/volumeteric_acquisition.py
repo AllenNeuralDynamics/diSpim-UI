@@ -105,11 +105,9 @@ class VolumetericAcquisition(WidgetBase):
         # Calculate total tiles within all stacks
         total_tiles = self.instrument.total_tiles if self.cfg.acquisition_style == 'interleaved' else \
             self.instrument.total_tiles*self.cfg.imaging_wavelengths
-        remaining_tiles = total_tiles
-
-        while remaining_tiles > 0:     # May lose some frames so this thread should be able to quit before this
-            remaining_tiles += -(self.instrument.latest_frame_layer*self.instrument.tiles_acquired)
-            pct = (self.instrument.latest_frame_layer*(self.instrument.tiles_acquired+1))/total_tiles
+        z_tiles = total_tiles/self.instrument.x_y_tiles
+        while True:
+            pct = (self.instrument.latest_frame_layer+(self.instrument.tiles_acquired*z_tiles))/total_tiles
             QtCore.QMetaObject.invokeMethod(self.progress['bar'], f'setValue', QtCore.Q_ARG(int, round(pct*100)))
             # Qt threads are so weird. Can't invoke repaint method outside of main thread and Qthreads don't play nice
             # with napari threads so QMetaObject is static read-only instances

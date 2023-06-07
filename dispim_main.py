@@ -4,7 +4,7 @@ import traceback
 
 if __name__ == '__main__':
 
-    simulated = True
+    simulated = False
     log_level = "INFO"      # ["INFO", "DEBUG"]
 
     if simulated:
