@@ -426,23 +426,30 @@ class TissueMap(WidgetBase):
         self.pos.setColor(qtpy.QtGui.QColor('red'))
         self.plot.addItem(self.pos)
 
-        objectives = stl.mesh.Mesh.from_file(rf'C:\Users\{os.getlogin()}\Documents\dispim_files\di-spim-tissue-map.stl')
-        points = objectives.points.reshape(-1, 3)
-        faces = np.arange(points.shape[0]).reshape(-1, 3)
+        try:
+            objectives = stl.mesh.Mesh.from_file(rf'C:\Users\{os.getlogin()}\Documents\dispim_files\di-spim-tissue-map.stl')
+            points = objectives.points.reshape(-1, 3)
+            faces = np.arange(points.shape[0]).reshape(-1, 3)
 
-        objectives = gl.MeshData(vertexes=points, faces=faces)
-        self.objectives = gl.GLMeshItem(meshdata=objectives, smooth=True, drawFaces=True, drawEdges=False, color=(0.5, 0.5, 0.5, 0.5),
-                          shader='edgeHilight', glOptions='translucent')
-        self.plot.addItem(self.objectives)
+            objectives = gl.MeshData(vertexes=points, faces=faces)
+            self.objectives = gl.GLMeshItem(meshdata=objectives, smooth=True, drawFaces=True, drawEdges=False, color=(0.5, 0.5, 0.5, 0.5),
+                              shader='edgeHilight', glOptions='translucent')
 
-        stage = stl.mesh.Mesh.from_file(rf'C:\Users\{os.getlogin()}\Documents\dispim_files\di-spim-holder.stl')
-        points = stage.points.reshape(-1, 3)
-        faces = np.arange(points.shape[0]).reshape(-1, 3)
 
-        stage = gl.MeshData(vertexes=points, faces=faces)
-        self.stage = gl.GLMeshItem(meshdata=stage, smooth=True, drawFaces=True, drawEdges=False,
-                                   color=(49/255, 51/255, 53/255, 0.5),
-                                   shader='edgeHilight',glOptions='translucent')
-        self.plot.addItem(self.stage)
+            stage = stl.mesh.Mesh.from_file(rf'C:\Users\{os.getlogin()}\Documents\dispim_files\di-spim-holder.stl')
+            points = stage.points.reshape(-1, 3)
+            faces = np.arange(points.shape[0]).reshape(-1, 3)
+
+            stage = gl.MeshData(vertexes=points, faces=faces)
+            self.stage = gl.GLMeshItem(meshdata=stage, smooth=True, drawFaces=True, drawEdges=False,
+                                       color=(49/255, 51/255, 53/255, 0.5),
+                                       shader='edgeHilight',glOptions='translucent')
+            self.plot.addItem(self.objectives)
+            self.plot.addItem(self.stage)
+
+        except FileNotFoundError:
+            # Create self.objectives and self.stage objects but don't add them to graph
+            self.objectives = gl.GLBoxItem()
+            self.stage = gl.GLBoxItem()
 
         return self.plot

@@ -128,6 +128,7 @@ class UserInterface:
         self.vol_acq_params = VolumetericAcquisition(self.viewer, self.cfg, self.instrument, self.simulated)
         widgets = {
             'volumetric_image': self.vol_acq_params.volumeteric_imaging_button(),
+            'progress bar': self.vol_acq_params.progress_bar_widget(),
             'waveform': self.vol_acq_params.waveform_graph(),
         }
 
