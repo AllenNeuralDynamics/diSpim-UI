@@ -215,7 +215,7 @@ class Lasers(WidgetBase):
             value = intensity if coeffiecients == {} else round(func.subs(x, intensity))
             unit = '%' if coeffiecients == {} and self.cfg.laser_specs[wl]['intensity_mode'] == 'current' else 'mW'
             min = 0
-            max = self.lasers[wl].get_max_setpoint() if unit != '%' else 100
+            max = self.lasers[wl].get_max_setpoint() if unit != '%' and not self.simulated else 100
 
             # Create slider and label
             self.laser_power[f'{wl} label'], self.laser_power[wl] = self.create_widget(
