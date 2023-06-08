@@ -81,14 +81,14 @@ class WidgetBase:
                 self.viewer.camera.center = (center[0],
                                              -self.cfg.tile_specs['y_field_of_view_um'] * .5,  # Vertical
                                              self.cfg.tile_specs['x_field_of_view_um'] * .5)  # Horizontal
-                #TODO: Maybe add checkbox to add lines?
-                vert_line = np.array([[0, self.cfg.tile_specs['x_field_of_view_um'] * .5], [-self.cfg.tile_specs['y_field_of_view_um'], self.cfg.tile_specs['x_field_of_view_um'] * .5]])
-                horz_line = np.array([[-self.cfg.tile_specs['y_field_of_view_um'] * .5, 0], [-self.cfg.tile_specs['y_field_of_view_um'] * .5, self.cfg.tile_specs['x_field_of_view_um']]])
-                l = [vert_line, horz_line]
-                color = ['blue', 'green']
-
-                shapes_layer = self.viewer.add_shapes(l, shape_type='line', edge_width=1, edge_color=color, name='line')
-                shapes_layer.mode = 'select'
+            #     #TODO: Maybe add checkbox to add lines?
+            #     vert_line = np.array([[0, self.cfg.tile_specs['x_field_of_view_um'] * .5], [-self.cfg.tile_specs['y_field_of_view_um'], self.cfg.tile_specs['x_field_of_view_um'] * .5]])
+            #     horz_line = np.array([[-self.cfg.tile_specs['y_field_of_view_um'] * .5, 0], [-self.cfg.tile_specs['y_field_of_view_um'] * .5, self.cfg.tile_specs['x_field_of_view_um']]])
+            #     l = [vert_line, horz_line]
+            #     color = ['blue', 'green']
+            #
+            #     shapes_layer = self.viewer.add_shapes(l, shape_type='line', edge_width=1, edge_color=color, name='line')
+            #     shapes_layer.mode = 'select'
         except:
             pass
 
