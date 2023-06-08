@@ -70,11 +70,14 @@ class UserInterface:
             self.vol_acq_params.set_tab_widget(tabbed_widgets)
             tabbed_widgets.setMinimumHeight(700)
 
-            liveview_widget = self.livestream_parameters.liveview_widget()  # Widget contains start/stop and wl select
+            # Widget contains start/stop, wl select, and progress bar
+            liveview_widget =  self.livestream_parameters.create_layout(struct='V',
+                                                                        wv = self.livestream_parameters.liveview_widget(),
+                                                                        progress_bar = self.vol_acq_params.progress_bar_widget())
             liveview_widget.setMaximumHeight(70)
 
             tabbed_widgets = self.livestream_parameters.create_layout(struct='V',
-                                                            live=self.livestream_parameters.liveview_widget(),
+                                                            live=liveview_widget,
                                                             tab=tabbed_widgets)     # Adding liveview on top of tabs
 
             self.viewer.window.add_dock_widget(tabbed_widgets, name=' ')  # Adding tabs to window
@@ -128,7 +131,7 @@ class UserInterface:
         self.vol_acq_params = VolumetericAcquisition(self.viewer, self.cfg, self.instrument, self.simulated)
         widgets = {
             'volumetric_image': self.vol_acq_params.volumeteric_imaging_button(),
-            'progress bar': self.vol_acq_params.progress_bar_widget(),
+            #'progress bar': self.vol_acq_params.progress_bar_widget(),
             'waveform': self.vol_acq_params.waveform_graph(),
         }
 
@@ -153,13 +156,15 @@ class UserInterface:
     def tissue_map_widget(self):
 
         self.tissue_map = TissueMap(self.instrument, self.viewer)
-
+        quick_scan_widget = self.tissue_map.quick_scan_widget()
+        # Connect quick scan to progress bar
+        quick_scan_widget.children()[1].clicked.connect(lambda: self.vol_acq_params._progress_bar_worker().start())
         widgets = {
             'graph': self.tissue_map.graph(),
-            'functions': self.tissue_map.create_layout(struct='H', rotate=self.tissue_map.rotate_buttons(),
-                                                                    point=self.tissue_map.mark_graph(),
-                                                       quick_scan = self.tissue_map.quick_scan_widget())
+            'functions': self.tissue_map.create_layout(struct='H',point=self.tissue_map.mark_graph(),
+                                                       quick_scan = quick_scan_widget)
         }
+
         widgets['functions'].setMaximumHeight(100)
         return self.tissue_map.create_layout(struct='V', **widgets)
 

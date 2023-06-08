@@ -69,8 +69,6 @@ class VolumetericAcquisition(WidgetBase):
         self.volumetric_image_worker.start()
 
         sleep(5)
-        self.progress['bar'].setHidden(False)
-        self.progress['end_time'].setHidden(False)
         self.progress_worker = self._progress_bar_worker()
         self.progress_worker.start()
 
@@ -83,16 +81,16 @@ class VolumetericAcquisition(WidgetBase):
         self.run_worker.quit()
         self.volumetric_image_worker.quit()
         self.progress_worker.quit()
+
     def progress_bar_widget(self):
 
 
         self.progress['bar'] = QProgressBar()
+        self.progress['bar'].setStyleSheet('QProgressBar::chunk {background-color: green;}')
         self.progress['bar'].setHidden(True)
 
         self.progress['end_time'] = QLabel()
         self.progress['end_time'].setHidden(True)
-
-        self.offscreen = QOffscreenSurface()
 
         return self.create_layout(struct='H', **self.progress)
 
@@ -100,33 +98,41 @@ class VolumetericAcquisition(WidgetBase):
     def _progress_bar_worker(self):
         """Displays progress bar of the current scan"""
 
-        while self.instrument.total_tiles == None and self.instrument.est_run_time == None:
+        self.progress['bar'].setHidden(False)
+        self.progress['end_time'].setHidden(False)
+        QtCore.QMetaObject.invokeMethod(self.progress['bar'], f'setValue', QtCore.Q_ARG(int, 0))
+        while self.instrument.total_tiles == None or self.instrument.est_run_time == None:
             sleep(.5)
         # Calculate total tiles within all stacks
-        total_tiles = self.instrument.total_tiles if self.cfg.acquisition_style == 'interleaved' else \
-            self.instrument.total_tiles*self.cfg.imaging_wavelengths
-        z_tiles = total_tiles/self.instrument.x_y_tiles
-        while True:
-            pct = (self.instrument.latest_frame_layer+(self.instrument.tiles_acquired*z_tiles))/total_tiles
+        if self.cfg.acquisition_style == 'interleaved' and not self.instrument.overview_set.is_set:
+            total_tiles = self.instrument.total_tiles*len(self.cfg.imaging_wavelengths)
+        else:
+            total_tiles = self.instrument.total_tiles * (len(self.cfg.imaging_wavelengths))^2
+
+
+        z_tiles = self.instrument.total_tiles/self.instrument.x_y_tiles
+        pct = 0
+        while self.instrument.total_tiles != None:
+            pct = (self.instrument.latest_frame_layer+(self.instrument.tiles_acquired*z_tiles))/total_tiles \
+                if self.instrument.latest_frame_layer != 0 else pct
             QtCore.QMetaObject.invokeMethod(self.progress['bar'], f'setValue', QtCore.Q_ARG(int, round(pct*100)))
             # Qt threads are so weird. Can't invoke repaint method outside of main thread and Qthreads don't play nice
             # with napari threads so QMetaObject is static read-only instances
 
             if self.instrument.tiles_acquired == 0:
                 completion_date = self.instrument.start_time + timedelta(days=self.instrument.est_run_time)
-                date_str = completion_date.strftime("%d %b, %Y at %H:%M %p")
-                weekday = calendar.day_name[completion_date.weekday()]
-                self.progress['end_time'].setText(f"End Time: {weekday}, {date_str}")
 
             else:
                 total_time_days = (self.instrument.tile_time_s * self.instrument.x_y_tiles)/ 86400
                 completion_date = self.instrument.start_time + timedelta(days=total_time_days)
-                date_str = completion_date.strftime("%d %b, %Y at %H:%M %p")
-                weekday = calendar.day_name[completion_date.weekday()]
-                self.progress['end_time'].setText(f"End Time: {weekday}, {date_str}")
+
+            date_str = completion_date.strftime("%d %b, %Y at %H:%M %p")
+            weekday = calendar.day_name[completion_date.weekday()]
+            self.progress['end_time'].setText(f"End Time: {weekday}, {date_str}")
 
             sleep(.5)
             yield  # So thread can stop
+        QtCore.QMetaObject.invokeMethod(self.progress['bar'], f'setValue', QtCore.Q_ARG(int, round(100)))
 
     def overwrite_warning(self):
         msgBox = QMessageBox()

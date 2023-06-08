@@ -72,10 +72,10 @@ class TissueMap(WidgetBase):
 
         """Start overview function of instrument"""
 
-        if len(self.cfg.imaging_wavelengths) > 1:
-            self.error_msg('Too many wavelengths',
-                           'Overview can only image in one channel. Please deselect imaging channels.')
-            return
+        # if len(self.cfg.imaging_wavelengths) > 1:
+        #     self.error_msg('Too many wavelengths',
+        #                    'Overview can only image in one channel. Please deselect imaging channels.')
+        #     return
 
         if self.instrument.livestream_enabled.is_set():
             self.error_msg('Livestreaming',
@@ -116,24 +116,25 @@ class TissueMap(WidgetBase):
         self.x_grid_step_um, self.y_grid_step_um = self.instrument.get_xy_grid_step(self.cfg.tile_overlap_x_percent,
                                                                                     self.cfg.tile_overlap_y_percent)
 
-        overview_array, xtiles = self.instrument.quick_scan()
+        overview_array, xtiles = self.instrument.overview_scan()
         # overview_array = cv2.imread(
         #     fr'{self.cfg.local_storage_dir}\overview_img_{"_".join(map(str, self.cfg.imaging_wavelengths))}_3.tiff', -1)
         # xtiles = 3
-        overview_RGBA = \
-            pg.makeRGBA(np.flip(np.rot90(overview_array, 3), axis=1), levels=[overview_array.min(), 255])[
-                0]  # GLImage needs to be RGBA
-        overlap_um = round((self.cfg.tile_overlap_x_percent / 100) * self.cfg.tile_specs['x_field_of_view_um'])
-        scale_y = ((((self.cfg.tile_specs['x_field_of_view_um'] * xtiles)-(overlap_um *(xtiles-1)))*0.001 )
-                   / overview_RGBA.shape[1]) * 2
-        scale_x = ((self.cfg.imaging_specs[f'volume_z_um'] * 0.001) / overview_RGBA.shape[0]) * 2
-        self.gl_overview = gl.GLImageItem(overview_RGBA)
-        self.gl_overview.scale(scale_x / 2, scale_y / 2, 0, local=False)  # Scale Image
+        for images in overview_array:
+            overview_RGBA = \
+                pg.makeRGBA(np.flip(np.rot90(images, 3), axis=1), levels=[images.min(), 255])[
+                    0]  # GLImage needs to be RGBA
+            overlap_um = round((self.cfg.tile_overlap_x_percent / 100) * self.cfg.tile_specs['x_field_of_view_um'])
+            scale_y = ((((self.cfg.tile_specs['x_field_of_view_um'] * xtiles)-(overlap_um *(xtiles-1)))*0.001 )
+                       / overview_RGBA.shape[1]) * 2
+            scale_x = ((self.cfg.imaging_specs[f'volume_z_um'] * 0.001) / overview_RGBA.shape[0]) * 2
+            self.gl_overview = gl.GLImageItem(overview_RGBA, glOptions='translucent')
+            self.gl_overview.scale(scale_x / 2, scale_y / 2, 0, local=False)  # Scale Image
 
-        gui_coord = self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
-        self.gl_overview.translate(gui_coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
-                                   gui_coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
-                                   gui_coord['z'])
+            gui_coord = self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
+            self.gl_overview.translate(gui_coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
+                                       gui_coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
+                                       gui_coord['z'])
 
     def mark_graph(self):
 
