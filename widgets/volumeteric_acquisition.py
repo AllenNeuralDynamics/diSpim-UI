@@ -84,7 +84,6 @@ class VolumetericAcquisition(WidgetBase):
 
     def progress_bar_widget(self):
 
-
         self.progress['bar'] = QProgressBar()
         self.progress['bar'].setStyleSheet('QProgressBar::chunk {background-color: green;}')
         self.progress['bar'].setHidden(True)
@@ -98,9 +97,9 @@ class VolumetericAcquisition(WidgetBase):
     def _progress_bar_worker(self):
         """Displays progress bar of the current scan"""
 
-        self.progress['bar'].setHidden(False)
-        self.progress['end_time'].setHidden(False)
-        QtCore.QMetaObject.invokeMethod(self.progress['bar'], f'setValue', QtCore.Q_ARG(int, 0))
+        QtCore.QMetaObject.invokeMethod(self.progress['bar'], 'setHidden', QtCore.Q_ARG(bool, False))
+        QtCore.QMetaObject.invokeMethod(self.progress['end_time'], 'setHidden', QtCore.Q_ARG(bool, False))
+        QtCore.QMetaObject.invokeMethod(self.progress['bar'], 'setValue', QtCore.Q_ARG(int, 0))
         while self.instrument.total_tiles == None or self.instrument.est_run_time == None:
             sleep(.5)
         # Calculate total tiles within all stacks
@@ -129,7 +128,7 @@ class VolumetericAcquisition(WidgetBase):
             date_str = completion_date.strftime("%d %b, %Y at %H:%M %p")
             weekday = calendar.day_name[completion_date.weekday()]
             self.progress['end_time'].setText(f"End Time: {weekday}, {date_str}")
-
+            print('end of while loop')
             sleep(.5)
             yield  # So thread can stop
         QtCore.QMetaObject.invokeMethod(self.progress['bar'], f'setValue', QtCore.Q_ARG(int, round(100)))
