@@ -105,8 +105,10 @@ class VolumetericAcquisition(WidgetBase):
         # Calculate total tiles within all stacks
         if self.cfg.acquisition_style == 'interleaved' and not self.instrument.overview_set.is_set:
             total_tiles = self.instrument.total_tiles*len(self.cfg.imaging_wavelengths)
+            time_scale = self.instrument.x_y_tiles/ 86400
         else:
             total_tiles = self.instrument.total_tiles * (len(self.cfg.imaging_wavelengths))^2
+            time_scale = (self.instrument.x_y_tiles * len(self.cfg.imaging_wavelengths))/ 86400
 
 
         z_tiles = self.instrument.total_tiles/self.instrument.x_y_tiles
@@ -122,7 +124,7 @@ class VolumetericAcquisition(WidgetBase):
                 completion_date = self.instrument.start_time + timedelta(days=self.instrument.est_run_time)
 
             else:
-                total_time_days = (self.instrument.tile_time_s * self.instrument.x_y_tiles)/ 86400
+                total_time_days = self.instrument.tile_time_s*time_scale
                 completion_date = self.instrument.start_time + timedelta(days=total_time_days)
 
             date_str = completion_date.strftime("%d %b, %Y at %H:%M %p")
