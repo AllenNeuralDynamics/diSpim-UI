@@ -102,8 +102,8 @@ class TissueMap(WidgetBase):
         overlap_um = round((self.cfg.tile_overlap_x_percent / 100) * self.cfg.tile_specs['x_field_of_view_um'])
         scale_y = (
                 (((self.cfg.tile_specs['x_field_of_view_um'] * self.xtiles) - (overlap_um * (self.xtiles - 1))) * 0.001)
-                / self.overview_array.shape[1])
-        scale_x = ((self.cfg.imaging_specs[f'volume_z_um'] * 0.001) / self.overview_array.shape[0])
+                / self.overview_array[0].shape[0])
+        scale_x = ((self.cfg.imaging_specs[f'volume_z_um'] * 0.001) / self.overview_array[0].shape[1])
         colormap_overviews = {}
 
         for wl, image in zip(self.cfg.imaging_wavelengths, self.overview_array):

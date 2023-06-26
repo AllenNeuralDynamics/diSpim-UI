@@ -43,10 +43,12 @@ class UserInterface:
             main_window = QDockWidget()
             main_window.setWindowTitle('Main')
             main_widgets = {
-                'livestream_block': self.livestream_widget(),
-                'acquisition_block': self.volumeteric_acquisition_widget(),
+                'main_block': self.instrument_params.create_layout(struct='V',
+                                                                      live = self.livestream_widget(),
+                                                                      vol = self.volumeteric_acquisition_widget()),
+                'stage_slider': self.livestream_parameters.move_stage_widget(),
             }
-            main_window.setWidget(self.vol_acq_params.create_layout(struct='V', **main_widgets))
+            main_window.setWidget(self.instrument_params.create_layout(struct='H', **main_widgets))
 
             # Set up laser window combining laser sliders and selection
             laser_window = QDockWidget()
@@ -70,17 +72,18 @@ class UserInterface:
             self.vol_acq_params.set_tab_widget(tabbed_widgets)
             tabbed_widgets.setMinimumHeight(700)
 
+
             # Widget contains start/stop, wl select, and progress bar
-            liveview_widget =  self.livestream_parameters.create_layout(struct='V',
+            liveview_widget = self.livestream_parameters.create_layout(struct='V',
                                                                         wv = self.livestream_parameters.liveview_widget(),
                                                                         progress_bar = self.vol_acq_params.progress_bar_widget())
             liveview_widget.setMaximumHeight(70)
 
-            tabbed_widgets = self.livestream_parameters.create_layout(struct='V',
+            main_page = self.livestream_parameters.create_layout(struct='V',
                                                             live=liveview_widget,
                                                             tab=tabbed_widgets)     # Adding liveview on top of tabs
 
-            self.viewer.window.add_dock_widget(tabbed_widgets, name=' ')  # Adding tabs to window
+            self.viewer.window.add_dock_widget(main_page, name=' ')  # Adding tabs to window
             # TODO: Move set scan to tissue map tab?
 
             self.viewer.window.add_dock_widget(instr_params_window, name='Instrument Parameters', area='left')

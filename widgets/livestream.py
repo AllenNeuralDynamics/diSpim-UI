@@ -1,5 +1,6 @@
 from widgets.widget_base import WidgetBase
-from qtpy.QtWidgets import QPushButton, QComboBox, QSpinBox, QLineEdit, QTabWidget,QListWidget,QListWidgetItem, QAbstractItemView, QScrollArea
+from qtpy.QtWidgets import QPushButton, QComboBox, QSpinBox, QLineEdit, QTabWidget,QListWidget,QListWidgetItem, \
+    QAbstractItemView, QScrollArea, QSlider, QLabel
 import qtpy.QtGui as QtGui
 import qtpy.QtCore as QtCore
 import numpy as np
@@ -34,6 +35,7 @@ class Livestream(WidgetBase):
         self.selected = {}
         self.grid = {}
         self.pos_widget = {}  # Holds widgets related to sample position
+        self.move_stage = {}
         self.set_scan_start = {}  # Holds widgets related to setting volume limits during scan
         self.stage_position = None
         self.tab_widget = None
@@ -112,66 +114,6 @@ class Livestream(WidgetBase):
 
         return self.create_layout(struct='H', **self.live_view)
 
-    def camera_button_change(self, pressed: str):
-
-        """Changes selected button color to green and unselected to grey"""
-
-        for kw in self.live_view:
-            if kw == 'wavelength':
-                continue
-            else:
-                color = 'green' if kw == pressed else 'gray'
-                self.live_view[kw].setStyleSheet(f"background-color : {color}")
-
-    def toggle_camera_view(self, stream_id):
-
-        """Toggles opacity of left and right camera layer depending on button press """
-
-        self.viewer.layers['line'].visible = True
-        self.viewer.layers['line'].mode = 'select'
-        self.viewer.grid.enabled = False
-
-        for layers in self.viewer.layers:
-            if str(layers) == f"Video {stream_id}":
-                self.viewer.layers[str(layers)].opacity = 1
-                self.viewer.layers.selection.active = self.viewer.layers[str(layers)]
-            elif str(layers) != 'line' and str(layers) != f"Video {stream_id}":
-
-                self.viewer.layers[str(layers)].opacity = 0.0
-
-        self.camera_button_change(str(stream_id))
-
-    def blending_views(self):
-
-        """Blends right and left camera views"""
-
-        self.viewer.grid.enabled = False
-        self.viewer.layers['line'].visible = True
-        self.viewer.layers['line'].mode = 'select'
-
-        for layers in self.viewer.layers:
-            self.viewer.layers[str(layers)].blending = 'additive'
-            self.viewer.layers[str(layers)].opacity = 1.0
-
-        self.camera_button_change('overlay')
-
-    def multi_stream(self):
-
-        """Displays right and left camera layers side by side and hides line and grid layer"""
-
-        try:
-            self.viewer.layers.remove(self.viewer.layers['grid'])
-        except:
-            pass
-
-        for layers in self.viewer.layers:
-            self.viewer.layers[str(layers)].opacity = 1.0
-        self.camera_button_change('grid')
-        self.viewer.grid.enabled = True
-        self.viewer.layers[-1].visible = False
-        #self.viewer.grid.shape = (1, 4)
-        self.viewer.camera.zoom = .35
-
     def start_live_view(self):
 
         """Start livestreaming"""
@@ -182,7 +124,7 @@ class Livestream(WidgetBase):
                            'Please select at least one channel to image in.')
             return
 
-        self.disable_button(self.live_view['start'])
+        self.disable_button(button=self.live_view['start'])
         self.live_view['start'].clicked.disconnect(self.start_live_view)
 
         if self.live_view['start'].text() == 'Start Live View':
@@ -208,7 +150,7 @@ class Livestream(WidgetBase):
 
         """Stop livestreaming"""
 
-        self.disable_button(self.live_view['start'])
+        self.disable_button(button=self.live_view['start'])
         self.live_view['start'].clicked.disconnect(self.stop_live_view)
         self.instrument.stop_livestream()
         self.livestream_worker.quit()
@@ -217,7 +159,7 @@ class Livestream(WidgetBase):
 
         self.live_view['start'].clicked.connect(self.start_live_view)
 
-    def disable_button(self, button, pause=3000):
+    def disable_button(self, pressed=None, button = None, pause=3000):
 
         """Function to disable button clicks for a period of time to avoid crashing gui"""
 
@@ -315,3 +257,83 @@ class Livestream(WidgetBase):
             imsave('screenshot.png', screenshot)
         else:
             self.error_msg('Screenshot', 'No image to screenshot')
+
+    def move_stage_widget(self):
+
+        """Widget to move stage up and down w/o joystick control"""
+
+        z_position = self.instrument.tigerbox.get_position('z')
+        self.z_limit = self.instrument.sample_pose.get_travel_limits('y')
+        self.z_limit['y'] = [round(x*10000) for x in self.z_limit['y']]
+        self.z_range = self.z_limit["y"][1] + abs(self.z_limit["y"][0]) # Shift range up by lower limit so no negative numbers
+        self.move_stage['up'] = QLabel(
+            f'Upper Limit: {round(self.z_limit["y"][0])}')  # Upper limit will be the more negative limit
+        self.move_stage['slider'] = QSlider()
+        self.move_stage['slider'].setOrientation(QtCore.Qt.Vertical)
+        self.move_stage['slider'].setInvertedAppearance(True)
+        self.move_stage['slider'].setMinimum(self.z_limit["y"][0])
+        self.move_stage['slider'].setMaximum(self.z_limit["y"][1])
+        self.move_stage['slider'].setValue(int(z_position['Z']))
+        self.move_stage['slider'].setTracking(False)
+        self.move_stage['slider'].valueChanged.connect(self.move_stage_vertical_released)
+        self.move_stage['low'] = QLabel(
+            f'Lower Limit: {round(self.z_limit["y"][1])}')  # Lower limit will be the more positive limit
+
+        self.move_stage['halt'] = QPushButton('HALT')
+        self.move_stage['halt'].clicked.connect(self.update_slider)
+
+        self.move_stage['position'] = QLineEdit(str(z_position['Z']))
+        self.move_stage['position'].setValidator(QtGui.QIntValidator(self.z_limit["y"][0],self.z_limit["y"][1]))
+        self.move_stage['slider'].sliderMoved.connect(self.move_stage_textbox)
+        self.move_stage_textbox(int(z_position['Z']))
+        self.move_stage['position'].editingFinished.connect(self.move_stage_vertical_released)
+
+
+
+        return self.create_layout(struct='V', **self.move_stage)
+
+    def move_stage_vertical_released(self, location=None):
+
+        """Move stage to location and stall until stopped"""
+        if location==None:
+            location = int(self.move_stage['position'].text())
+            self.move_stage['slider'].setValue(location)
+            self.move_stage_textbox(location)
+        self.tab_widget.setTabEnabled(len(self.tab_widget)-1, False)
+        if self.instrument.livestream_enabled.is_set():
+            self.stop_live_view()
+            self.instrument.livestream_enabled.set()        # stop livestream but keep set to restart
+        self.instrument.tigerbox.move_absolute(z=location)
+        self.move_stage_worker = create_worker(lambda axis='y', pos=float(location): self.instrument.wait_to_stop(axis, pos))
+        self.move_stage_worker.start()
+        self.move_stage_worker.finished.connect(lambda:self.enable_stage_slider())
+        self.move_stage['slider'].setEnabled(False)
+        self.move_stage['position'].setEnabled(False)
+
+    def enable_stage_slider(self):
+
+        """Enable stage slider after stage has finished moving"""
+        self.move_stage['slider'].setEnabled(True)
+        self.move_stage['position'].setEnabled(True)
+        self.tab_widget.setTabEnabled(len(self.tab_widget) - 1, True)
+        if self.instrument.livestream_enabled.is_set():
+            self.instrument.livestream_enabled.clear()      # clear to restart livestream
+            self.start_live_view()
+
+    def move_stage_textbox(self, location):
+
+        position = self.move_stage['slider'].pos()
+        self.move_stage['position'].setText(str(location))
+        self.move_stage['position'].move(QtCore.QPoint(position.x() + 30,
+                                                      position.y() + (-5)+((location+ abs(self.z_limit["y"][0]))/self.z_range
+                                                      *(self.move_stage['slider'].height()-10))))
+
+    def update_slider(self):
+
+        """Update position of slider if stage halted"""
+        self.disable_button(button=self.move_stage['halt'])
+        self.move_stage_worker.quit()
+        self.instrument.tigerbox.halt()
+        location = self.instrument.tigerbox.get_position('z')
+        self.move_stage_textbox(int(location['Z']))
+        self.move_stage_vertical_released()
