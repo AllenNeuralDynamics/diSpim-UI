@@ -81,6 +81,7 @@ class VolumetericAcquisition(WidgetBase):
         self.run_worker.quit()
         self.volumetric_image_worker.quit()
         self.progress_worker.quit()
+        QtCore.QMetaObject.invokeMethod(self.progress['bar'], f'setValue', QtCore.Q_ARG(int, round(100)))
 
     def progress_bar_widget(self):
 
@@ -105,13 +106,13 @@ class VolumetericAcquisition(WidgetBase):
         # Calculate total tiles within all stacks
         if self.cfg.acquisition_style == 'interleaved' and not self.instrument.overview_set.is_set:
             total_tiles = self.instrument.total_tiles*len(self.cfg.imaging_wavelengths)
-            time_scale = self.instrument.x_y_tiles/ 86400
+            z_tiles = total_tiles / self.instrument.x_y_tiles
+            time_scale = self.instrument.x_y_tiles/86400
         else:
             total_tiles = self.instrument.total_tiles * (len(self.cfg.imaging_wavelengths))^2
-            time_scale = (self.instrument.x_y_tiles * len(self.cfg.imaging_wavelengths))/ 86400
+            z_tiles = self.instrument.total_tiles/self.instrument.x_y_tiles
+            time_scale = (self.instrument.x_y_tiles * len(self.cfg.imaging_wavelengths))/86400
 
-
-        z_tiles = self.instrument.total_tiles/self.instrument.x_y_tiles
         pct = 0
         while self.instrument.total_tiles != None:
             pct = (self.instrument.latest_frame_layer+(self.instrument.tiles_acquired*z_tiles))/total_tiles \
@@ -130,10 +131,8 @@ class VolumetericAcquisition(WidgetBase):
             date_str = completion_date.strftime("%d %b, %Y at %H:%M %p")
             weekday = calendar.day_name[completion_date.weekday()]
             self.progress['end_time'].setText(f"End Time: {weekday}, {date_str}")
-            print('end of while loop')
             sleep(.5)
             yield  # So thread can stop
-        QtCore.QMetaObject.invokeMethod(self.progress['bar'], f'setValue', QtCore.Q_ARG(int, round(100)))
 
     def overwrite_warning(self):
         msgBox = QMessageBox()

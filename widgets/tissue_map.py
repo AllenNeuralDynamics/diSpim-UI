@@ -10,8 +10,10 @@ from pyqtgraph.Qt import QtCore, QtGui
 import qtpy.QtGui
 import stl
 from math import cos, sin, pi
-import cv2
 import os
+import tifffile
+import matplotlib
+from skimage import exposure
 
 class TissueMap(WidgetBase):
 
@@ -30,11 +32,9 @@ class TissueMap(WidgetBase):
         self.rotate = {}
         self.map = {}
         self.origin = {}
-        self.quick_scan = {}
+        self.overview = {}
 
         self.initial_volume = [self.cfg.volume_x_um, self.cfg.volume_y_um, self.cfg.volume_z_um]
-        self.sample_pose_remap = self.cfg.sample_pose_kwds['axis_map']
-        self.grid_step_um = {}  # Grid steps in samplepose coords
 
     def set_tab_widget(self, tab_widget: QTabWidget):
 
@@ -59,16 +59,16 @@ class TissueMap(WidgetBase):
 
             pass
 
-    def quick_scan_widget(self):
+    def overview_widget(self):
 
         """Widgets for setting up a quick scan"""
 
-        self.quick_scan['start'] = QPushButton('Start quick scan')
-        self.quick_scan['start'].clicked.connect(self.overview)
+        self.overview['start'] = QPushButton('Start overview')
+        self.overview['start'].clicked.connect(self.start_overview)
 
-        return self.create_layout(struct='V', **self.quick_scan)
+        return self.create_layout(struct='V', **self.overview)
 
-    def overview(self):
+    def start_overview(self):
 
         """Start overview function of instrument"""
 
@@ -94,22 +94,55 @@ class TissueMap(WidgetBase):
 
         """Function to be executed at the end of the overview"""
 
-        self.plot.removeItem(self.objectives)
-        self.plot.addItem(self.gl_overview)  # GlImage doesn't like threads, do this outside of thread
-        self.plot.addItem(self.objectives)  # Remove and add objectives to see view through them
         self.volumetric_image_worker.quit()
 
         for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, True)  # Enabled tabs
         self.tab_widget.setCurrentIndex(len(self.tab_widget) - 1)
 
-        for wl, images in zip(self.cfg.imaging_wavelengths, self.overview_array):
+        overlap_um = round((self.cfg.tile_overlap_x_percent / 100) * self.cfg.tile_specs['x_field_of_view_um'])
+        scale_y = (
+                (((self.cfg.tile_specs['x_field_of_view_um'] * self.xtiles) - (overlap_um * (self.xtiles - 1))) * 0.001)
+                / self.overview_array.shape[1])
+        scale_x = ((self.cfg.imaging_specs[f'volume_z_um'] * 0.001) / self.overview_array.shape[0])
+        colormap_overviews = {}
+
+        for wl, image in zip(self.cfg.imaging_wavelengths, self.overview_array):
+
+            wl_color = self.cfg.laser_specs[str(wl)]["color"]
+            rgb = qtpy.QtGui.QColor(wl_color).getRgb()
+            vals = np.ones((256, 4))
+            vals[:, 0] = np.linspace(rgb[0] / 256, 1, 256)
+            vals[:, 1] = np.linspace(rgb[1] / 256, 1, 256)
+            vals[:, 2] = np.linspace(rgb[2] / 256, 1, 256)
+            map = matplotlib.colors.ListedColormap(vals).reversed()
+
+            img_cdf, bin_centers = exposure.cumulative_distribution(image, nbins=65536)
+            image = np.interp(image, bin_centers, img_cdf)
+            norm = matplotlib.colors.Normalize(vmin=.9, vmax=image.max())
+            norm_array = norm(image)
+            colormap_overviews[wl] = map(norm_array)
 
             key = f'Overview {wl}'
-            self.viewer.add_image(images, name=key,
-                                  scale=[self.scale_y*1000, self.scale_x*1000])
+            self.viewer.add_image(np.flip(np.rot90(image, 3)), name=key,
+                                  scale=[scale_y * 1000, scale_x * 1000])  # scale so it won't be squished in viewer
             self.viewer.layers[key].rotate = 90
             self.viewer.layers[key].blending = 'additive'
 
+        final_overview = sum(colormap_overviews.values())
+        overview_RGBA = \
+            pg.makeRGBA(np.flip(np.rot90(final_overview, 3), axis=1), levels=[0,  1])[0]  # GLImage needs to be RGBA
+        overview_RGBA[:, :, 3] = 200
+        gl_overview = gl.GLImageItem(overview_RGBA, glOptions='translucent')
+        gl_overview.scale(scale_x, scale_y, 0, local=False)  # Scale Image
+
+        gui_coord = self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
+        gl_overview.translate(gui_coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
+                              gui_coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
+                              gui_coord['z'])
+
+        self.plot.removeItem(self.objectives)
+        self.plot.addItem(gl_overview)  # GlImage doesn't like threads, do this outside of thread
+        self.plot.addItem(self.objectives)  # Remove and add objectives to see view through them
 
         self.map_pos_worker = self._map_pos_worker()
         self.map_pos_worker.start()  # Restart map update
@@ -121,25 +154,11 @@ class TissueMap(WidgetBase):
         self.x_grid_step_um, self.y_grid_step_um = self.instrument.get_xy_grid_step(self.cfg.tile_overlap_x_percent,
                                                                                     self.cfg.tile_overlap_y_percent)
 
-        self.overview_array, xtiles = self.instrument.overview_scan()
-        # overview_array = cv2.imread(
-        #     fr'{self.cfg.local_storage_dir}\overview_img_{"_".join(map(str, self.cfg.imaging_wavelengths))}_3.tiff', -1)
-        # xtiles = 3
-        for images in self.overview_array:
-            overview_RGBA = \
-                pg.makeRGBA(np.flip(np.rot90(images, 3), axis=1), levels=[images.min(), 255])[
-                    0]  # GLImage needs to be RGBA
-            overlap_um = round((self.cfg.tile_overlap_x_percent / 100) * self.cfg.tile_specs['x_field_of_view_um'])
-            self.scale_y = ((((self.cfg.tile_specs['x_field_of_view_um'] * xtiles)-(overlap_um *(xtiles-1)))*0.001 )
-                       / overview_RGBA.shape[1])
-            self.scale_x = ((self.cfg.imaging_specs[f'volume_z_um'] * 0.001) / overview_RGBA.shape[0])
-            self.gl_overview = gl.GLImageItem(overview_RGBA, glOptions='translucent')
-            self.gl_overview.scale(self.scale_x, self.scale_y, 0, local=False)  # Scale Image
+        self.overview_array, self.xtiles = self.instrument.overview_scan()
+        # self.overview_array = tifffile.imread(fr'C:\dispim_test\overview_img_405_488_561_638.tiff')
+        # xtiles = 17
 
-            gui_coord = self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
-            self.gl_overview.translate(gui_coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
-                                       gui_coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
-                                       gui_coord['z'])
+
     def mark_graph(self):
 
         """Mark graph with pertinent landmarks"""
@@ -373,7 +392,7 @@ class TissueMap(WidgetBase):
         """Remaps sample pose coordinates to gui 3d map coordinates.
         Sample pose comes in dictionary with uppercase keys and gui uses lowercase"""
 
-        remap = {'x': 'z', 'y': 'x', 'z': '-y'}
+        remap = {'x': 'z', 'y': 'x', 'z': '-y'}     # TODO: Maybe make this config based
         remap_coords = {}
 
         for k, v in remap.items():
@@ -446,8 +465,7 @@ class TissueMap(WidgetBase):
             faces = np.arange(points.shape[0]).reshape(-1, 3)
 
             stage = gl.MeshData(vertexes=points, faces=faces)
-            self.stage = gl.GLMeshItem(meshdata=stage, smooth=True, drawFaces=True, drawEdges=False,
-                                       color=(49/255, 51/255, 53/255, 0.5),
+            self.stage = gl.GLMeshItem(meshdata=stage, smooth=True, drawFaces=True, drawEdges=False, color=(0.5, 0.5, 0.5, 0.5),
                                        shader='edgeHilight',glOptions='translucent')
             self.plot.addItem(self.objectives)
             self.plot.addItem(self.stage)

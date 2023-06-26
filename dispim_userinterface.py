@@ -155,7 +155,7 @@ class UserInterface:
     def tissue_map_widget(self):
 
         self.tissue_map = TissueMap(self.instrument, self.viewer)
-        quick_scan_widget = self.tissue_map.quick_scan_widget()
+        quick_scan_widget = self.tissue_map.overview_widget()
         # Connect quick scan to progress bar
         quick_scan_widget.children()[1].clicked.connect(lambda: self.vol_acq_params._progress_bar_worker().start())
         widgets = {
