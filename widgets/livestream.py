@@ -146,6 +146,10 @@ class Livestream(WidgetBase):
         # Only allow stopping once everything is initialized
         # to avoid crashing gui
 
+        self.move_stage['slider'].setEnabled(False)
+        self.move_stage['position'].setEnabled(False)
+        # Disable moving stage while in liveview
+
     def stop_live_view(self):
 
         """Stop livestreaming"""
@@ -158,6 +162,9 @@ class Livestream(WidgetBase):
         self.live_view['start'].setText('Start Live View')
 
         self.live_view['start'].clicked.connect(self.start_live_view)
+
+        self.move_stage['slider'].setEnabled(True)
+        self.move_stage['position'].setEnabled(True)
 
     def disable_button(self, pressed=None, button = None, pause=3000):
 
@@ -233,6 +240,7 @@ class Livestream(WidgetBase):
                     for direction, value in self.sample_pos.items():
                         if direction in self.pos_widget:
                             self.pos_widget[direction].setValue(int(value * 1 / 10))  # Units in microns
+                    self.update_slider(self.sample_pos)     # Update slide with newest z depth
                 except:
                     pass
 
@@ -275,18 +283,21 @@ class Livestream(WidgetBase):
         self.move_stage['slider'].setMaximum(self.z_limit["y"][1])
         self.move_stage['slider'].setValue(int(z_position['Z']))
         self.move_stage['slider'].setTracking(False)
-        self.move_stage['slider'].valueChanged.connect(self.move_stage_vertical_released)
+        self.move_stage['slider'].sliderReleased.connect(self.move_stage_vertical_released)
         self.move_stage['low'] = QLabel(
             f'Lower Limit: {round(self.z_limit["y"][1])}')  # Lower limit will be the more positive limit
 
         self.move_stage['halt'] = QPushButton('HALT')
         self.move_stage['halt'].clicked.connect(self.update_slider)
+        self.move_stage['halt'].clicked.connect(lambda pressed=True, button=self.move_stage['halt']:
+                                                self.disable_button(pressed,button))
+        self.move_stage['halt'].clicked.connect(self.instrument.tigerbox.halt)
 
         self.move_stage['position'] = QLineEdit(str(z_position['Z']))
         self.move_stage['position'].setValidator(QtGui.QIntValidator(self.z_limit["y"][0],self.z_limit["y"][1]))
         self.move_stage['slider'].sliderMoved.connect(self.move_stage_textbox)
         self.move_stage_textbox(int(z_position['Z']))
-        self.move_stage['position'].editingFinished.connect(self.move_stage_vertical_released)
+        self.move_stage['position'].returnPressed.connect(self.move_stage_vertical_released)
 
 
 
@@ -295,20 +306,16 @@ class Livestream(WidgetBase):
     def move_stage_vertical_released(self, location=None):
 
         """Move stage to location and stall until stopped"""
+
         if location==None:
             location = int(self.move_stage['position'].text())
             self.move_stage['slider'].setValue(location)
             self.move_stage_textbox(location)
         self.tab_widget.setTabEnabled(len(self.tab_widget)-1, False)
-        if self.instrument.livestream_enabled.is_set():
-            self.stop_live_view()
-            self.instrument.livestream_enabled.set()        # stop livestream but keep set to restart
         self.instrument.tigerbox.move_absolute(z=location)
         self.move_stage_worker = create_worker(lambda axis='y', pos=float(location): self.instrument.wait_to_stop(axis, pos))
         self.move_stage_worker.start()
         self.move_stage_worker.finished.connect(lambda:self.enable_stage_slider())
-        self.move_stage['slider'].setEnabled(False)
-        self.move_stage['position'].setEnabled(False)
 
     def enable_stage_slider(self):
 
@@ -316,9 +323,7 @@ class Livestream(WidgetBase):
         self.move_stage['slider'].setEnabled(True)
         self.move_stage['position'].setEnabled(True)
         self.tab_widget.setTabEnabled(len(self.tab_widget) - 1, True)
-        if self.instrument.livestream_enabled.is_set():
-            self.instrument.livestream_enabled.clear()      # clear to restart livestream
-            self.start_live_view()
+
 
     def move_stage_textbox(self, location):
 
@@ -328,12 +333,12 @@ class Livestream(WidgetBase):
                                                       position.y() + (-5)+((location+ abs(self.z_limit["y"][0]))/self.z_range
                                                       *(self.move_stage['slider'].height()-10))))
 
-    def update_slider(self):
+    def update_slider(self, location:dict):
 
         """Update position of slider if stage halted"""
-        self.disable_button(button=self.move_stage['halt'])
-        self.move_stage_worker.quit()
-        self.instrument.tigerbox.halt()
-        location = self.instrument.tigerbox.get_position('z')
+
+        if type(location) == bool:      # if location is bool, then halt button was pressed
+            self.move_stage_worker.quit()
+            location = self.instrument.tigerbox.get_position('z')
         self.move_stage_textbox(int(location['Z']))
-        self.move_stage_vertical_released()
+        self.move_stage['slider'].setValue(int(location['Z']))
