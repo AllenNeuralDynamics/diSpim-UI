@@ -1,6 +1,6 @@
 from widgets.widget_base import WidgetBase
 from qtpy.QtWidgets import QPushButton, QComboBox, QSpinBox, QLineEdit, QTabWidget,QListWidget,QListWidgetItem, \
-    QAbstractItemView, QScrollArea, QSlider, QLabel
+    QAbstractItemView, QScrollArea, QSlider, QLabel, QCheckBox
 import qtpy.QtGui as QtGui
 import qtpy.QtCore as QtCore
 import numpy as np
@@ -110,6 +110,8 @@ class Livestream(WidgetBase):
         self.set_scan_start['clear'].clicked.connect(self.clear_start_position)
         self.set_scan_start['clear'].setHidden(True)
 
+        self.set_scan_start['scouting'] = QCheckBox('Scout Mode')
+
         self.live_view['scan_start'] = self.create_layout(struct='V', **self.set_scan_start)
 
         return self.create_layout(struct='H', **self.live_view)
@@ -132,7 +134,7 @@ class Livestream(WidgetBase):
             for buttons in self.live_view:
                 self.live_view[buttons].setHidden(False)
 
-        self.instrument.start_livestream(wavelengths) # Needs to be list
+        self.instrument.start_livestream(wavelengths, self.set_scan_start['scouting'].isChecked()) # Needs to be list
         self.livestream_worker = create_worker(self.instrument._livestream_worker)
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
@@ -243,9 +245,10 @@ class Livestream(WidgetBase):
                     self.update_slider(self.sample_pos)     # Update slide with newest z depth
                 except:
                     pass
+                sleep(1)
 
             yield  # yield so thread can quit
-            sleep(.5)
+            sleep(.1)
 
     def screenshot_button(self):
 

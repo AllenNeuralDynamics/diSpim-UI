@@ -4,6 +4,7 @@ from qtpy.QtWidgets import  QMessageBox, QLineEdit, QVBoxLayout, QWidget, \
     QComboBox
 import qtpy.QtCore as QtCore
 import numpy as np
+from time import sleep
 
 class WidgetBase:
 
@@ -21,7 +22,10 @@ class WidgetBase:
             self.pathSet(dict, path, value)
             if self.instrument.livestream_enabled.is_set():
                 self.instrument._setup_waveform_hardware(self.instrument.active_lasers, live = True)
-
+                if self.instrument.scout_mode:
+                    self.instrument.ni.counter_task.start()
+                    sleep((1/self.cfg.daq_obj_kwds['livestream_frequency_hz'])*2)   # Pause to get a least one more frame
+                    self.instrument.ni.counter_task.stop()
 
     def scan(self, dictionary: dict, attr: str, prev_key: str = None, QDictionary: dict = None,
              WindowDictionary: dict = None, wl: str = None, input_type: str = QLineEdit, subdict: bool = False):
@@ -90,6 +94,7 @@ class WidgetBase:
             #     shapes_layer = self.viewer.add_shapes(l, shape_type='line', edge_width=1, edge_color=color, name='line')
             #     shapes_layer.mode = 'select'
         except:
+            sleep(.5)
             pass
 
     def scroll_box(self, widget: QWidget):

@@ -117,9 +117,9 @@ class TissueMap(WidgetBase):
             map = matplotlib.colors.ListedColormap(vals).reversed()
 
             img_cdf, bin_centers = exposure.cumulative_distribution(image, nbins=65536)
-            image = np.interp(image, bin_centers, img_cdf)
-            norm = matplotlib.colors.Normalize(vmin=.9, vmax=image.max())
-            norm_array = norm(image)
+            image_contrasted = np.interp(image, bin_centers, img_cdf)
+            norm = matplotlib.colors.Normalize(vmin=.7, vmax=image_contrasted.max())
+            norm_array = norm(image_contrasted)
             colormap_overviews[wl] = map(norm_array)
 
             key = f'Overview {wl}'
