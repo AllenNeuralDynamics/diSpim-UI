@@ -244,8 +244,9 @@ class Livestream(WidgetBase):
                 except:
                     pass
 
-            yield  # yield so thread can quit
-            sleep(.5)
+                yield  # yield so thread can quit
+                sleep(.5)
+            yield
 
     def screenshot_button(self):
 

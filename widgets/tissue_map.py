@@ -118,13 +118,13 @@ class TissueMap(WidgetBase):
 
             img_cdf, bin_centers = exposure.cumulative_distribution(image, nbins=65536)
             image = np.interp(image, bin_centers, img_cdf)
-            norm = matplotlib.colors.Normalize(vmin=.9, vmax=image.max())
+            norm = matplotlib.colors.Normalize(vmin=image.min(), vmax=image.max())
             norm_array = norm(image)
             colormap_overviews[wl] = map(norm_array)
 
             key = f'Overview {wl}'
             self.viewer.add_image(np.flip(np.rot90(image, 3)), name=key,
-                                  scale=[scale_y * 1000, scale_x * 1000])  # scale so it won't be squished in viewer
+                                  scale=[scale_x * 1000, scale_y * 1000])  # scale so it won't be squished in viewer
             self.viewer.layers[key].rotate = 90
             self.viewer.layers[key].blending = 'additive'
 
@@ -155,8 +155,8 @@ class TissueMap(WidgetBase):
                                                                                     self.cfg.tile_overlap_y_percent)
 
         self.overview_array, self.xtiles = self.instrument.overview_scan()
-        # self.overview_array = tifffile.imread(fr'C:\dispim_test\overview_img_405_488_561_638.tiff')
-        # xtiles = 17
+        # self.overview_array = tifffile.imread(fr'C:\dispim_test\overview_img_488.tiff')
+        # self.xtiles = 16
 
 
     def mark_graph(self):
