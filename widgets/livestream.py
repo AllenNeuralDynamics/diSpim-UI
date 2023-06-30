@@ -331,8 +331,8 @@ class Livestream(WidgetBase):
         position = self.move_stage['slider'].pos()
         self.move_stage['position'].setText(str(location))
         self.move_stage['position'].move(QtCore.QPoint(position.x() + 30,
-                                                      position.y() + (-5)+((location+ abs(self.z_limit["y"][0]))/self.z_range
-                                                      *(self.move_stage['slider'].height()-10))))
+                                                      round(position.y() + (-5)+((location+ abs(self.z_limit["y"][0]))/
+                                                      self.z_range*(self.move_stage['slider'].height()-10)))))
 
     def update_slider(self, location:dict):
 
