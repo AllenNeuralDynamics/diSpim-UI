@@ -236,19 +236,27 @@ class Livestream(WidgetBase):
         while True:
 
             while self.instrument.livestream_enabled.is_set() and self.tab_widget.currentIndex() == 0:
-
+                moved = False
                 try:
                     self.sample_pos = self.instrument.tigerbox.get_position()
-                    for direction, value in self.sample_pos.items():
-                        if direction in self.pos_widget:
-                            self.pos_widget[direction].setValue(int(value * 1 / 10))  # Units in microns
+
+                    for direction in self.sample_pos.keys():
+                        if direction in self.pos_widget.keys():
+                            new_pos = int(self.sample_pos[direction] * 1 / 10)
+                            if self.pos_widget[direction].value() != new_pos :
+                                print('moved')
+                                self.pos_widget[direction].setValue(new_pos)
+                                moved = True
+
+                    if self.instrument.scout_mode and moved:
+                        self.update_waveforms()
                     self.update_slider(self.sample_pos)     # Update slide with newest z depth
                 except:
                     pass
-                sleep(1)
+                sleep(.5)
 
             yield  # yield so thread can quit
-            sleep(.1)
+
 
     def screenshot_button(self):
 
@@ -333,8 +341,8 @@ class Livestream(WidgetBase):
         position = self.move_stage['slider'].pos()
         self.move_stage['position'].setText(str(location))
         self.move_stage['position'].move(QtCore.QPoint(position.x() + 30,
-                                                      position.y() + (-5)+((location+ abs(self.z_limit["y"][0]))/self.z_range
-                                                      *(self.move_stage['slider'].height()-10))))
+                                                      round(position.y() + (-5)+((location+ abs(self.z_limit["y"][0]))/self.z_range
+                                                      *(self.move_stage['slider'].height()-10)))))
 
     def update_slider(self, location:dict):
 

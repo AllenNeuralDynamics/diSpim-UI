@@ -21,11 +21,17 @@ class WidgetBase:
         if cfg_value != value:
             self.pathSet(dict, path, value)
             if self.instrument.livestream_enabled.is_set():
-                self.instrument._setup_waveform_hardware(self.instrument.active_lasers, live = True)
-                if self.instrument.scout_mode:
-                    self.instrument.ni.counter_task.start()
-                    sleep((1/self.cfg.daq_obj_kwds['livestream_frequency_hz'])*2)   # Pause to get a least one more frame
-                    self.instrument.ni.counter_task.stop()
+                self.update_waveforms()
+    def update_waveforms(self):
+        """Update NI waveforms"""
+
+        self.instrument._setup_waveform_hardware(self.instrument.active_lasers,
+                                                 live=self.instrument.livestream_enabled.is_set(),
+                                                 scout_mode=self.instrument.scout_mode)
+        if self.instrument.scout_mode:
+            self.instrument.ni.start()
+            sleep(self.cfg.get_period_time())  # Pause to get at least one frame
+            self.instrument.ni.stop()
 
     def scan(self, dictionary: dict, attr: str, prev_key: str = None, QDictionary: dict = None,
              WindowDictionary: dict = None, wl: str = None, input_type: str = QLineEdit, subdict: bool = False):
@@ -67,7 +73,6 @@ class WidgetBase:
         """Update viewer with latest image"""
         try:
             (image, layer) = args
-
             key = f"Video {layer}"
             layer = self.viewer.layers[key]
             layer._slice.image._view = image
