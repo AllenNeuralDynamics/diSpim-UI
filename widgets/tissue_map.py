@@ -117,15 +117,14 @@ class TissueMap(WidgetBase):
             map = matplotlib.colors.ListedColormap(vals).reversed()
 
             img_cdf, bin_centers = exposure.cumulative_distribution(image, nbins=65536)
-            image_contrasted = np.interp(image, bin_centers, img_cdf)                       #numpy  percentile function
-            #img = (raw-min)/max *255
-            norm = matplotlib.colors.Normalize(vmin=.7, vmax=image_contrasted.max())
-            norm_array = norm(image_contrasted)
+            image = np.interp(image, bin_centers, img_cdf)
+            norm = matplotlib.colors.Normalize(vmin=image.min(), vmax=image.max())
+            norm_array = norm(image)
             colormap_overviews[wl] = map(norm_array)
 
             key = f'Overview {wl}'
             self.viewer.add_image(np.flip(np.rot90(image, 3)), name=key,
-                                  scale=[scale_y * 1000, scale_x * 1000])  # scale so it won't be squished in viewer
+                                  scale=[scale_x * 1000, scale_y * 1000])  # scale so it won't be squished in viewer
             self.viewer.layers[key].rotate = 90
             self.viewer.layers[key].blending = 'additive'
 
@@ -252,9 +251,6 @@ class TissueMap(WidgetBase):
                     self.start_stop_ni()
 
                 self.map_pose = self.instrument.sample_pose.get_position()
-
-
-
                 # Convert 1/10um to mm
                 coord = {k: v * 0.0001 for k, v in self.map_pose.items()}  # if not self.instrument.simulated \
                 #     else np.random.randint(-60000, 60000, 3)
