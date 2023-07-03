@@ -235,7 +235,7 @@ class Livestream(WidgetBase):
         # While livestreaming and looking at the first tab the stage position updates
         while True:
 
-            while self.instrument.livestream_enabled.is_set() and self.tab_widget.currentIndex() == 0:
+            while self.instrument.livestream_enabled.is_set() and self.tab_widget.currentIndex() != len(self.tab_widget) - 1:
                 moved = False
                 try:
                     self.sample_pos = self.instrument.tigerbox.get_position()
@@ -244,12 +244,11 @@ class Livestream(WidgetBase):
                         if direction in self.pos_widget.keys():
                             new_pos = int(self.sample_pos[direction] * 1 / 10)
                             if self.pos_widget[direction].value() != new_pos :
-                                print('moved')
                                 self.pos_widget[direction].setValue(new_pos)
                                 moved = True
 
                     if self.instrument.scout_mode and moved:
-                        self.update_waveforms()
+                        self.start_stop_ni()
                     self.update_slider(self.sample_pos)     # Update slide with newest z depth
                 except:
                     pass

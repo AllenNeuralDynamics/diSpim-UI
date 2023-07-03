@@ -117,7 +117,8 @@ class TissueMap(WidgetBase):
             map = matplotlib.colors.ListedColormap(vals).reversed()
 
             img_cdf, bin_centers = exposure.cumulative_distribution(image, nbins=65536)
-            image_contrasted = np.interp(image, bin_centers, img_cdf)
+            image_contrasted = np.interp(image, bin_centers, img_cdf)                       #numpy  percentile function
+            #img = (raw-min)/max *255
             norm = matplotlib.colors.Normalize(vmin=.7, vmax=image_contrasted.max())
             norm_array = norm(image_contrasted)
             colormap_overviews[wl] = map(norm_array)
@@ -245,7 +246,15 @@ class TissueMap(WidgetBase):
         while True:
 
             try:
+
+                if self.map_pose != self.instrument.sample_pose.get_position() and self.instrument.scout_mode:
+                    # if stage has moved and scout mode is on
+                    self.start_stop_ni()
+
                 self.map_pose = self.instrument.sample_pose.get_position()
+
+
+
                 # Convert 1/10um to mm
                 coord = {k: v * 0.0001 for k, v in self.map_pose.items()}  # if not self.instrument.simulated \
                 #     else np.random.randint(-60000, 60000, 3)
