@@ -1,6 +1,6 @@
 from widgets.widget_base import WidgetBase
 from qtpy.QtWidgets import QPushButton, QComboBox, QSpinBox, QLineEdit, QTabWidget,QListWidget,QListWidgetItem, \
-    QAbstractItemView, QScrollArea, QSlider, QLabel
+    QAbstractItemView, QScrollArea, QSlider, QLabel, QCheckBox
 import qtpy.QtGui as QtGui
 import qtpy.QtCore as QtCore
 import numpy as np
@@ -110,6 +110,8 @@ class Livestream(WidgetBase):
         self.set_scan_start['clear'].clicked.connect(self.clear_start_position)
         self.set_scan_start['clear'].setHidden(True)
 
+        self.set_scan_start['scouting'] = QCheckBox('Scout Mode')
+
         self.live_view['scan_start'] = self.create_layout(struct='V', **self.set_scan_start)
 
         return self.create_layout(struct='H', **self.live_view)
@@ -132,7 +134,7 @@ class Livestream(WidgetBase):
             for buttons in self.live_view:
                 self.live_view[buttons].setHidden(False)
 
-        self.instrument.start_livestream(wavelengths) # Needs to be list
+        self.instrument.start_livestream(wavelengths, self.set_scan_start['scouting'].isChecked()) # Needs to be list
         self.livestream_worker = create_worker(self.instrument._livestream_worker)
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
@@ -233,19 +235,27 @@ class Livestream(WidgetBase):
         # While livestreaming and looking at the first tab the stage position updates
         while True:
 
-            while self.instrument.livestream_enabled.is_set() and self.tab_widget.currentIndex() == 0:
-
+            while self.instrument.livestream_enabled.is_set() and self.tab_widget.currentIndex() != len(self.tab_widget) - 1:
+                moved = False
                 try:
                     self.sample_pos = self.instrument.tigerbox.get_position()
-                    for direction, value in self.sample_pos.items():
-                        if direction in self.pos_widget:
-                            self.pos_widget[direction].setValue(int(value * 1 / 10))  # Units in microns
+
+                    for direction in self.sample_pos.keys():
+                        if direction in self.pos_widget.keys():
+                            new_pos = int(self.sample_pos[direction] * 1 / 10)
+                            if self.pos_widget[direction].value() != new_pos :
+                                self.pos_widget[direction].setValue(new_pos)
+                                moved = True
+
+                    if self.instrument.scout_mode and moved:
+                        self.start_stop_ni()
                     self.update_slider(self.sample_pos)     # Update slide with newest z depth
                 except:
                     pass
+                sleep(.5)
 
             yield  # yield so thread can quit
-            sleep(.5)
+
 
     def screenshot_button(self):
 
@@ -330,8 +340,8 @@ class Livestream(WidgetBase):
         position = self.move_stage['slider'].pos()
         self.move_stage['position'].setText(str(location))
         self.move_stage['position'].move(QtCore.QPoint(position.x() + 30,
-                                                      round(position.y() + (-5)+((location+ abs(self.z_limit["y"][0]))/
-                                                      self.z_range*(self.move_stage['slider'].height()-10)))))
+                                                      round(position.y() + (-5)+((location+ abs(self.z_limit["y"][0]))/self.z_range
+                                                      *(self.move_stage['slider'].height()-10)))))
 
     def update_slider(self, location:dict):
 

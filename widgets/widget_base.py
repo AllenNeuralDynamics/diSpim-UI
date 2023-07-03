@@ -4,6 +4,7 @@ from qtpy.QtWidgets import  QMessageBox, QLineEdit, QVBoxLayout, QWidget, \
     QComboBox
 import qtpy.QtCore as QtCore
 import numpy as np
+from time import sleep
 
 class WidgetBase:
 
@@ -20,8 +21,15 @@ class WidgetBase:
         if cfg_value != value:
             self.pathSet(dict, path, value)
             if self.instrument.livestream_enabled.is_set():
-                self.instrument._setup_waveform_hardware(self.instrument.active_lasers, live = True)
-
+                self.instrument._setup_waveform_hardware(self.instrument.active_lasers,
+                                                         live=self.instrument.livestream_enabled.is_set(),
+                                                         scout_mode=self.instrument.scout_mode)
+                if self.instrument.scout_mode:
+                    self.start_stop_ni()
+    def start_stop_ni(self):
+        """Start and stop ni task """
+        self.instrument.ni.start()
+        self.instrument.ni.stop(self.cfg.get_period_time())  # Pause to get at least one frame
 
     def scan(self, dictionary: dict, attr: str, prev_key: str = None, QDictionary: dict = None,
              WindowDictionary: dict = None, wl: str = None, input_type: str = QLineEdit, subdict: bool = False):
@@ -63,7 +71,6 @@ class WidgetBase:
         """Update viewer with latest image"""
         try:
             (image, layer) = args
-
             key = f"Video {layer}"
             layer = self.viewer.layers[key]
             layer._slice.image._view = image
@@ -90,6 +97,7 @@ class WidgetBase:
             #     shapes_layer = self.viewer.add_shapes(l, shape_type='line', edge_width=1, edge_color=color, name='line')
             #     shapes_layer.mode = 'select'
         except:
+            sleep(.5)
             pass
 
     def scroll_box(self, widget: QWidget):
