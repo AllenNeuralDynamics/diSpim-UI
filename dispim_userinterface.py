@@ -86,6 +86,8 @@ class UserInterface:
             self.viewer.window.add_dock_widget(main_page, name=' ')  # Adding tabs to window
             # TODO: Move set scan to tissue map tab?
 
+            self.viewer.window.add_dock_widget(self.updating_graph, area='top')
+
             self.viewer.window.add_dock_widget(instr_params_window, name='Instrument Parameters', area='left')
             self.viewer.window.add_dock_widget(laser_window, name="Laser Current", area='bottom')
 
@@ -136,6 +138,8 @@ class UserInterface:
             'volumetric_image': self.vol_acq_params.volumeteric_imaging_button(),
             'waveform': self.vol_acq_params.waveform_graph(),
         }
+        self.updating_graph = self.vol_acq_params.updating_graph()
+        #TODO: Make this better its lazy
 
         return self.vol_acq_params.create_layout(struct='V', **widgets)
 
@@ -161,6 +165,7 @@ class UserInterface:
         quick_scan_widget = self.tissue_map.overview_widget()
         # Connect quick scan to progress bar
         quick_scan_widget.children()[1].clicked.connect(lambda: self.vol_acq_params._progress_bar_worker().start())
+
         widgets = {
             'graph': self.tissue_map.graph(),
             'functions': self.tissue_map.create_layout(struct='H',point=self.tissue_map.mark_graph(),

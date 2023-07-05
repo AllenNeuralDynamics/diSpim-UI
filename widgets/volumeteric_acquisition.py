@@ -104,7 +104,7 @@ class VolumetericAcquisition(WidgetBase):
         while self.instrument.total_tiles == None or self.instrument.est_run_time == None:
             sleep(.5)
         # Calculate total tiles within all stacks
-        if self.cfg.acquisition_style == 'interleaved' and not self.instrument.overview_set.is_set:
+        if self.cfg.acquisition_style == 'interleaved' and not self.instrument.overview_set.is_set():
             total_tiles = self.instrument.total_tiles*len(self.cfg.imaging_wavelengths)
             z_tiles = total_tiles / self.instrument.x_y_tiles
             time_scale = self.instrument.x_y_tiles/86400
@@ -141,6 +141,15 @@ class VolumetericAcquisition(WidgetBase):
         msgBox.setWindowTitle("Overwrite Files")
         msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
         return msgBox.exec()
+
+    def dummy_input(self):
+        yield np.random.randint()
+
+    def updating_graph(self):
+
+        graph = PlotWidget()
+
+        return
 
     def waveform_graph(self):
 
