@@ -231,13 +231,13 @@ class Livestream(WidgetBase):
     def _sample_pos_worker(self):
         """Update position widgets for volumetric imaging or manually moving"""
 
-        self.log.info('Starting stage update')
         # While livestreaming and looking at the first tab the stage position updates
         while self.instrument.livestream_enabled.is_set():
             if self.tab_widget.currentIndex() != len(self.tab_widget) - 1:
                 moved = False
                 try:
                     self.sample_pos = self.instrument.tigerbox.get_position()
+                    print('polling stage')
                     for direction in self.sample_pos.keys():
                         if direction in self.pos_widget.keys():
                             new_pos = int(self.sample_pos[direction] * 1 / 10)
@@ -251,6 +251,7 @@ class Livestream(WidgetBase):
                 except:
                     # Deal with garbled replies from tigerbox
                     pass
+
             sleep(.25)
 
 
