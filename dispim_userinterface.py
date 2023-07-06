@@ -30,7 +30,7 @@ class UserInterface:
             self.cfg = self.instrument.cfg
             self.viewer = napari.Viewer(title='ISPIM control', ndisplay=2, axis_labels=('x', 'y'))
 
-            self.experimenters_name_popup()         # Popup for experimenters name.
+            #self.experimenters_name_popup()         # Popup for experimenters name.
                                                     # Determines what parameters will be exposed
 
             # Set up laser sliders and tabs

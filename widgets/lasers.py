@@ -287,7 +287,7 @@ class Lasers(WidgetBase):
         self.combiner_power_split['slider'].setOrientation(QtCore.Qt.Vertical)
         self.combiner_power_split['slider'].setMinimum(0)
         self.combiner_power_split['slider'].setMaximum(100)
-        self.combiner_power_split['slider'].setValue(float(split_percentage[0:-1]))
+        self.combiner_power_split['slider'].setValue(int(split_percentage[0:-1]))
         self.combiner_power_split['slider'].sliderReleased.connect(
             lambda value=None, released=True:
             self.set_power_split(value, released))

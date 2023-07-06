@@ -1,8 +1,8 @@
 from widgets.widget_base import WidgetBase
 from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, \
-    QSlider, QLineEdit,QMessageBox, QTabWidget, QProgressBar
+    QSlider, QLineEdit,QMessageBox, QTabWidget, QProgressBar, QWidget
 import numpy as np
-from pyqtgraph import PlotWidget, mkPen
+from pyqtgraph import PlotWidget, mkPen, PlotDataItem, PlotData
 from ispim.compute_waveforms import generate_waveforms
 import logging
 from napari.qt.threading import thread_worker, create_worker
@@ -11,6 +11,7 @@ from datetime import timedelta, datetime
 import calendar
 from  qtpy.QtGui import QOffscreenSurface
 import qtpy.QtCore as QtCore
+
 class VolumetericAcquisition(WidgetBase):
 
     def __init__(self,viewer, cfg, instrument, simulated):
@@ -142,14 +143,42 @@ class VolumetericAcquisition(WidgetBase):
         msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
         return msgBox.exec()
 
+    @thread_worker
     def dummy_input(self):
-        yield np.random.randint()
+        start = time()
+        while True:
+            sleep(.5)
+            yield np.random.randint(0, 10)
+
 
     def updating_graph(self):
 
-        graph = PlotWidget()
+        self.graph = PlotWidget()
+        self.graph.getViewBox().state['targetRange'] = [[-1, 10], [0, 10]]       # Setting autop pan range
+        self.graph.getViewBox().state['autoPan'] = [True, True]                 # auto pan graph
+        self.graph_data = [[0],[0]]    # 2D array specifying x and y values
+        self.graph_items = []
+        self.graph_worker = self.dummy_input()
+        self.graph_worker.yielded.connect(self._update_graph_worker)
+        self.graph_worker.start()
 
-        return
+        return self.create_layout(struct = 'V', widget = self.graph)
+
+
+    def _update_graph_worker(self, ydata):
+
+        xdata = self.graph_data[0][-1] + 1
+        self.graph_data[0].append(xdata)
+        self.graph_data[1].append(ydata)
+        item = self.graph.plot(self.graph_data[0][-2:], self.graph_data[1][-2:])
+        self.graph_items.append(item)
+
+        if len(self.graph_items) >= 10:
+            # Prune data
+            del self.graph_data[0][0]
+            del self.graph_data[1][0]
+            self.graph.removeItem(self.graph_items[0])
+            del self.graph_items[0]
 
     def waveform_graph(self):
 
