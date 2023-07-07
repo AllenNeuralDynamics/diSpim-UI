@@ -9,7 +9,8 @@ from skimage.io import imsave
 from napari.qt.threading import thread_worker, create_worker
 from time import sleep
 import logging
-
+from pyqtgraph import PlotWidget
+import numpy as np
 
 class Livestream(WidgetBase):
 
@@ -140,9 +141,11 @@ class Livestream(WidgetBase):
         self.livestream_worker.start()
 
         sleep(2)    # Allow livestream to start
-
         self.sample_pos_worker = self._sample_pos_worker()
         self.sample_pos_worker.start()
+
+        sleep(2)
+        self.graph_worker.start()
 
         self.live_view['start'].clicked.connect(self.stop_live_view)
         # Only allow stopping once everything is initialized
@@ -161,6 +164,7 @@ class Livestream(WidgetBase):
         self.instrument.stop_livestream()
         self.livestream_worker.quit()
         self.sample_pos_worker.quit()
+        self.graph_worker.quit()
         self.live_view['start'].setText('Start Live View')
 
         self.live_view['start'].clicked.connect(self.start_live_view)
@@ -251,7 +255,7 @@ class Livestream(WidgetBase):
                 except:
                     # Deal with garbled replies from tigerbox
                     pass
-            sleep(.25)
+            sleep(.5)
 
 
     def screenshot_button(self):
@@ -349,3 +353,47 @@ class Livestream(WidgetBase):
             location = self.instrument.tigerbox.get_position('z')
         self.move_stage_textbox(int(location['Z']))
         self.move_stage['slider'].setValue(int(location['Z']))
+
+    @thread_worker
+    def _focusing_metric(self):
+
+        while True:
+            if type(self.instrument.im) == np.ndarray:
+                entropy = self.instrument.calculate_normalized_dct_shannon_entropy(self.instrument.im)
+                print(entropy)
+                yield entropy
+            else:
+                yield .000127
+            sleep(.5)
+
+    def updating_graph(self):
+
+        self.graph = PlotWidget()
+        self.graph.getViewBox().state['targetRange'] = [[-1, 10], [0.000127, .0002]]  # Setting autopan range
+        self.graph.getViewBox().state['autoPan'] = [True, True]  # auto pan graph
+        self.graph_data = [[0], [0]]  # 2D array specifying x and y values
+        self.graph_items = []
+
+        self.graph_worker = self._focusing_metric()
+        self.graph_worker.yielded.connect(self._update_graph_worker)
+
+        return self.create_layout(struct='V', widget=self.graph)
+
+    def _update_graph_worker(self, ydata):
+
+        try:
+            xdata = self.graph_data[0][-1] + 1
+            self.graph_data[0].append(xdata)
+            self.graph_data[1].append(ydata)
+            item = self.graph.plot(self.graph_data[0][-2:], self.graph_data[1][-2:])
+            self.graph_items.append(item)
+
+            if len(self.graph_items) >= 10:
+                # Prune data
+                del self.graph_data[0][0]
+                del self.graph_data[1][0]
+                self.graph.removeItem(self.graph_items[0])
+                del self.graph_items[0]
+            self.graph.getViewBox().state['targetRange'] = [[-1, 10], [0.000127, .00013]]
+        except:
+            pass

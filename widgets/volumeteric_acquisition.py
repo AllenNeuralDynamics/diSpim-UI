@@ -143,43 +143,6 @@ class VolumetericAcquisition(WidgetBase):
         msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
         return msgBox.exec()
 
-    @thread_worker
-    def dummy_input(self):
-        start = time()
-        while True:
-            sleep(.5)
-            yield np.random.randint(0, 10)
-
-
-    def updating_graph(self):
-
-        self.graph = PlotWidget()
-        self.graph.getViewBox().state['targetRange'] = [[-1, 10], [0, 10]]       # Setting autop pan range
-        self.graph.getViewBox().state['autoPan'] = [True, True]                 # auto pan graph
-        self.graph_data = [[0],[0]]    # 2D array specifying x and y values
-        self.graph_items = []
-        self.graph_worker = self.dummy_input()
-        self.graph_worker.yielded.connect(self._update_graph_worker)
-        self.graph_worker.start()
-
-        return self.create_layout(struct = 'V', widget = self.graph)
-
-
-    def _update_graph_worker(self, ydata):
-
-        xdata = self.graph_data[0][-1] + 1
-        self.graph_data[0].append(xdata)
-        self.graph_data[1].append(ydata)
-        item = self.graph.plot(self.graph_data[0][-2:], self.graph_data[1][-2:])
-        self.graph_items.append(item)
-
-        if len(self.graph_items) >= 10:
-            # Prune data
-            del self.graph_data[0][0]
-            del self.graph_data[1][0]
-            self.graph.removeItem(self.graph_items[0])
-            del self.graph_items[0]
-
     def waveform_graph(self):
 
         """Generate a graph of waveform for sanity check"""

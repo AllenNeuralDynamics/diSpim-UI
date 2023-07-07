@@ -123,7 +123,8 @@ class UserInterface:
     def livestream_widget(self):
 
         self.livestream_parameters = Livestream(self.viewer, self.cfg, self.instrument, self.simulated)
-
+        self.updating_graph = self.livestream_parameters.updating_graph()
+        # TODO: Make this better its lazy
         widgets = {
             'screenshot': self.livestream_parameters.screenshot_button(),
             'position': self.livestream_parameters.sample_stage_position(),
@@ -138,8 +139,6 @@ class UserInterface:
             'volumetric_image': self.vol_acq_params.volumeteric_imaging_button(),
             'waveform': self.vol_acq_params.waveform_graph(),
         }
-        self.updating_graph = self.vol_acq_params.updating_graph()
-        #TODO: Make this better its lazy
 
         return self.vol_acq_params.create_layout(struct='V', **widgets)
 
