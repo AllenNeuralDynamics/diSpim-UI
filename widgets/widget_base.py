@@ -97,7 +97,6 @@ class WidgetBase:
             #     shapes_layer = self.viewer.add_shapes(l, shape_type='line', edge_width=1, edge_color=color, name='line')
             #     shapes_layer.mode = 'select'
         except:
-            sleep(.5)
             pass
 
     def scroll_box(self, widget: QWidget):

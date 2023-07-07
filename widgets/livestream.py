@@ -234,6 +234,7 @@ class Livestream(WidgetBase):
         # While livestreaming and looking at the first tab the stage position updates
         while self.instrument.livestream_enabled.is_set():
             if self.tab_widget.currentIndex() != len(self.tab_widget) - 1:
+                print('updating stage')
                 moved = False
                 try:
                     self.sample_pos = self.instrument.tigerbox.get_position()

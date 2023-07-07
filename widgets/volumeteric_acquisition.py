@@ -106,9 +106,7 @@ class VolumetericAcquisition(WidgetBase):
         # Calculate total tiles within all stacks
         if self.cfg.acquisition_style == 'interleaved' and not self.instrument.overview_set.is_set():
             total_tiles = self.instrument.total_tiles*len(self.cfg.imaging_wavelengths)
-            print('total tiles', total_tiles)
             z_tiles = total_tiles / self.instrument.x_y_tiles
-            print('ztiles', z_tiles)
             time_scale = self.instrument.x_y_tiles/86400
         else:
             total_tiles = self.instrument.total_tiles * (len(self.cfg.imaging_wavelengths))^2
@@ -117,7 +115,6 @@ class VolumetericAcquisition(WidgetBase):
 
         pct = 0
         while self.instrument.total_tiles != None:
-            print('tiles acquired', (self.instrument.latest_frame_layer+(self.instrument.tiles_acquired*z_tiles)))
             pct = (self.instrument.latest_frame_layer+(self.instrument.tiles_acquired*z_tiles))/total_tiles \
                 if self.instrument.latest_frame_layer != 0 else pct
             QtCore.QMetaObject.invokeMethod(self.progress['bar'], f'setValue', QtCore.Q_ARG(int, round(pct*100)))

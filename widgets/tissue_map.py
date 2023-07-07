@@ -84,7 +84,7 @@ class TissueMap(WidgetBase):
         self.overview_worker = self._overview_worker()
         self.overview_worker.finished.connect(lambda:self.overview_finish())    # Napari threads have finished signals
         self.overview_worker.start()
-        sleep(5)
+        sleep(2)
         self.viewer.layers.clear()     # Clear existing layers
         self.volumetric_image_worker = create_worker(self.instrument._acquisition_livestream_worker)
         self.volumetric_image_worker.yielded.connect(self.update_layer)
@@ -97,51 +97,18 @@ class TissueMap(WidgetBase):
         self.volumetric_image_worker.quit()
 
         for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, True)  # Enabled tabs
-        self.tab_widget.setCurrentIndex(len(self.tab_widget) - 1)
-
-        overlap_um = round((self.cfg.tile_overlap_x_percent / 100) * self.cfg.tile_specs['x_field_of_view_um'])
-        scale_y = (
-                (((self.cfg.tile_specs['x_field_of_view_um'] * self.xtiles) - (overlap_um * (self.xtiles - 1))) * 0.001)
-                / self.overview_array[0].shape[0])
-        scale_x = ((self.cfg.imaging_specs[f'volume_z_um'] * 0.001) / self.overview_array[0].shape[1])
-        colormap_overviews = {}
 
         for wl, image in zip(self.cfg.imaging_wavelengths, self.overview_array):
 
-            wl_color = self.cfg.laser_specs[str(wl)]["color"]
-            rgb = qtpy.QtGui.QColor(wl_color).getRgb()
-            vals = np.ones((256, 4))
-            vals[:, 0] = np.linspace(rgb[0] / 256, 1, 256)
-            vals[:, 1] = np.linspace(rgb[1] / 256, 1, 256)
-            vals[:, 2] = np.linspace(rgb[2] / 256, 1, 256)
-            map = matplotlib.colors.ListedColormap(vals).reversed()
-
-            img_cdf, bin_centers = exposure.cumulative_distribution(image, nbins=65536)
-            image = np.interp(image, bin_centers, img_cdf)
-            norm = matplotlib.colors.Normalize(vmin=image.min(), vmax=image.max())
-            norm_array = norm(image)
-            colormap_overviews[wl] = map(norm_array)
-
             key = f'Overview {wl}'
             self.viewer.add_image(np.flip(np.rot90(image, 3)), name=key,
-                                  scale=[scale_x * 1000, scale_y * 1000])  # scale so it won't be squished in viewer
+                                  scale=[self.scale_x * 1000, self.scale_y * 1000])  # scale so it won't be squished in viewer
             self.viewer.layers[key].rotate = 90
             self.viewer.layers[key].blending = 'additive'
 
-        final_overview = sum(colormap_overviews.values())
-        overview_RGBA = \
-            pg.makeRGBA(np.flip(np.rot90(final_overview, 3), axis=1), levels=[0,  1])[0]  # GLImage needs to be RGBA
-        overview_RGBA[:, :, 3] = 200
-        gl_overview = gl.GLImageItem(overview_RGBA, glOptions='translucent')
-        gl_overview.scale(scale_x, scale_y, 0, local=False)  # Scale Image
-
-        gui_coord = self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
-        gl_overview.translate(gui_coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
-                              gui_coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
-                              gui_coord['z'])
 
         self.plot.removeItem(self.objectives)
-        self.plot.addItem(gl_overview)  # GlImage doesn't like threads, do this outside of thread
+        self.plot.addItem(self.gl_overview)  # GlImage doesn't like threads, do this outside of thread
         self.plot.addItem(self.objectives)  # Remove and add objectives to see view through them
 
         self.map_pos_worker = self._map_pos_worker()
@@ -155,6 +122,40 @@ class TissueMap(WidgetBase):
                                                                                     self.cfg.tile_overlap_y_percent)
 
         self.overview_array, self.xtiles = self.instrument.overview_scan()
+
+        overlap_um = round((self.cfg.tile_overlap_x_percent / 100) * self.cfg.tile_specs['x_field_of_view_um'])
+        self.scale_y = (
+                (((self.cfg.tile_specs['x_field_of_view_um'] * self.xtiles) - (overlap_um * (self.xtiles - 1))) * 0.001)
+                / self.overview_array[0].shape[0])
+        self.scale_x = ((self.cfg.imaging_specs[f'volume_z_um'] * 0.001) / self.overview_array[0].shape[1])
+        self.colormap_overviews = {}
+
+        for wl, image in zip(self.cfg.imaging_wavelengths, self.overview_array):
+            wl_color = self.cfg.laser_specs[str(wl)]["color"]
+            rgb = qtpy.QtGui.QColor(wl_color).getRgb()
+            vals = np.ones((256, 4))
+            vals[:, 0] = np.linspace(rgb[0] / 256, 1, 256)
+            vals[:, 1] = np.linspace(rgb[1] / 256, 1, 256)
+            vals[:, 2] = np.linspace(rgb[2] / 256, 1, 256)
+            map = matplotlib.colors.ListedColormap(vals).reversed()
+
+            img_cdf, bin_centers = exposure.cumulative_distribution(image, nbins=65536)
+            image_interp = np.interp(image, bin_centers, img_cdf)
+            norm = matplotlib.colors.Normalize(vmin=.5, vmax=.9)
+            norm_array = norm(image_interp)
+            self.colormap_overviews[wl] = map(norm_array)
+        final_overview = sum(self.colormap_overviews.values())
+        overview_RGBA = \
+            pg.makeRGBA(np.flip(np.rot90(final_overview, 3), axis=1), levels=[0, 1])[0]  # GLImage needs to be RGBA
+        overview_RGBA[:, :, 3] = 200
+        self.gl_overview = gl.GLImageItem(overview_RGBA, glOptions='translucent')
+        self.gl_overview.scale(self.scale_x, self.scale_y, 0, local=False)  # Scale Image
+        gui_coord = self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
+        self.gl_overview.translate(gui_coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
+                              gui_coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
+                              gui_coord['z'])
+
+
         # self.overview_array = tifffile.imread(fr'C:\dispim_test\overview_img_405_488_561_638.tiff')
         # xtiles = 17
 
@@ -243,7 +244,6 @@ class TissueMap(WidgetBase):
 
         """Update position of stage for tissue map, draw scanning volume, and tiling"""
         while True:
-
             try:
 
                 if self.map_pose != self.instrument.sample_pose.get_position() and self.instrument.scout_mode:
@@ -300,11 +300,8 @@ class TissueMap(WidgetBase):
                         self.draw_tiles(start_pos)
                     self.draw_volume(start_pos, self.remap_axis({k: self.cfg.imaging_specs[f'volume_{k}_um'] * .001
                                                                  for k in self.map_pose.keys()}))
-
             except:
-                # In case Tigerbox throws an error
-                sleep(2)
-                yield  # Yield so thread can stop
+                pass
             finally:
                 sleep(.5)
                 yield  # Yield so thread can stop
