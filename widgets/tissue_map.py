@@ -141,7 +141,7 @@ class TissueMap(WidgetBase):
 
             img_cdf, bin_centers = exposure.cumulative_distribution(image, nbins=65536)
             image_interp = np.interp(image, bin_centers, img_cdf)
-            norm = matplotlib.colors.Normalize(vmin=.5, vmax=.9)
+            norm = matplotlib.colors.Normalize(vmin=image_interp.min(), vmax=image_interp.max())
             norm_array = norm(image_interp)
             self.colormap_overviews[wl] = map(norm_array)
         final_overview = sum(self.colormap_overviews.values())
