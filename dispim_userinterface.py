@@ -70,7 +70,7 @@ class UserInterface:
             self.tissue_map.set_tab_widget(tabbed_widgets)  # Passing in tab widget to tissue map
             self.livestream_parameters.set_tab_widget(tabbed_widgets)  # Passing in tab widget to livestream
             self.vol_acq_params.set_tab_widget(tabbed_widgets)
-            tabbed_widgets.setMinimumHeight(700)
+            tabbed_widgets.setMinimumHeight(650)
 
 
             # Widget contains start/stop, wl select, and progress bar

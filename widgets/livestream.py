@@ -135,7 +135,7 @@ class Livestream(WidgetBase):
             for buttons in self.live_view:
                 self.live_view[buttons].setHidden(False)
 
-        self.instrument.start_livestream(wavelengths, self.set_scan_start['scouting'].isChecked()) # Needs to be list
+        self.instrument.start_livestream(wavelengths, self.set_scan_start['scouting'].isChecked()) # Wvs needs to be list
         self.livestream_worker = create_worker(self.instrument._livestream_worker)
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
@@ -145,6 +145,8 @@ class Livestream(WidgetBase):
         self.sample_pos_worker.start()
 
         sleep(2)
+        self.graph_worker = self._focusing_metric()
+        self.graph_worker.yielded.connect(self._update_graph_worker)
         self.graph_worker.start()
 
         self.live_view['start'].clicked.connect(self.stop_live_view)
@@ -360,22 +362,20 @@ class Livestream(WidgetBase):
         while True:
             if type(self.instrument.im) == np.ndarray:
                 entropy = self.instrument.calculate_normalized_dct_shannon_entropy(self.instrument.im)
-                print(entropy)
                 yield entropy
             else:
-                yield .000127
-            sleep(.5)
+                yield .0
+            sleep(.1)
 
     def updating_graph(self):
 
         self.graph = PlotWidget()
-        self.graph.getViewBox().state['targetRange'] = [[-1, 10], [0.000127, .0002]]  # Setting autopan range
-        self.graph.getViewBox().state['autoPan'] = [True, True]  # auto pan graph
+        #self.graph.getPlotItem().hideAxis('bottom')
+        self.graph.getViewBox().state['targetRange'] = [[-1, 30], [0.0002, .0007]]  # Setting autopan range
+        self.graph.getViewBox().state['autoPan'] = [True, False]  # auto pan graph
+        #self.graph.getViewBox().state['autoRange'] = [True, False]
         self.graph_data = [[0], [0]]  # 2D array specifying x and y values
         self.graph_items = []
-
-        self.graph_worker = self._focusing_metric()
-        self.graph_worker.yielded.connect(self._update_graph_worker)
 
         return self.create_layout(struct='V', widget=self.graph)
 
@@ -388,12 +388,12 @@ class Livestream(WidgetBase):
             item = self.graph.plot(self.graph_data[0][-2:], self.graph_data[1][-2:])
             self.graph_items.append(item)
 
-            if len(self.graph_items) >= 10:
+            if len(self.graph_items) >= 32:
                 # Prune data
                 del self.graph_data[0][0]
                 del self.graph_data[1][0]
                 self.graph.removeItem(self.graph_items[0])
                 del self.graph_items[0]
-            self.graph.getViewBox().state['targetRange'] = [[-1, 10], [0.000127, .00013]]
+
         except:
             pass
