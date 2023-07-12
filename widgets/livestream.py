@@ -251,7 +251,7 @@ class Livestream(WidgetBase):
                     # Deal with garbled replies from tigerbox
                     pass
 
-            sleep(.25)
+            sleep(.5)
 
 
     def screenshot_button(self):
