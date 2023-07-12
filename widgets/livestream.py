@@ -135,23 +135,27 @@ class Livestream(WidgetBase):
             for buttons in self.live_view:
                 self.live_view[buttons].setHidden(False)
 
-        self.instrument.start_livestream(wavelengths, self.set_scan_start['scouting'].isChecked()) # Wvs needs to be list
-        self.livestream_worker = create_worker(self.instrument._livestream_worker)
-        self.livestream_worker.yielded.connect(self.update_layer)
-        self.livestream_worker.start()
+        self.instrument.start_livestream(wavelengths,
+                                         self.set_scan_start['scouting'].isChecked())  # Wvs needs to be list
 
-        sleep(2)    # Allow livestream to start
         self.sample_pos_worker = self._sample_pos_worker()
         self.sample_pos_worker.start()
 
-        sleep(2)
+
         self.graph_worker = self._focusing_metric()
         self.graph_worker.yielded.connect(self._update_graph_worker)
         self.graph_worker.start()
 
+        self.viewer.window.add_dock_widget(self.graph, area='top')
         self.live_view['start'].clicked.connect(self.stop_live_view)
         # Only allow stopping once everything is initialized
         # to avoid crashing gui
+
+        sleep(2)
+        self.livestream_worker = create_worker(self.instrument._livestream_worker)
+        self.livestream_worker.yielded.connect(self.update_layer)
+        self.livestream_worker.start()
+
 
         self.move_stage['slider'].setEnabled(False)
         self.move_stage['position'].setEnabled(False)
@@ -167,6 +171,7 @@ class Livestream(WidgetBase):
         self.livestream_worker.quit()
         self.sample_pos_worker.quit()
         self.graph_worker.quit()
+        self.viewer.window.remove_dock_widget(self.graph)
         self.live_view['start'].setText('Start Live View')
 
         self.live_view['start'].clicked.connect(self.start_live_view)
@@ -364,13 +369,13 @@ class Livestream(WidgetBase):
                 entropy = self.instrument.calculate_normalized_dct_shannon_entropy(self.instrument.im)
                 yield entropy
             else:
-                yield .0
-            sleep(.1)
+                yield None
+            sleep(.2)
 
     def updating_graph(self):
 
         self.graph = PlotWidget()
-        #self.graph.getPlotItem().hideAxis('bottom')
+        self.graph.getPlotItem().hideAxis('bottom')
         self.graph.getViewBox().state['targetRange'] = [[-1, 30], [0.0002, .0007]]  # Setting autopan range
         self.graph.getViewBox().state['autoPan'] = [True, False]  # auto pan graph
         #self.graph.getViewBox().state['autoRange'] = [True, False]
@@ -381,7 +386,7 @@ class Livestream(WidgetBase):
 
     def _update_graph_worker(self, ydata):
 
-        try:
+        if ydata != None:
             xdata = self.graph_data[0][-1] + 1
             self.graph_data[0].append(xdata)
             self.graph_data[1].append(ydata)
@@ -395,5 +400,3 @@ class Livestream(WidgetBase):
                 self.graph.removeItem(self.graph_items[0])
                 del self.graph_items[0]
 
-        except:
-            pass

@@ -86,8 +86,6 @@ class UserInterface:
             self.viewer.window.add_dock_widget(main_page, name=' ')  # Adding tabs to window
             # TODO: Move set scan to tissue map tab?
 
-            self.viewer.window.add_dock_widget(self.updating_graph, area='top')
-
             self.viewer.window.add_dock_widget(instr_params_window, name='Instrument Parameters', area='left')
             self.viewer.window.add_dock_widget(laser_window, name="Laser Current", area='bottom')
 
@@ -124,7 +122,8 @@ class UserInterface:
 
         self.livestream_parameters = Livestream(self.viewer, self.cfg, self.instrument, self.simulated)
         self.updating_graph = self.livestream_parameters.updating_graph()
-        # TODO: Make this better its lazy
+
+
         widgets = {
             'screenshot': self.livestream_parameters.screenshot_button(),
             'position': self.livestream_parameters.sample_stage_position(),
