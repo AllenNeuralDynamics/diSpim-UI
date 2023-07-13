@@ -139,10 +139,13 @@ class Lasers(WidgetBase):
         self.dial_widgets[wv] = {}
         for k, v in dial_values.items():
             self.dials[wv][k] = QDial()
-            self.dials[wv][k].setRange(round((v*1000)-5000), round((v*1000)+5000))        # QDials only do int values
+            self.dials[wv][k].setRange(0, 5000)        # QDials only do int values
             self.dials[wv][k].setNotchesVisible(True)
             self.dials[wv][k].setValue(round(v*1000))
             self.dials[wv][k].setSingleStep(1)
+            self.dials[wv][k].setStyleSheet(
+                f"QDial::sub-page:horizontal{{ background-color:{self.cfg.laser_specs[str(wl)]['color']}; }}")
+
 
             self.dials[wv][k+'value'] = QLineEdit(str(v))
             self.dials[wv][k+'value'].setAlignment(QtCore.Qt.AlignCenter)

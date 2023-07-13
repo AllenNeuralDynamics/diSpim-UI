@@ -123,11 +123,16 @@ class TissueMap(WidgetBase):
 
         self.overview_array, self.xtiles = self.instrument.overview_scan()
 
+        # self.overview_array = [tifffile.imread(fr'C:\Users\hcr-fish\Downloads\overview_img_405.tiff')]
+        # self.xtiles = 18
+
         overlap_um = round((self.cfg.tile_overlap_x_percent / 100) * self.cfg.tile_specs['x_field_of_view_um'])
         self.scale_y = (
                 (((self.cfg.tile_specs['x_field_of_view_um'] * self.xtiles) - (overlap_um * (self.xtiles - 1))) * 0.001)
                 / self.overview_array[0].shape[0])
+
         self.scale_x = ((self.cfg.imaging_specs[f'volume_z_um'] * 0.001) / self.overview_array[0].shape[1])
+
         self.colormap_overviews = {}
 
         for wl, image in zip(self.cfg.imaging_wavelengths, self.overview_array):
@@ -137,13 +142,11 @@ class TissueMap(WidgetBase):
             vals[:, 0] = np.linspace(rgb[0] / 256, 1, 256)
             vals[:, 1] = np.linspace(rgb[1] / 256, 1, 256)
             vals[:, 2] = np.linspace(rgb[2] / 256, 1, 256)
-            map = matplotlib.colors.ListedColormap(vals).reversed()
+            map = matplotlib.colors.ListedColormap(vals)
 
-            img_cdf, bin_centers = exposure.cumulative_distribution(image, nbins=65536)
+            img_cdf, bin_centers = exposure.cumulative_distribution(image, nbins=int(image.max()))
             image_interp = np.interp(image, bin_centers, img_cdf)
-            norm = matplotlib.colors.Normalize(vmin=image_interp.min(), vmax=image_interp.max())
-            norm_array = norm(image_interp)
-            self.colormap_overviews[wl] = map(norm_array)
+            self.colormap_overviews[wl] = map(image_interp)
         final_overview = sum(self.colormap_overviews.values())
         overview_RGBA = \
             pg.makeRGBA(np.flip(np.rot90(final_overview, 3), axis=1), levels=[0, 1])[0]  # GLImage needs to be RGBA
@@ -154,11 +157,6 @@ class TissueMap(WidgetBase):
         self.gl_overview.translate(gui_coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
                               gui_coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
                               gui_coord['z'])
-
-
-        # self.overview_array = tifffile.imread(fr'C:\dispim_test\overview_img_405_488_561_638.tiff')
-        # xtiles = 17
-
 
     def mark_graph(self):
 
