@@ -144,7 +144,7 @@ class Lasers(WidgetBase):
             self.dials[wv][k].setValue(round(v*1000))
             self.dials[wv][k].setSingleStep(1)
             self.dials[wv][k].setStyleSheet(
-                f"QDial::sub-page:horizontal{{ background-color:{self.cfg.laser_specs[str(wl)]['color']}; }}")
+                f"QDial{{ background-color:{self.cfg.laser_specs[str(wv)]['color']}; }}")
 
 
             self.dials[wv][k+'value'] = QLineEdit(str(v))
