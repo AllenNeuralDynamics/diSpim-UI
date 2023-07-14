@@ -280,9 +280,6 @@ class TissueMap(WidgetBase):
                                                               0, 0, 1, gui_coord['z'],
                                                               0, 0, 0, 1))
                     if self.checkbox['tiling'].isChecked():
-                        for item in self.tiles:
-                            if item in self.plot.items:
-                                self.plot.removeItem(item)
                         self.draw_tiles(gui_coord)  # Draw tiles if checkbox is checked
 
                 else:
@@ -314,8 +311,11 @@ class TissueMap(WidgetBase):
             self.set_tiling(2)  # Update grid steps and tile numbers
             self.initial_volume = [self.cfg.volume_x_um, self.cfg.volume_y_um, self.cfg.volume_z_um]
 
+        for item in self.tiles:
+            if item in self.plot.items:
+                self.plot.removeItem(item)
         self.tiles.clear()
-        
+        total_tiles = self.xtiles*self.ytiles
         for x in range(0, self.xtiles):
             for y in range(0, self.ytiles):
                 tile_offset = self.remap_axis({'x': (x * self.x_grid_step_um * .001),
@@ -325,15 +325,20 @@ class TissueMap(WidgetBase):
                             'y': tile_offset['y'] + coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
                             'z': tile_offset['z'] + coord['z']
                 }
+                num_pos = [tile_pos['x'],
+                           tile_pos['y'] + (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
+                           tile_pos['z'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um']))]
+
                 tile_volume = self.remap_axis({'x': self.cfg.tile_specs['x_field_of_view_um'] * .001,
                                                'y': self.cfg.tile_specs['y_field_of_view_um'] * .001,
                                                'z': self.ztiles * self.cfg.z_step_size_um * .001})
                 self.tiles.append(self.draw_volume(tile_pos, tile_volume))
                 self.tiles[-1].setColor(qtpy.QtGui.QColor('cornflowerblue'))
-
                 self.plot.removeItem(self.objectives)
                 self.plot.addItem(self.tiles[-1])
                 self.plot.addItem(self.objectives)  # remove and add objectives to see tiles through objective
+                self.tiles.append(gl.GLTextItem(pos=num_pos, text=str((self.xtiles*y)+x), font=qtpy.QtGui.QFont('Helvetica', 15)))
+                self.plot.addItem(self.tiles[-1])       # Can't draw text while moving graph
 
     def draw_volume(self, coord: dict, size: dict):
 

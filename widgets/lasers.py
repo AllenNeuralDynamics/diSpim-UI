@@ -95,6 +95,7 @@ class Lasers(WidgetBase):
     def unhide_labels(self, index = None):
 
         """Reveals laser labels and tabs that are now in use"""
+        print(index)
 
         if index != 0:
             widget_wavelength = self.wavelength_selection['unselected'].itemText(index)
@@ -148,7 +149,8 @@ class Lasers(WidgetBase):
                 if str(self.viewer.layers.selection.active) == str(self.tab_widget.tabText(i)):
                     self.tab_widget.setCurrentIndex(i)
                     if not self.tab_widget.isTabVisible(i):
-                        self.unhide_labels(i)
+                        combo_index = self.wavelength_selection['unselected'].findText(str(self.viewer.layers.selection.active)[-3:])
+                        self.unhide_labels(combo_index)
                     return
 
     def scan_wavelength_params(self, wv: str):
