@@ -33,7 +33,7 @@ class TissueMap(WidgetBase):
         self.map = {}
         self.origin = {}
         self.overview = {}
-
+        self.tiles = []
         self.initial_volume = [self.cfg.volume_x_um, self.cfg.volume_y_um, self.cfg.volume_z_um]
 
     def set_tab_widget(self, tab_widget: QTabWidget):
@@ -215,8 +215,8 @@ class TissueMap(WidgetBase):
 
         # State is 0 if checkmark is unpressed
         if state == 0:
-            for item in self.plot.items:
-                if type(item) == gl.GLBoxItem and item != self.scan_vol and item != self.pos:
+            for item in self.tiles:
+                if item in self.plot.items:
                     self.plot.removeItem(item)
 
     def set_point(self):
@@ -269,9 +269,6 @@ class TissueMap(WidgetBase):
                                                               0, 0, 0, 1))
 
                 if self.instrument.start_pos == None:
-                    for item in self.plot.items:  # Remove previous scan vol and tiles
-                        if type(item) == gl.GLBoxItem and item != self.scan_vol and item != self.pos:
-                            self.plot.removeItem(item)
 
                     # Translate volume of scan to gui coordinate plane
                     scanning_volume = self.remap_axis({k: self.cfg.imaging_specs[f'volume_{k}_um'] * .001
@@ -283,6 +280,9 @@ class TissueMap(WidgetBase):
                                                               0, 0, 1, gui_coord['z'],
                                                               0, 0, 0, 1))
                     if self.checkbox['tiling'].isChecked():
+                        for item in self.tiles:
+                            if item in self.plot.items:
+                                self.plot.removeItem(item)
                         self.draw_tiles(gui_coord)  # Draw tiles if checkbox is checked
 
                 else:
@@ -314,10 +314,8 @@ class TissueMap(WidgetBase):
             self.set_tiling(2)  # Update grid steps and tile numbers
             self.initial_volume = [self.cfg.volume_x_um, self.cfg.volume_y_um, self.cfg.volume_z_um]
 
-        for item in self.plot.items:
-            if type(item) == gl.GLBoxItem and item != self.scan_vol and item != self.pos:
-                self.plot.removeItem(item)
-
+        self.tiles.clear()
+        
         for x in range(0, self.xtiles):
             for y in range(0, self.ytiles):
                 tile_offset = self.remap_axis({'x': (x * self.x_grid_step_um * .001),
@@ -330,10 +328,11 @@ class TissueMap(WidgetBase):
                 tile_volume = self.remap_axis({'x': self.cfg.tile_specs['x_field_of_view_um'] * .001,
                                                'y': self.cfg.tile_specs['y_field_of_view_um'] * .001,
                                                'z': self.ztiles * self.cfg.z_step_size_um * .001})
-                tile = self.draw_volume(tile_pos, tile_volume)
-                tile.setColor(qtpy.QtGui.QColor('cornflowerblue'))
+                self.tiles.append(self.draw_volume(tile_pos, tile_volume))
+                self.tiles[-1].setColor(qtpy.QtGui.QColor('cornflowerblue'))
+
                 self.plot.removeItem(self.objectives)
-                self.plot.addItem(tile)
+                self.plot.addItem(self.tiles[-1])
                 self.plot.addItem(self.objectives)  # remove and add objectives to see tiles through objective
 
     def draw_volume(self, coord: dict, size: dict):
