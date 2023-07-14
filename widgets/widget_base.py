@@ -71,7 +71,7 @@ class WidgetBase:
         """Update viewer with latest image"""
         try:
             (image, layer) = args
-            key = f"Video {layer}"
+            key = f'Wavelength {layer}'
             layer = self.viewer.layers[key]
             layer._slice.image._view = image
             layer.events.set_data()

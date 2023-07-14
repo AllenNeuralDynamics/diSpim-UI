@@ -138,11 +138,6 @@ class Livestream(WidgetBase):
                 self.live_view[buttons].setHidden(False)
 
         self.instrument.start_livestream(wavelengths, self.set_scan_start['scouting'].isChecked()) # Needs to be list
-        self.livestream_worker = create_worker(self.instrument._livestream_worker)
-        self.livestream_worker.yielded.connect(self.update_layer)
-        self.livestream_worker.start()
-
-        sleep(2)    # Allow livestream to start
 
         self.sample_pos_worker = self._sample_pos_worker()
         self.sample_pos_worker.start()
@@ -153,6 +148,11 @@ class Livestream(WidgetBase):
 
         self.move_stage['slider'].setEnabled(False)
         self.move_stage['position'].setEnabled(False)
+
+        sleep(2)  # Allow livestream to start
+        self.livestream_worker = create_worker(self.instrument._livestream_worker)
+        self.livestream_worker.yielded.connect(self.update_layer)
+        self.livestream_worker.start()
         # Disable moving stage while in liveview
 
     def stop_live_view(self):

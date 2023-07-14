@@ -9,7 +9,6 @@ from napari.qt.threading import thread_worker, create_worker
 from time import sleep, time
 from datetime import timedelta, datetime
 import calendar
-from  qtpy.QtGui import QOffscreenSurface
 import qtpy.QtCore as QtCore
 class VolumetericAcquisition(WidgetBase):
 

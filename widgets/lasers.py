@@ -92,13 +92,12 @@ class Lasers(WidgetBase):
         self.imaging_wavelengths.sort()
         self.wavelength_selection['unselected'].addItem(widget.text())
 
-    def unhide_labels(self):
+    def unhide_labels(self, index = None):
 
         """Reveals laser labels and tabs that are now in use"""
 
-        index = self.wavelength_selection['unselected'].currentIndex()
         if index != 0:
-            widget_wavelength = self.wavelength_selection['unselected'].currentText()
+            widget_wavelength = self.wavelength_selection['unselected'].itemText(index)
             self.imaging_wavelengths.append(int(widget_wavelength))
             self.imaging_wavelengths.sort()
             self.wavelength_selection['unselected'].removeItem(index)
@@ -121,10 +120,36 @@ class Lasers(WidgetBase):
             scrollable_dock = QDockWidget()
             scrollable_dock.setWidget(scroll_box)
             self.tab_widget.addTab(scrollable_dock, f'Wavelength {wl}')
+            self.tab_widget.tabBarClicked.connect(self.change_viewer_layer)
             self.tab_map[wl] = self.tab_widget.indexOf(scrollable_dock)
             if int(wl) not in self.cfg.imaging_wavelengths:
                 tab_widget.setTabVisible(self.tab_map[wl], False)
+
+            self.viewer.layers.selection.events.changed.connect(self.layer_change)
+
         return self.tab_widget
+
+    def change_viewer_layer(self, index):
+
+        """Change selected layer based on what laser tab your on"""
+
+        tab_text = self.tab_widget.tabText(index)
+        for layer in self.viewer.layers:
+            if tab_text == layer.name:
+                self.viewer.layers.selection.active = self.viewer.layers[tab_text]
+
+    def layer_change(self):
+
+        """Change wavelength tab based on what layer your on"""
+
+        # Not on the main tab or the tissue map
+        if self.tab_widget.currentIndex() != len(self.tab_widget) - 1 and self.tab_widget.currentIndex() != 0:
+            for i in range(1,self.tab_widget.count()-1):    # skipping over main and tissue map
+                if str(self.viewer.layers.selection.active) == str(self.tab_widget.tabText(i)):
+                    self.tab_widget.setCurrentIndex(i)
+                    if not self.tab_widget.isTabVisible(i):
+                        self.unhide_labels(i)
+                    return
 
     def scan_wavelength_params(self, wv: str):
         """Scans config for relevant laser wavelength parameters
@@ -162,7 +187,10 @@ class Lasers(WidgetBase):
             self.dial_widgets[wv][k] = self.create_layout(struct='V', label =self.dials[wv][k+'label'],
                                                        dial = self.dials[wv][k],
                                                        value = self.dials[wv][k+'value'])
-        return  self.create_layout(struct = 'HV', **self.dial_widgets[wv])
+
+        return self.create_layout(struct = 'HV', **self.dial_widgets[wv])
+
+
 
     def update_dial_label(self, value, widget):
 
