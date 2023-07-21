@@ -35,6 +35,9 @@ class TissueMap(WidgetBase):
         self.overview = {}
         self.tiles = []
         self.initial_volume = [self.cfg.volume_x_um, self.cfg.volume_y_um, self.cfg.volume_z_um]
+        self.tile_offset = self.remap_axis({'x': (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
+                                            'y': (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
+                                            'z': 0})
 
     def set_tab_widget(self, tab_widget: QTabWidget):
 
@@ -154,9 +157,9 @@ class TissueMap(WidgetBase):
         self.gl_overview = gl.GLImageItem(overview_RGBA, glOptions='translucent')
         self.gl_overview.scale(self.scale_x, self.scale_y, 0, local=False)  # Scale Image
         gui_coord = self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
-        self.gl_overview.translate(gui_coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
-                              gui_coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
-                              gui_coord['z'])
+        self.gl_overview.translate(gui_coord['x'] - self.tile_offset['x'],
+                              gui_coord['y'] - self.tile_offset['y'],
+                              gui_coord['z'] - self.tile_offset['z'])
 
     def mark_graph(self):
 
@@ -254,9 +257,9 @@ class TissueMap(WidgetBase):
                 #     else np.random.randint(-60000, 60000, 3)
 
                 gui_coord = self.remap_axis(coord)  # Remap sample_pos to gui coords
-                self.pos.setTransform(qtpy.QtGui.QMatrix4x4(cos(pi/4), 0, -sin(pi/4), gui_coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
-                                                              0, 1, 0, gui_coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
-                                                              sin(pi/4), 0, cos(pi/4), gui_coord['z'],
+                self.pos.setTransform(qtpy.QtGui.QMatrix4x4(cos(pi/4), 0, -sin(pi/4), gui_coord['x'] - self.tile_offset['x'],
+                                                              0, 1, 0, gui_coord['y'] - self.tile_offset['y'],
+                                                              sin(pi/4), 0, cos(pi/4), gui_coord['z']- self.tile_offset['z'],
                                                               0, 0, 0, 1))
 
                 self.objectives.setTransform(qtpy.QtGui.QMatrix4x4(0, 0, 1, gui_coord['x'],
@@ -275,10 +278,10 @@ class TissueMap(WidgetBase):
                                                        for k in self.map_pose.keys()})
 
                     self.scan_vol.setSize(**scanning_volume)
-                    self.scan_vol.setTransform(qtpy.QtGui.QMatrix4x4(1, 0, 0, gui_coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
-                                                              0, 1, 0, gui_coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
-                                                              0, 0, 1, gui_coord['z'],
-                                                              0, 0, 0, 1))
+                    self.scan_vol.setTransform(qtpy.QtGui.QMatrix4x4(1, 0, 0, gui_coord['x'] - self.tile_offset['x'],
+                                                                     0, 1, 0, gui_coord['y'] - self.tile_offset['y'],
+                                                                     0, 0, 1, gui_coord['z'] - self.tile_offset['z'],
+                                                                     0, 0, 0, 1))
                     if self.checkbox['tiling'].isChecked():
                         self.draw_tiles(gui_coord)  # Draw tiles if checkbox is checked
 
@@ -287,11 +290,11 @@ class TissueMap(WidgetBase):
                     # Remap start position and shift position of scan vol to center of camera fov and convert um to mm
                     start_pos = {k: v * 0.001 for k, v in self.instrument.start_pos.items()}  # start of scan coords
                     start_pos = self.remap_axis(
-                        {'x': start_pos['x'] - (.5 * self.cfg.tile_specs['x_field_of_view_um']),
-                         'y': start_pos['y'] - (.5 * self.cfg.tile_specs['y_field_of_view_um']),
-                         'z': start_pos['z']})
+                        {'x': start_pos['x'] - self.tile_offset['x'],
+                         'y': start_pos['y'] - self.tile_offset['y'],
+                         'z': start_pos['z'] - self.tile_offset['z']})
 
-                    if self.map['tiling'].isChecked():
+                    if self.checkbox['tiling'].isChecked():
                         self.draw_tiles(start_pos)
                     self.draw_volume(start_pos, self.remap_axis({k: self.cfg.imaging_specs[f'volume_{k}_um'] * .001
                                                                  for k in self.map_pose.keys()}))
@@ -315,15 +318,16 @@ class TissueMap(WidgetBase):
             if item in self.plot.items:
                 self.plot.removeItem(item)
         self.tiles.clear()
-        total_tiles = self.xtiles*self.ytiles
         for x in range(0, self.xtiles):
             for y in range(0, self.ytiles):
-                tile_offset = self.remap_axis({'x': (x * self.x_grid_step_um * .001),
-                                            'y': (y * self.y_grid_step_um * .001),
-                                            'z': 0})
-                tile_pos = {'x': tile_offset['x'] + coord['x'] - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
-                            'y': tile_offset['y'] + coord['y'] - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
-                            'z': tile_offset['z'] + coord['z']
+                tile_offset = self.remap_axis(
+                    {'x': (x * self.x_grid_step_um * .001) - (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
+                     'y': (y * self.y_grid_step_um * .001) - (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
+                     'z': 0})
+                tile_pos = {
+                    'x': tile_offset['x'] + coord['x'],
+                    'y': tile_offset['y'] + coord['y'],
+                    'z': tile_offset['z'] + coord['z']
                 }
                 num_pos = [tile_pos['x'],
                            tile_pos['y'] + (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
