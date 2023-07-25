@@ -81,6 +81,10 @@ class TissueMap(WidgetBase):
                            'Please stop the livestream before starting overview.')
             return
 
+        # return_value = self.scan_summary()
+        # if return_value == QMessageBox.Cancel:
+        #     return
+
         self.map_pos_worker.quit()  # Stopping tissue map update
         for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, False)  # Disable tabs during scan
 
@@ -160,6 +164,28 @@ class TissueMap(WidgetBase):
         self.gl_overview.translate(gui_coord['x'] - self.tile_offset['x'],
                               gui_coord['y'] - self.tile_offset['y'],
                               gui_coord['z'] - self.tile_offset['z'])
+
+    def scan_summary(self):
+
+        x, y, z = self.instrument.get_tile_counts(self.cfg.tile_overlap_x_percent,
+                                                           self.cfg.tile_overlap_y_percent,
+                                                           .8 * 10,
+                                                           self.cfg.volume_x_um,
+                                                           300,
+                                                           self.cfg.volume_z_um)
+        msgBox = QMessageBox()
+        msgBox.setIcon(QMessageBox.Information)
+        msgBox.setText(f"Scan Summary\n"
+                       f"Lasers: {self.cfg.imaging_wavelengths}\n"
+                       f"Time: {round(self.instrument.acquisition_time(x, y, z), 3)} days\n"
+                       f"X Tiles: {x}\n"
+                       f"Y Tiles: {y}\n"
+                       f"Z Tiles: {z}\n"
+                       f"Saving as: {self.cfg.local_storage_dir}\overview_img_{'_'.join(map(str, self.cfg.imaging_wavelengths))}\n"
+                       f"Press cancel to abort run")
+        msgBox.setWindowTitle("Scan Summary")
+        msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        return msgBox.exec()
 
     def mark_graph(self):
 

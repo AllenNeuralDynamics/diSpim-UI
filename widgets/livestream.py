@@ -1,6 +1,6 @@
 from widgets.widget_base import WidgetBase
 from qtpy.QtWidgets import QPushButton, QComboBox, QSpinBox, QLineEdit, QTabWidget,QListWidget,QListWidgetItem, \
-    QAbstractItemView, QScrollArea, QSlider, QLabel, QCheckBox
+    QAbstractItemView, QScrollArea, QSlider, QLabel, QCheckBox, QToolButton, QDial
 import qtpy.QtGui as QtGui
 import qtpy.QtCore as QtCore
 import numpy as np
@@ -352,3 +352,13 @@ class Livestream(WidgetBase):
             location = self.instrument.tigerbox.get_position('z')
         self.move_stage_textbox(int(location['Z']))
         self.move_stage['slider'].setValue(int(location['Z']))
+
+
+
+
+
+
+
+
+
+

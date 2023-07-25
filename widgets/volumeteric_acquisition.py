@@ -81,6 +81,8 @@ class VolumetericAcquisition(WidgetBase):
         self.volumetric_image_worker.quit()
         self.progress_worker.quit()
         QtCore.QMetaObject.invokeMethod(self.progress['bar'], f'setValue', QtCore.Q_ARG(int, round(100)))
+        for i in range(1,len(self.tab_widget)):
+            self.tab_widget.setTabEnabled(i,True)
 
     def progress_bar_widget(self):
 
