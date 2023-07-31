@@ -11,10 +11,8 @@ import qtpy.QtGui
 import stl
 from math import cos, sin, pi
 import os
+import blend_modes
 import tifffile
-import matplotlib
-from skimage import exposure
-
 class TissueMap(WidgetBase):
 
     def __init__(self, instrument, viewer):
@@ -86,6 +84,7 @@ class TissueMap(WidgetBase):
         #     return
 
         self.map_pos_worker.quit()  # Stopping tissue map update
+        sleep(.6)  # Make sure map pose had chance to quit
         for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, False)  # Disable tabs during scan
 
         self.overview_worker = self._overview_worker()
@@ -105,14 +104,43 @@ class TissueMap(WidgetBase):
 
         for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, True)  # Enabled tabs
 
-        for wl, image in zip(self.cfg.imaging_wavelengths, self.overview_array):
+        j = 0
+        colormap_array = [None] * len(self.cfg.imaging_wavelengths)
+        for wl, array in zip(self.cfg.imaging_wavelengths, self.overview_array):
 
             key = f'Overview {wl}'
-            self.viewer.add_image(np.flip(np.rot90(image, 3)), name=key,
-                                  scale=[self.scale_x * 1000, self.scale_y * 1000])  # scale so it won't be squished in viewer
+            self.viewer.add_image(np.flip(np.rot90(array, 3)), name=key,
+                                  scale=[self.scale_x * 1000,
+                                         self.scale_y * 1000])  # scale so it won't be squished in viewer
             self.viewer.layers[key].rotate = 90
             self.viewer.layers[key].blending = 'additive'
 
+            wl_color = self.cfg.laser_specs[str(wl)]["color"]
+            rgb = [x / 255 for x in qtpy.QtGui.QColor(wl_color).getRgb()]
+
+            max = np.percentile(array, 90)
+            min = np.percentile(array, 5)
+            array.clip(min, max, out=array)
+            array -= min
+            array = np.floor_divide(array, (max - min) / 256, out=array, casting='unsafe')
+            overview_RGBA = \
+                pg.makeRGBA(np.flip(np.rot90(array, 3), axis=1), levels=[0, 256])[0]  # GLImage needs to be RGBA
+            for i in range(0, len(rgb)):
+                overview_RGBA[:, :, i] = overview_RGBA[:, :, i] * rgb[i]
+            colormap_array[j] = overview_RGBA
+            j += 1
+        blended = colormap_array[0]
+        for i in range(1, len(colormap_array)):
+            alpha = 1 - (i / (i + 1))
+            print(alpha)
+            blended = blend_modes.darken_only(blended.astype('f8'), colormap_array[i].astype('f8'), alpha)
+        final_RGBA = pg.makeRGBA(blended, levels=[0, 256])[0]
+        self.gl_overview = gl.GLImageItem(final_RGBA, glOptions='translucent')
+        self.gl_overview.scale(self.scale_x, self.scale_y, 0, local=False)  # Scale Image
+        gui_coord = self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
+        self.gl_overview.translate(gui_coord['x'] - self.tile_offset['x'],
+                                   gui_coord['y'] - self.tile_offset['y'],
+                                   gui_coord['z'] - self.tile_offset['z'])
 
         self.plot.removeItem(self.objectives)
         self.plot.addItem(self.gl_overview)  # GlImage doesn't like threads, do this outside of thread
@@ -128,9 +156,16 @@ class TissueMap(WidgetBase):
         self.x_grid_step_um, self.y_grid_step_um = self.instrument.get_xy_grid_step(self.cfg.tile_overlap_x_percent,
                                                                                     self.cfg.tile_overlap_y_percent)
 
-        self.overview_array, self.xtiles = self.instrument.overview_scan()
+        try:
+            self.overview_array, self.xtiles = self.instrument.overview_scan()
 
-        # self.overview_array = [tifffile.imread(fr'C:\Users\hcr-fish\Downloads\overview_img_405.tiff')]
+        except Exception as e:
+            print(e)        # Print error if starting scan doesn't work
+            self.volumetric_image_worker.quit()
+            for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, True)
+            return
+
+        # self.overview_array = tifffile.imread(fr'C:\dispim_test\overview_img_405_561_638_2023-07-24_09-47-44.tiff')
         # self.xtiles = 18
 
         overlap_um = round((self.cfg.tile_overlap_x_percent / 100) * self.cfg.tile_specs['x_field_of_view_um'])
@@ -140,30 +175,6 @@ class TissueMap(WidgetBase):
 
         self.scale_x = ((self.cfg.imaging_specs[f'volume_z_um'] * 0.001) / self.overview_array[0].shape[1])
 
-        self.colormap_overviews = {}
-
-        for wl, image in zip(self.cfg.imaging_wavelengths, self.overview_array):
-            wl_color = self.cfg.laser_specs[str(wl)]["color"]
-            rgb = qtpy.QtGui.QColor(wl_color).getRgb()
-            vals = np.ones((256, 4))
-            vals[:, 0] = np.linspace(rgb[0] / 256, 1, 256)
-            vals[:, 1] = np.linspace(rgb[1] / 256, 1, 256)
-            vals[:, 2] = np.linspace(rgb[2] / 256, 1, 256)
-            map = matplotlib.colors.ListedColormap(vals)
-
-            img_cdf, bin_centers = exposure.cumulative_distribution(image, nbins=int(image.max()))
-            image_interp = np.interp(image, bin_centers, img_cdf)
-            self.colormap_overviews[wl] = map(image_interp)
-        final_overview = sum(self.colormap_overviews.values())
-        overview_RGBA = \
-            pg.makeRGBA(np.flip(np.rot90(final_overview, 3), axis=1), levels=[0, 1])[0]  # GLImage needs to be RGBA
-        overview_RGBA[:, :, 3] = 200
-        self.gl_overview = gl.GLImageItem(overview_RGBA, glOptions='translucent')
-        self.gl_overview.scale(self.scale_x, self.scale_y, 0, local=False)  # Scale Image
-        gui_coord = self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
-        self.gl_overview.translate(gui_coord['x'] - self.tile_offset['x'],
-                              gui_coord['y'] - self.tile_offset['y'],
-                              gui_coord['z'] - self.tile_offset['z'])
 
     def scan_summary(self):
 
