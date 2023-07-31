@@ -54,9 +54,14 @@ class VolumetericAcquisition(WidgetBase):
             if return_value == QMessageBox.Cancel:
                 return
 
+        return_value = self.scan_summary()
+        if return_value == QMessageBox.Cancel:
+            return
+
         for i in range(1,len(self.tab_widget)):
             self.tab_widget.setTabEnabled(i,False)
         self.instrument.cfg.save()
+
         self.run_worker = self._run()
         self.run_worker.finished.connect(lambda: self.end_scan())  # Napari threads have finished signals
         self.run_worker.start()
@@ -108,6 +113,7 @@ class VolumetericAcquisition(WidgetBase):
         QtCore.QMetaObject.invokeMethod(self.progress['end_time'], 'setHidden', QtCore.Q_ARG(bool, False))
         QtCore.QMetaObject.invokeMethod(self.progress['bar'], 'setValue', QtCore.Q_ARG(int, 0))
         while self.instrument.total_tiles == None or self.instrument.est_run_time == None:
+            yield
             sleep(.5)
         # Calculate total tiles within all stacks
         if self.cfg.acquisition_style == 'interleaved' and not self.instrument.overview_set.is_set():
@@ -139,6 +145,29 @@ class VolumetericAcquisition(WidgetBase):
             self.progress['end_time'].setText(f"End Time: {weekday}, {date_str}")
             sleep(.5)
             yield  # So thread can stop
+
+    def scan_summary(self):
+
+        x, y, z = self.instrument.get_tile_counts(self.cfg.tile_overlap_x_percent,
+                                                           self.cfg.tile_overlap_y_percent,
+                                                           self.cfg.z_step_size_um,
+                                                           self.cfg.volume_x_um,
+                                                           self.cfg.volume_y_um,
+                                                           self.cfg.volume_z_um)
+        msgBox = QMessageBox()
+        msgBox.setIcon(QMessageBox.Information)
+        msgBox.setText(f"Scan Summary\n"
+                       f"Lasers: {self.cfg.imaging_wavelengths}\n"
+                       f"Time: {round(self.instrument.acquisition_time(x, y, z), 3)} days\n"
+                       f"X Tiles: {x}\n"
+                       f"Y Tiles: {y}\n"
+                       f"Z Tiles: {z}\n"
+                       f"Local Dir: {self.cfg.local_storage_dir}\n"
+                       f"External Dir: {self.cfg.local_storage_dir}\n"
+                       f"Press cancel to abort run")
+        msgBox.setWindowTitle("Scan Summary")
+        msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        return msgBox.exec()
 
     def overwrite_warning(self):
         msgBox = QMessageBox()

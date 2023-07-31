@@ -65,24 +65,28 @@ class TissueMap(WidgetBase):
         """Widgets for setting up a quick scan"""
 
         self.overview['start'] = QPushButton('Start overview')
-        self.overview['start'].clicked.connect(self.start_overview)
-
+        self.overview['start'].pressed.connect(self.start_overview)
+        #self.overview['start'].setCheckable(True)
         return self.create_layout(struct='V', **self.overview)
 
     def start_overview(self):
 
         """Start overview function of instrument"""
 
+        self.overview['start'].blockSignals(True)       # Block release signal so progress bar doesn't start
 
         if self.instrument.livestream_enabled.is_set():
             self.error_msg('Livestreaming',
                            'Please stop the livestream before starting overview.')
+            self.overview['start'].blockSignals(False)
             return
 
-        # return_value = self.scan_summary()
-        # if return_value == QMessageBox.Cancel:
-        #     return
+        return_value = self.scan_summary()
+        if return_value == QMessageBox.Cancel:
+            self.overview['start'].blockSignals(False)
+            return
 
+        self.overview['start'].released.emit()      # Start progress bar
         self.map_pos_worker.quit()  # Stopping tissue map update
         sleep(.6)  # Make sure map pose had chance to quit
         for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, False)  # Disable tabs during scan
