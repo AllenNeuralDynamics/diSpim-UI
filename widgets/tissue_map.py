@@ -136,7 +136,6 @@ class TissueMap(WidgetBase):
         blended = colormap_array[0]
         for i in range(1, len(colormap_array)):
             alpha = 1 - (i / (i + 1))
-            print(alpha)
             blended = blend_modes.darken_only(blended.astype('f8'), colormap_array[i].astype('f8'), alpha)
         final_RGBA = pg.makeRGBA(blended, levels=[0, 256])[0]
         self.gl_overview = gl.GLImageItem(final_RGBA, glOptions='translucent')

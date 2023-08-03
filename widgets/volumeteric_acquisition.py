@@ -79,11 +79,11 @@ class VolumetericAcquisition(WidgetBase):
     @thread_worker
     def _run(self):
 
-        try:
+        #try:
             self.instrument.run(overwrite=self.volumetric_image['overwrite'].isChecked())
 
-        except Exception as e:
-            print(e)        # Print error if starting scan doesn't work
+        # except Exception as e:
+        #     print(e)        # Print error if starting scan doesn't work
 
     def end_scan(self):
 

@@ -61,7 +61,7 @@ class Livestream(WidgetBase):
                 for direction in directions:
                     self.pos_widget[direction].setValue(int(self.stage_position[direction] * 1 / 10))
             except ValueError:
-                self.update_layer(0)
+                self.update_positon(0)
 
 
     def liveview_widget(self):
