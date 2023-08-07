@@ -163,7 +163,7 @@ class VolumetericAcquisition(WidgetBase):
                        f"Y Tiles: {y}\n"
                        f"Z Tiles: {z}\n"
                        f"Local Dir: {self.cfg.local_storage_dir}\n"
-                       f"External Dir: {self.cfg.local_storage_dir}\n"
+                       f"External Dir: {self.cfg.ext_storage_dir}\n"
                        f"Press cancel to abort run")
         msgBox.setWindowTitle("Scan Summary")
         msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)

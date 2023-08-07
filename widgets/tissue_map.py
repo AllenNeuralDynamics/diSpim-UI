@@ -86,6 +86,7 @@ class TissueMap(WidgetBase):
             self.overview['start'].blockSignals(False)
             return
 
+        self.overview['start'].blockSignals(False)
         self.overview['start'].released.emit()      # Start progress bar
         self.map_pos_worker.quit()  # Stopping tissue map update
         sleep(.6)  # Make sure map pose had chance to quit
