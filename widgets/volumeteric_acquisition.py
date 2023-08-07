@@ -49,6 +49,8 @@ class VolumetericAcquisition(WidgetBase):
 
     def run_volumeteric_imaging(self):
 
+        sleep(5)        # Allow threads to fully stop before starting scan
+
         if self.volumetric_image['overwrite'].isChecked():
             return_value = self.overwrite_warning()
             if return_value == QMessageBox.Cancel:
@@ -79,11 +81,9 @@ class VolumetericAcquisition(WidgetBase):
     @thread_worker
     def _run(self):
 
-        #try:
-            self.instrument.run(overwrite=self.volumetric_image['overwrite'].isChecked())
 
-        # except Exception as e:
-        #     print(e)        # Print error if starting scan doesn't work
+        self.instrument.run(overwrite=self.volumetric_image['overwrite'].isChecked())
+
 
     def end_scan(self):
 

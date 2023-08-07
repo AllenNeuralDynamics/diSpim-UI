@@ -89,7 +89,7 @@ class TissueMap(WidgetBase):
         self.overview['start'].blockSignals(False)
         self.overview['start'].released.emit()      # Start progress bar
         self.map_pos_worker.quit()  # Stopping tissue map update
-        sleep(.6)  # Make sure map pose had chance to quit
+        sleep(1)  # Make sure map pose had chance to quit
         for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, False)  # Disable tabs during scan
 
         self.overview_worker = self._overview_worker()
@@ -160,14 +160,10 @@ class TissueMap(WidgetBase):
         self.x_grid_step_um, self.y_grid_step_um = self.instrument.get_xy_grid_step(self.cfg.tile_overlap_x_percent,
                                                                                     self.cfg.tile_overlap_y_percent)
 
-        try:
-            self.overview_array, self.xtiles = self.instrument.overview_scan()
 
-        except Exception as e:
-            print(e)        # Print error if starting scan doesn't work
-            self.volumetric_image_worker.quit()
-            for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, True)
-            return
+        self.overview_array, self.xtiles = self.instrument.overview_scan()
+
+
 
         # self.overview_array = tifffile.imread(fr'C:\dispim_test\overview_img_405_561_638_2023-07-24_09-47-44.tiff')
         # self.xtiles = 18

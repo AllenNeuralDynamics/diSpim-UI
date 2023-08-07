@@ -104,7 +104,7 @@ class UserInterface:
         tabbed_widgets = QTabWidget()  # Creating tab object
         tabbed_widgets.setTabPosition(QTabWidget.North)
         tabbed_widgets.addTab(self.instrument_params.joystick_remap_tab(), 'Joystick')
-        x_game_mode = ['Micah Woodard', 'Xiaoyun Jiang', 'Adam Glaser', 'Joshua Vasquez', 'Kevin Cao']
+        x_game_mode = ['Micah Woodard', 'Xiaoyun Jiang', 'Adam Glaser', 'Joshua Vasquez', 'Kevin Cao', 'Christian Bonatto', 'Erica Peterson']
         if self.cfg.experimenters_name not in x_game_mode:
             widgets = {'config_properties': self.instrument_params.scan_config(self.cfg, False)}
             tabbed_widgets.setTabVisible(0, False) # Hide joystick
@@ -172,7 +172,8 @@ class UserInterface:
         quick_scan_widget.children()[1].released.connect(lambda: self.vol_acq_params._progress_bar_worker().start())
         widgets = {
             'graph': self.tissue_map.graph(),
-            'functions': self.tissue_map.create_layout(struct='H',point=self.tissue_map.mark_graph(),
+            'functions': self.tissue_map.create_layout
+            (struct='H',point=self.tissue_map.mark_graph(),
                                                        quick_scan = quick_scan_widget)
         }
 

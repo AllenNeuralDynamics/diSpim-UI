@@ -56,12 +56,13 @@ class Livestream(WidgetBase):
         directions = ['X', 'Y', 'Z']
         if index == 0:
             try:
+                sleep(1)    # Sleep to allow threads to quit
                 self.stage_position = self.instrument.tigerbox.get_position()
                 # Update stage labels if stage has moved
                 for direction in directions:
                     self.pos_widget[direction].setValue(int(self.stage_position[direction] * 1 / 10))
             except ValueError:
-                self.update_positon(0)
+                pass    # Pass if stage coughs up garbage
 
 
     def liveview_widget(self):
