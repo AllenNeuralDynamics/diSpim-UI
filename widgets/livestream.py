@@ -53,11 +53,11 @@ class Livestream(WidgetBase):
 
     def update_positon(self, index):
 
-        directions = ['X', 'Y', 'Z']
+        directions = ['x', 'y', 'z']
         if index == 0:
             try:
                 sleep(1)    # Sleep to allow threads to quit
-                self.stage_position = self.instrument.tigerbox.get_position()
+                self.stage_position = self.instrument.sample_pose.get_position()
                 # Update stage labels if stage has moved
                 for direction in directions:
                     self.pos_widget[direction].setValue(int(self.stage_position[direction] * 1 / 10))
@@ -204,8 +204,8 @@ class Livestream(WidgetBase):
 
         """Creates labels and boxs to indicate sample position"""
 
-        directions = ['X', 'Y', 'Z']
-        self.stage_position = self.instrument.tigerbox.get_position()
+        directions = ['x', 'y', 'z']
+        self.stage_position = self.instrument.sample_pose.get_position()
 
         # Create X, Y, Z labels and displays for where stage is
         for direction in directions:
@@ -240,7 +240,7 @@ class Livestream(WidgetBase):
             if self.tab_widget.currentIndex() != len(self.tab_widget) - 1:
                 moved = False
                 try:
-                    self.sample_pos = self.instrument.tigerbox.get_position()
+                    self.sample_pos = self.instrument.sample_pose.get_position()
                     for direction in self.sample_pos.keys():
                         if direction in self.pos_widget.keys():
                             new_pos = int(self.sample_pos[direction] * 1 / 10)
@@ -283,7 +283,7 @@ class Livestream(WidgetBase):
 
         z_position = self.instrument.tigerbox.get_position('z')
         self.z_limit = self.instrument.sample_pose.get_travel_limits('y')
-        self.z_limit['y'] = [round(x*10000) for x in self.z_limit['y']]
+        self.z_limit['y'] = [round(x*1000) for x in self.z_limit['y']]
         self.z_range = self.z_limit["y"][1] + abs(self.z_limit["y"][0]) # Shift range up by lower limit so no negative numbers
         self.move_stage['up'] = QLabel(
             f'Upper Limit: {round(self.z_limit["y"][0])}')  # Upper limit will be the more negative limit
@@ -292,7 +292,7 @@ class Livestream(WidgetBase):
         self.move_stage['slider'].setInvertedAppearance(True)
         self.move_stage['slider'].setMinimum(self.z_limit["y"][0])
         self.move_stage['slider'].setMaximum(self.z_limit["y"][1])
-        self.move_stage['slider'].setValue(int(z_position['Z']))
+        self.move_stage['slider'].setValue(int(z_position['Z']/10))
         self.move_stage['slider'].setTracking(False)
         self.move_stage['slider'].sliderReleased.connect(self.move_stage_vertical_released)
         self.move_stage['low'] = QLabel(
@@ -323,8 +323,8 @@ class Livestream(WidgetBase):
             self.move_stage['slider'].setValue(location)
             self.move_stage_textbox(location)
         self.tab_widget.setTabEnabled(len(self.tab_widget)-1, False)
-        self.instrument.tigerbox.move_absolute(z=location)
-        self.move_stage_worker = create_worker(lambda axis='y', pos=float(location): self.instrument.wait_to_stop(axis, pos))
+        self.instrument.tigerbox.move_absolute(z=(location*10))
+        self.move_stage_worker = create_worker(lambda axis='y', pos=float(location*10): self.instrument.wait_to_stop(axis, pos))
         self.move_stage_worker.start()
         self.move_stage_worker.finished.connect(lambda:self.enable_stage_slider())
 
@@ -346,13 +346,13 @@ class Livestream(WidgetBase):
 
     def update_slider(self, location:dict):
 
-        """Update position of slider if stage halted"""
+        """Update position of slider if stage halted. Location passed in as samplepose"""
 
         if type(location) == bool:      # if location is bool, then halt button was pressed
             self.move_stage_worker.quit()
             location = self.instrument.tigerbox.get_position('z')
-        self.move_stage_textbox(int(location['Z']))
-        self.move_stage['slider'].setValue(int(location['Z']))
+        self.move_stage_textbox(int(location['y']/10))
+        self.move_stage['slider'].setValue(int(location['y']/10))
 
 
 

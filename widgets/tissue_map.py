@@ -165,8 +165,8 @@ class TissueMap(WidgetBase):
 
 
 
-        # self.overview_array = tifffile.imread(fr'C:\dispim_test\overview_img_405_561_638_2023-07-24_09-47-44.tiff')
-        # self.xtiles = 18
+        # self.overview_array = tifffile.imread(fr'C:\dispim_test\overview_img_405_2023-08-09_12-09-55.tiff')
+        # self.xtiles = 10
 
         overlap_um = round((self.cfg.tile_overlap_x_percent / 100) * self.cfg.tile_specs['x_field_of_view_um'])
         self.scale_y = (
