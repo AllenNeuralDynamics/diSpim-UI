@@ -1,7 +1,7 @@
 from widgets.widget_base import WidgetBase
 from PyQt5.QtCore import Qt, QSize
 from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, QSlider, QLineEdit, \
-    QTabWidget, QVBoxLayout, QMessageBox, QDial, QFrame
+    QTabWidget, QVBoxLayout, QMessageBox, QDial, QFrame, QInputDialog, QWidget
 import qtpy.QtCore as QtCore
 import logging
 import numpy as np
@@ -71,10 +71,17 @@ class Lasers(WidgetBase):
                                                      f':black; }}')
             self.selected[wavelengths].clicked.connect(lambda clicked=None, widget=self.selected[wavelengths]:
                                                        self.hide_labels(clicked, widget))
+
+
             if int(wavelengths) not in self.imaging_wavelengths:
                 self.selected[wavelengths].setHidden(True)
         self.selected_wl_layout = self.create_layout(struct='V', **self.selected)
         return self.selected_wl_layout
+
+    def geneprompt(self, wl):
+        text, okPressed = QInputDialog.getText(QWidget(),f"Enter gene for channel {wl}", "Gene:")
+        self.laser_power[f'{wl} textbox'].setText(text)
+        self.instrument.channel_gene[wl] = text
 
     def hide_labels(self, clicked, widget):
 
@@ -88,6 +95,8 @@ class Lasers(WidgetBase):
         if widget_wavelength in self.laser_power:
             self.laser_power[widget_wavelength].setHidden(True)
             self.laser_power[f'{widget_wavelength} label'].setHidden(True)
+            self.laser_power[f'{widget_wavelength} textbox'].setHidden(True)
+        self.instrument.channel_gene.pop(widget_wavelength)
         self.imaging_wavelengths.remove(int(widget_wavelength))
         self.imaging_wavelengths.sort()
         self.wavelength_selection['unselected'].addItem(widget.text())
@@ -98,6 +107,7 @@ class Lasers(WidgetBase):
 
         if index != 0:
             widget_wavelength = self.wavelength_selection['unselected'].itemText(index)
+            self.geneprompt(widget_wavelength)
             self.imaging_wavelengths.append(int(widget_wavelength))
             self.imaging_wavelengths.sort()
             self.wavelength_selection['unselected'].removeItem(index)
@@ -106,6 +116,7 @@ class Lasers(WidgetBase):
             if widget_wavelength in self.laser_power:
                 self.laser_power[widget_wavelength].setHidden(False)
                 self.laser_power[f'{widget_wavelength} label'].setHidden(False)
+                self.laser_power[f'{widget_wavelength} textbox'].setHidden(False)
 
     def add_wavelength_tabs(self, tab_widget: QTabWidget):
 
@@ -261,6 +272,10 @@ class Lasers(WidgetBase):
             self.laser_power[wl].setMaximum(int(float(max)))
             self.laser_power[wl].setValue(int(float(value)))
 
+            # Creating textbox for gene
+            self.laser_power[f'{wl} textbox'] = QLineEdit()
+            self.laser_power[f'{wl} textbox'].editingFinished.connect(lambda wl=wl: self.add_gene( wl))
+            self.laser_power[f'{wl} textbox'].setMaximumWidth(50)
             # Setting activity when slider is moved (update label value)
             # or released (update laser current or power to slider setpoint)
             self.laser_power[wl].sliderReleased.connect(
@@ -274,12 +289,18 @@ class Lasers(WidgetBase):
             if int(wl) not in self.imaging_wavelengths:
                 self.laser_power[wl].setHidden(True)
                 self.laser_power[f'{wl} label'].setHidden(True)
-
+                self.laser_power[f'{wl} textbox'].setHidden(True)
+            else:
+                self.instrument.channel_gene[wl] = None
             laser_power_layout[str(wl)] = self.create_layout(struct='H',
+                                                        gene=self.laser_power[f'{wl} textbox'],
                                                         label=self.laser_power[f'{wl} label'],
                                                         text=self.laser_power[wl])
 
         return self.create_layout(struct='V', **laser_power_layout)
+
+    def add_gene(self, wl):
+       self.instrument.channel_gene[wl] = self.laser_power[f'{wl} textbox'].text()
 
     def laser_power_label(self, value, unit, wl: int, curve = None, release=False):
 

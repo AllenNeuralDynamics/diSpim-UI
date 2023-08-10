@@ -51,6 +51,20 @@ class VolumetericAcquisition(WidgetBase):
 
         sleep(5)        # Allow threads to fully stop before starting scan
 
+        print(self.instrument.channel_gene.keys())
+        print(self.instrument.channel_gene.values())
+        print([str(x) for x in self.cfg.imaging_wavelengths])
+        print([str(x) for x in self.cfg.imaging_wavelengths] != [x for x in self.instrument.channel_gene.keys()])
+        print(None in self.instrument.channel_gene.values())
+        print('' in self.instrument.channel_gene.values())
+
+        if [str(x) for x in self.cfg.imaging_wavelengths] != [x for x in self.instrument.channel_gene.keys()] or \
+                None in self.instrument.channel_gene.values() or '' in self.instrument.channel_gene.values():
+            self.error_msg('Genes', 'Genes for cheannels are unspecified. '
+                                    'Enter genes in the text box next to power '
+                                    'slider to continue to scan.')
+            return
+
         if self.volumetric_image['overwrite'].isChecked():
             return_value = self.overwrite_warning()
             if return_value == QMessageBox.Cancel:

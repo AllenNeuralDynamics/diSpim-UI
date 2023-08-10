@@ -93,7 +93,8 @@ class WidgetBase:
                                               self.cfg.tile_specs['y_field_of_view_um'] / self.cfg.sensor_column_count),
                                               rotate=0,
                                               visible=False)
-                self.viewer['blank <hidden>'].mouse_drag_callbacks.append(self.on_click)
+                self.viewer.layers['blank <hidden>'].mouse_drag_callbacks.append(self.on_click)
+                self.viewer.layers.selection.active = self.viewer.layers[key]
                 center = self.viewer.camera.center
                 self.viewer.camera.center = (center[0],
                                              -self.cfg.tile_specs['y_field_of_view_um'] * .5,  # Vertical
@@ -101,7 +102,7 @@ class WidgetBase:
         except:
             pass
 
-    #@layer.mouse_drag_callbacks.append  # Ability to pan when the dimension is being displayed as 3d
+    # Ability to pan when the dimension is being displayed as 3d
     def on_click(self, layer, event):
         center = self.viewer.camera.center
         zoom = self.viewer.camera.zoom
