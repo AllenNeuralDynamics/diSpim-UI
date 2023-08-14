@@ -83,6 +83,7 @@ class UserInterface:
                                                             tab=tabbed_widgets)     # Adding liveview on top of tabs
 
             self.viewer.window.add_dock_widget(main_page, name=' ')  # Adding tabs to window
+
             # TODO: Move set scan to tissue map tab?
 
             self.viewer.window.add_dock_widget(instr_params_window, name='Instrument Parameters', area='left')
@@ -180,7 +181,9 @@ class UserInterface:
         }
 
         widgets['functions'].setMaximumHeight(100)
+
         return self.tissue_map.create_layout(struct='V', **widgets)
+
 
     def experimenters_name_popup(self):
 

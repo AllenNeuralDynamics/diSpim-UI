@@ -13,6 +13,8 @@ from math import cos, sin, pi
 import os
 import blend_modes
 import tifffile
+import json
+
 class TissueMap(WidgetBase):
 
     def __init__(self, instrument, viewer):
@@ -101,24 +103,45 @@ class TissueMap(WidgetBase):
         self.volumetric_image_worker.yielded.connect(self.update_layer)
         self.volumetric_image_worker.start()
 
-    def overview_finish(self):
+    def overview_finish(self, overview_path = None):
 
         """Function to be executed at the end of the overview"""
 
-        self.volumetric_image_worker.quit()
-
         for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, True)  # Enabled tabs
 
-        j = 0
-        colormap_array = [None] * len(self.cfg.imaging_wavelengths)
-        for wl, array in zip(self.cfg.imaging_wavelengths, self.overview_array):
+        if overview_path != None:
+            with tifffile.TiffFile(overview_path) as tif:
+                tag = tif.pages[0].tags['ImageDescription']
+                meta_dict = json.loads(tag.value)
+                self.overview_array = tif.asarray()
+                self.xtiles = meta_dict['tile']['x']
+                z_volume = meta_dict['volume']['z']
+                gui_coord = self.remap_axis({k: v * 0.0001 for k, v in meta_dict['position'].items()})
+                wavelengths = overview_path[(overview_path.find('overview_img_')+len('overview_img_')):-25].split('_')
+        else:
+            z_volume = self.cfg.imaging_specs[f'volume_z_um']
+            gui_coord =self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
+            wavelengths = self.cfg.imaging_wavelengths
 
+        overlap_um = round((self.cfg.tile_overlap_x_percent / 100) * self.cfg.tile_specs['x_field_of_view_um'])
+        self.scale_y = (
+                (((self.cfg.tile_specs['x_field_of_view_um'] * self.xtiles) - (overlap_um * (self.xtiles - 1))) * 0.001)
+                / self.overview_array[0].shape[0])
+
+        self.scale_x = ((z_volume * 0.001) / self.overview_array[0].shape[1])
+
+        j = 0
+        colormap_array = [None] * len(wavelengths)
+
+        for wl, array in zip(wavelengths, self.overview_array):
+            wl = int(wl)
             key = f'Overview {wl}'
             self.viewer.add_image(np.flip(np.rot90(array, 3)), name=key,
                                   scale=[self.scale_x * 1000,
                                          self.scale_y * 1000])  # scale so it won't be squished in viewer
             self.viewer.layers[key].rotate = 90
             self.viewer.layers[key].blending = 'additive'
+            self.viewer.layers[key].mouse_drag_callbacks.append(self.on_click)
 
             wl_color = self.cfg.laser_specs[str(wl)]["color"]
             rgb = [x / 255 for x in qtpy.QtGui.QColor(wl_color).getRgb()]
@@ -141,11 +164,9 @@ class TissueMap(WidgetBase):
         final_RGBA = pg.makeRGBA(blended, levels=[0, 256])[0]
         self.gl_overview = gl.GLImageItem(final_RGBA, glOptions='translucent')
         self.gl_overview.scale(self.scale_x, self.scale_y, 0, local=False)  # Scale Image
-        gui_coord = self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
         self.gl_overview.translate(gui_coord['x'] - self.tile_offset['x'],
                                    gui_coord['y'] - self.tile_offset['y'],
                                    gui_coord['z'] - self.tile_offset['z'])
-
         self.plot.removeItem(self.objectives)
         self.plot.addItem(self.gl_overview)  # GlImage doesn't like threads, do this outside of thread
         self.plot.addItem(self.objectives)  # Remove and add objectives to see view through them
@@ -163,17 +184,10 @@ class TissueMap(WidgetBase):
 
         self.overview_array, self.xtiles = self.instrument.overview_scan()
 
-
+        self.volumetric_image_worker.quit()
 
         # self.overview_array = tifffile.imread(fr'C:\dispim_test\overview_img_405_2023-08-09_12-09-55.tiff')
         # self.xtiles = 10
-
-        overlap_um = round((self.cfg.tile_overlap_x_percent / 100) * self.cfg.tile_specs['x_field_of_view_um'])
-        self.scale_y = (
-                (((self.cfg.tile_specs['x_field_of_view_um'] * self.xtiles) - (overlap_um * (self.xtiles - 1))) * 0.001)
-                / self.overview_array[0].shape[0])
-
-        self.scale_x = ((self.cfg.imaging_specs[f'volume_z_um'] * 0.001) / self.overview_array[0].shape[1])
 
 
     def scan_summary(self):
@@ -520,4 +534,26 @@ class TissueMap(WidgetBase):
             self.objectives = gl.GLBoxItem()
             self.stage = gl.GLBoxItem()
 
+        # Reassigning drag and drop function to be able to drop in overviews
+        self.plot.setAcceptDrops(True)
+        self.plot.dragEnterEvent = self.dragEnterEvent
+        self.plot.dragMoveEvent = self.dragMoveEvent
+        self.plot.dropEvent = self.dropEvent
+
         return self.plot
+
+    def dragEnterEvent(self, event):
+        event.accept()
+
+    def dragMoveEvent(self, event):
+        event.accept()
+
+    def dropEvent(self, event):
+        file_path = event.mimeData().urls()[0].toLocalFile()
+        try:
+            self.overview_finish(file_path)
+        except:
+            self.error_msg('Unusable Image', "Image dragged does not have the correct metadata. Tiff needs to have "
+                                             "position, volume, and tile data for x, y, z")
+
+        event.accept()
