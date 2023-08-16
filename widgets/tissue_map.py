@@ -363,7 +363,6 @@ class TissueMap(WidgetBase):
                                                                  for k in self.map_pose.keys()}))
                     yield
             except:
-                pass
                 yield
             finally:
                 yield  # Yield so thread can stop
