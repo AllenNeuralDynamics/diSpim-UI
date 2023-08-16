@@ -94,7 +94,7 @@ class WidgetBase:
                 #                               rotate=0,
                 #                               visible=False)
                 # self.viewer.layers['blank <hidden>'].mouse_drag_callbacks.append(self.on_click)
-                self.viewer.layers.selection.active = self.viewer.layers[key]
+                # self.viewer.layers.selection.active = self.viewer.layers[key]
                 center = self.viewer.camera.center
                 self.viewer.camera.center = (center[0],
                                              -self.cfg.tile_specs['y_field_of_view_um'] * .5,  # Vertical
