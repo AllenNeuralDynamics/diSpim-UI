@@ -141,7 +141,6 @@ class TissueMap(WidgetBase):
                                          self.scale_y * 1000])  # scale so it won't be squished in viewer
             self.viewer.layers[key].rotate = 90
             self.viewer.layers[key].blending = 'additive'
-            self.viewer.layers[key].mouse_drag_callbacks.append(self.on_click)
 
             wl_color = self.cfg.laser_specs[str(wl)]["color"]
             rgb = [x / 255 for x in qtpy.QtGui.QColor(wl_color).getRgb()]
@@ -296,7 +295,7 @@ class TissueMap(WidgetBase):
 
         """Update position of stage for tissue map, draw scanning volume, and tiling"""
         while True:
-            try:
+            #try:
 
                 if self.map_pose != self.instrument.sample_pose.get_position() and self.instrument.scout_mode:
                     # if stage has moved and scout mode is on
@@ -321,7 +320,7 @@ class TissueMap(WidgetBase):
                                                               1, 0, 0, self.origin['y'],
                                                               0, 1, 0, gui_coord['z'],
                                                               0, 0, 0, 1))
-
+                yield
                 if self.instrument.start_pos == None:
 
                     # Translate volume of scan to gui coordinate plane
@@ -335,7 +334,7 @@ class TissueMap(WidgetBase):
                                                                      0, 0, 0, 1))
                     if self.checkbox['tiling'].isChecked():
                         self.draw_tiles(gui_coord)  # Draw tiles if checkbox is checked
-
+                    yield
                 else:
 
                     # Remap start position and shift position of scan vol to center of camera fov and convert um to mm
@@ -349,10 +348,11 @@ class TissueMap(WidgetBase):
                         self.draw_tiles(start_pos)
                     self.draw_volume(start_pos, self.remap_axis({k: self.cfg.imaging_specs[f'volume_{k}_um'] * .001
                                                                  for k in self.map_pose.keys()}))
-            except:
-                pass
-            finally:
-                sleep(.5)
+                    yield
+            # except:
+            #     pass
+            #     yield
+            #finally:
                 yield  # Yield so thread can stop
 
     def draw_tiles(self, coord):

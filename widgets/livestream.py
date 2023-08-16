@@ -249,15 +249,17 @@ class Livestream(WidgetBase):
                             if self.pos_widget[direction].value() != new_pos:
                                 self.pos_widget[direction].setValue(new_pos)
                                 moved = True
-
+                                yield
                     if self.instrument.scout_mode and moved:
                         self.start_stop_ni()
                     self.update_slider(self.sample_pos)     # Update slide with newest z depth
+                    yield
                 except:
                     # Deal with garbled replies from tigerbox
+                    yield
                     pass
-
-            sleep(.5)
+            yield
+            #sleep(.5)
 
 
     def screenshot_button(self):
