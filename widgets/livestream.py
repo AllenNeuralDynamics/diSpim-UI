@@ -9,7 +9,8 @@ from skimage.io import imsave
 from napari.qt.threading import thread_worker, create_worker
 from time import sleep
 import logging
-
+import os
+import datetime
 
 class Livestream(WidgetBase):
 
@@ -143,6 +144,7 @@ class Livestream(WidgetBase):
 
         self.sample_pos_worker = self._sample_pos_worker()
         self.sample_pos_worker.start()
+        self.sample_pos_worker.finished.connect(self.instrument.stop_livestream)
 
         self.live_view['start'].clicked.connect(self.stop_live_view)
         # Only allow stopping once everything is initialized
@@ -163,7 +165,6 @@ class Livestream(WidgetBase):
 
         self.disable_button(button=self.live_view['start'])
         self.live_view['start'].clicked.disconnect(self.stop_live_view)
-        self.instrument.stop_livestream()
         self.livestream_worker.quit()
         self.sample_pos_worker.quit()
         self.live_view['start'].setText('Start Live View')

@@ -121,7 +121,8 @@ class VolumetericAcquisition(WidgetBase):
 
     def run_volumeteric_imaging(self):
 
-        sleep(5)        # Allow threads to fully stop before starting scan
+        if self.instrument.livestream_enabled.is_set():
+            self.error_msg('Livestream', 'Livestream is still set. Please stop livestream')
 
         if [int(x) for x in self.cfg.imaging_wavelengths].sort() != [int(x) for x in self.instrument.channel_gene.keys()].sort() or \
                 None in self.instrument.channel_gene.values() or '' in self.instrument.channel_gene.values():
@@ -143,6 +144,7 @@ class VolumetericAcquisition(WidgetBase):
             self.tab_widget.setTabEnabled(i,False)
         self.instrument.cfg.save()
 
+        sleep(5)        # Allow threads to fully stop before starting scan
         self.run_worker = self._run()
         self.run_worker.finished.connect(lambda: self.end_scan())  # Napari threads have finished signals
         self.run_worker.start()
