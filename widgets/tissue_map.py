@@ -313,8 +313,8 @@ class TissueMap(WidgetBase):
                 if self.map_pose != self.instrument.sample_pose.get_position() and self.instrument.scout_mode:
                     # if stage has moved and scout mode is on
                     self.start_stop_ni()
-                with self.instrument.stage_query_lock:
-                    self.map_pose = self.instrument.sample_pose.get_position()
+
+                self.map_pose = self.instrument.sample_pose.get_position()
                 # Convert 1/10um to mm
                 coord = {k: v * 0.0001 for k, v in self.map_pose.items()}  # if not self.instrument.simulated \
                 #     else np.random.randint(-60000, 60000, 3)

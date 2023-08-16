@@ -58,8 +58,8 @@ class Livestream(WidgetBase):
         if index == 0:
             try:
                 sleep(1)    # Sleep to allow threads to quit
-                with self.instrument.stage_query_lock:
-                    self.stage_position = self.instrument.sample_pose.get_position()
+
+                self.stage_position = self.instrument.sample_pose.get_position()
                 # Update stage labels if stage has moved
                 for direction in directions:
                     self.pos_widget[direction].setValue(int(self.stage_position[direction] * 1 / 10))
@@ -242,8 +242,7 @@ class Livestream(WidgetBase):
             if self.tab_widget.currentIndex() != len(self.tab_widget) - 1:
                 moved = False
                 try:
-                    with self.instrument.stage_query_lock:
-                        self.sample_pos = self.instrument.sample_pose.get_position()
+                    self.sample_pos = self.instrument.sample_pose.get_position()
                     for direction in self.sample_pos.keys():
                         if direction in self.pos_widget.keys():
                             new_pos = int(self.sample_pos[direction] * 1 / 10)
@@ -260,8 +259,6 @@ class Livestream(WidgetBase):
                     yield
                     pass
             yield
-            #sleep(.5)
-
 
     def screenshot_button(self):
 
