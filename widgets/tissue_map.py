@@ -69,6 +69,7 @@ class TissueMap(WidgetBase):
 
     def map_pos_worker_finished(self):
         """Sets map_pos_alive to false when worker finishes"""
+        print('map_pos_worker_finished')
         self.map_pos_alive = False
 
     def overview_widget(self):

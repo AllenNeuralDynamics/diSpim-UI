@@ -40,20 +40,20 @@ class VolumetericAcquisition(WidgetBase):
 
     def volumeteric_imaging_button(self):
 
-        self.volumetric_image = {'start': QToolButton(),
+        self.volumetric_image = {'start': QPushButton('Start Volumeteric Image'),
                                  'overwrite': QCheckBox('Overwrite'),
                                  'save_config': QPushButton('Save Configuration')}
-        #self.volumetric_image['start'].clicked.connect(self.run_volumeteric_imaging)
-        # self.volumetric_image['save_config'].clicked.connect(self.instrument.cfg.save)
+        self.volumetric_image['start'].clicked.connect(self.run_volumeteric_imaging)
+        self.volumetric_image['save_config'].clicked.connect(self.instrument.cfg.save)
         # # Put in seperate function so upon initiation of gui, run() funtion does not start
         
         self.start_image_qwidget = self.create_layout(struct='H', **self.volumetric_image)  # Need qwidget to see actions
-        self.volumetric_image['start'].setText('Start Volumetric Imaging')
-
-        add_scan = QAction("Add Scan", self.start_image_qwidget)    
-        add_scan.triggered.connect(self.setup_additional_scan)
-        self.volumetric_image['start'].addAction(add_scan)
-        self.volumetric_image['start'].setPopupMode(QToolButton.MenuButtonPopup)
+        # self.volumetric_image['start'].setText('Start Volumetric Imaging')
+        #
+        # add_scan = QAction("Add Scan", self.start_image_qwidget)
+        # add_scan.triggered.connect(self.setup_additional_scan)
+        # self.volumetric_image['start'].addAction(add_scan)
+        # self.volumetric_image['start'].setPopupMode(QToolButton.MenuButtonPopup)
 
         return self.start_image_qwidget
 
