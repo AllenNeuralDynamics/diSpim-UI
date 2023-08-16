@@ -153,7 +153,6 @@ class Livestream(WidgetBase):
         self.move_stage['slider'].setEnabled(False)
         self.move_stage['position'].setEnabled(False)
 
-        #sleep(2)  # Allow livestream to start
         self.livestream_worker = create_worker(self.instrument._livestream_worker)
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
@@ -256,7 +255,9 @@ class Livestream(WidgetBase):
                     yield
                 except:
                     # Deal with garbled replies from tigerbox
+                    pass
                     yield
+
             yield
 
     def screenshot_button(self):

@@ -144,25 +144,25 @@ class VolumetericAcquisition(WidgetBase):
             self.tab_widget.setTabEnabled(i,False)
         self.instrument.cfg.save()
 
-        sleep(5)        # Allow threads to fully stop before starting scan
+        #sleep(5)        # Allow threads to fully stop before starting scan
         self.run_worker = self._run()
         self.run_worker.finished.connect(lambda: self.end_scan())  # Napari threads have finished signals
         self.run_worker.start()
 
-        sleep(5)
+        #sleep(5)
         self.viewer.layers.clear()     # Clear existing layers
         self.volumetric_image_worker = create_worker(self.instrument._acquisition_livestream_worker)
         self.volumetric_image_worker.yielded.connect(self.update_layer)
         self.volumetric_image_worker.start()
 
-        sleep(5)
+        #sleep(5)
         self.progress_worker = self._progress_bar_worker()
         self.progress_worker.start()
 
     @thread_worker
     def _run(self):
 
-
+        sleep(5)
         self.instrument.run(overwrite=self.volumetric_image['overwrite'].isChecked())
 
 
@@ -211,20 +211,23 @@ class VolumetericAcquisition(WidgetBase):
             pct = (self.instrument.latest_frame_layer+(self.instrument.tiles_acquired*z_tiles))/total_tiles \
                 if self.instrument.latest_frame_layer != 0 else pct
             QtCore.QMetaObject.invokeMethod(self.progress['bar'], f'setValue', QtCore.Q_ARG(int, round(pct*100)))
+            yield
             # Qt threads are so weird. Can't invoke repaint method outside of main thread and Qthreads don't play nice
             # with napari threads so QMetaObject is static read-only instances
 
             if self.instrument.tiles_acquired == 0:
+                yield
                 completion_date = self.instrument.start_time + timedelta(days=self.instrument.est_run_time)
 
             else:
+                yield
                 total_time_days = self.instrument.tile_time_s*time_scale
                 completion_date = self.instrument.start_time + timedelta(days=total_time_days)
 
             date_str = completion_date.strftime("%d %b, %Y at %H:%M %p")
             weekday = calendar.day_name[completion_date.weekday()]
             self.progress['end_time'].setText(f"End Time: {weekday}, {date_str}")
-            sleep(.5)
+            yield
             yield  # So thread can stop
 
     def scan_summary(self):
