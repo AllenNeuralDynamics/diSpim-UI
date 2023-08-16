@@ -28,6 +28,8 @@ class TissueMap(WidgetBase):
         self.pos = None
         self.plot = None
         self.gl_overview = None
+        self.map_pos_alive = False
+
 
         self.rotate = {}
         self.map = {}
@@ -54,6 +56,8 @@ class TissueMap(WidgetBase):
         last_index = len(self.tab_widget) - 1
         if index == last_index:  # Start stage update when on tissue map tab
             self.map_pos_worker = self._map_pos_worker()
+            self.map_pos_alive = True
+            self.map_pos_worker.finished.connect(self.map_pos_worker_finished)
             self.map_pos_worker.start()
 
         else:  # Quit updating tissue map if not on tissue map tab
@@ -61,6 +65,11 @@ class TissueMap(WidgetBase):
                 self.map_pos_worker.quit()
 
             pass
+
+    def map_pos_worker_finished(self):
+        """Sets map_pos_alive to false when worker finishes"""
+        print('map pose finished')
+        self.map_pos_alive = False
 
     def overview_widget(self):
 
@@ -91,7 +100,6 @@ class TissueMap(WidgetBase):
         self.overview['start'].blockSignals(False)
         self.overview['start'].released.emit()      # Start progress bar
         self.map_pos_worker.quit()  # Stopping tissue map update
-        sleep(1)  # Make sure map pose had chance to quit
         for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, False)  # Disable tabs during scan
 
         self.overview_worker = self._overview_worker()
@@ -141,7 +149,7 @@ class TissueMap(WidgetBase):
                                          self.scale_y * 1000])  # scale so it won't be squished in viewer
             self.viewer.layers[key].rotate = 90
             self.viewer.layers[key].blending = 'additive'
-            self.viewer.layers[key].mouse_drag_callbacks.append(self.on_click)
+            #self.viewer.layers[key].mouse_drag_callbacks.append(self.on_click)
 
             wl_color = self.cfg.laser_specs[str(wl)]["color"]
             rgb = [x / 255 for x in qtpy.QtGui.QColor(wl_color).getRgb()]
@@ -172,11 +180,16 @@ class TissueMap(WidgetBase):
         self.plot.addItem(self.objectives)  # Remove and add objectives to see view through them
 
         self.map_pos_worker = self._map_pos_worker()
+        self.map_pos_alive = True
+        self.map_pos_worker.finished.connect(self.map_pos_worker_finished)
         self.map_pos_worker.start()  # Restart map update
 
 
     @thread_worker
     def _overview_worker(self):
+
+        while self.map_pos_alive == True:   # Stalling til map pos worker quits
+            sleep(.5)
 
         self.x_grid_step_um, self.y_grid_step_um = self.instrument.get_xy_grid_step(self.cfg.tile_overlap_x_percent,
                                                                                     self.cfg.tile_overlap_y_percent)
@@ -297,7 +310,6 @@ class TissueMap(WidgetBase):
         """Update position of stage for tissue map, draw scanning volume, and tiling"""
         while True:
             try:
-
                 if self.map_pose != self.instrument.sample_pose.get_position() and self.instrument.scout_mode:
                     # if stage has moved and scout mode is on
                     self.start_stop_ni()
@@ -354,6 +366,7 @@ class TissueMap(WidgetBase):
             finally:
                 sleep(.5)
                 yield  # Yield so thread can stop
+            yield
 
     def draw_tiles(self, coord):
 

@@ -273,7 +273,8 @@ class Livestream(WidgetBase):
         if self.viewer.layers != []:
             screenshot = self.viewer.screenshot()
             self.viewer.add_image(screenshot)
-            imsave('screenshot.png', screenshot)
+            imsave(rf'C:\Users\{os.getlogin()}\Projects\screenshot_{self.live_view["wavelength"].currentText()}_'
+                   rf'{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png', screenshot)
         else:
             self.error_msg('Screenshot', 'No image to screenshot')
 
