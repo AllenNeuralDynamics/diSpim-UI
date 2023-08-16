@@ -1,6 +1,6 @@
 from widgets.widget_base import WidgetBase
 from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, \
-    QSlider, QLineEdit,QMessageBox, QTabWidget, QProgressBar
+    QSlider, QLineEdit,QMessageBox, QTabWidget, QProgressBar, QToolButton, QMenu, QAction, QDialog, QWidget, QTextEdit, QVBoxLayout,QDialogButtonBox
 import numpy as np
 from pyqtgraph import PlotWidget, mkPen
 from ispim.compute_waveforms import generate_waveforms
@@ -10,6 +10,8 @@ from time import sleep, time
 from datetime import timedelta, datetime
 import calendar
 import qtpy.QtCore as QtCore
+import json
+
 class VolumetericAcquisition(WidgetBase):
 
     def __init__(self,viewer, cfg, instrument, simulated):
@@ -31,21 +33,91 @@ class VolumetericAcquisition(WidgetBase):
         self.waveform = {}
         self.selected = {}
         self.progress = {}
-
+        self.acquisition_order = {}
     def set_tab_widget(self, tab_widget: QTabWidget):
 
         self.tab_widget = tab_widget
 
     def volumeteric_imaging_button(self):
 
-        self.volumetric_image = {'start': QPushButton('Start Volumetric Imaging'),
+        self.volumetric_image = {'start': QToolButton(),
                                  'overwrite': QCheckBox('Overwrite'),
                                  'save_config': QPushButton('Save Configuration')}
-        self.volumetric_image['start'].clicked.connect(self.run_volumeteric_imaging)
-        self.volumetric_image['save_config'].clicked.connect(self.instrument.cfg.save)
-        # Put in seperate function so upon initiation of gui, run() funtion does not start
+        #self.volumetric_image['start'].clicked.connect(self.run_volumeteric_imaging)
+        # self.volumetric_image['save_config'].clicked.connect(self.instrument.cfg.save)
+        # # Put in seperate function so upon initiation of gui, run() funtion does not start
+        
+        self.start_image_qwidget = self.create_layout(struct='H', **self.volumetric_image)  # Need qwidget to see actions
+        self.volumetric_image['start'].setText('Start Volumetric Imaging')
 
-        return self.create_layout(struct='H', **self.volumetric_image)
+        add_scan = QAction("Add Scan", self.start_image_qwidget)    
+        add_scan.triggered.connect(self.setup_additional_scan)
+        self.volumetric_image['start'].addAction(add_scan)
+        self.volumetric_image['start'].setPopupMode(QToolButton.MenuButtonPopup)
+
+        return self.start_image_qwidget
+
+    def setup_additional_scan(self):
+        """Add scan to imaging run"""
+
+        with self.instrument.stage_query_lock:
+            position = self.instrument.sample_pose.get_position()
+
+        scan_info = { 'start_pos' : position,
+                      'ext_storage_dir': self.cfg.ext_storage_dir,
+                      'local_storage_dir': self.cfg.local_storage_dir,
+                      'subject_id': self.cfg.subject_id,
+                      'tile_prefix': self.cfg.tile_prefix,
+                      'volume_x_um': self.cfg.volume_x_um,
+                      'volume_y_um': self.cfg.volume_y_um,
+                      'volume_z_um': self.cfg.volume_z_um
+        }
+
+        self.acquisition_order[scan_info['subject_id']] = scan_info
+        new_scan = QAction(f'Scan {len(self.acquisition_order)}: {scan_info["subject_id"]}', self.start_image_qwidget)
+        new_scan.triggered.connect(lambda pressed = True, info = self.acquisition_order[scan_info['subject_id']]: self.configure_scan(pressed, info))
+        self.volumetric_image['start'].addAction(new_scan)
+
+    def configure_scan(self, pressed, info:dict):
+        """View and edit previously setup scans"""
+
+        inputs = {}
+        for k, v in info.items():
+            label = QLabel(str(k))
+            text = QTextEdit(str(v))
+            inputs[k] = self.create_layout('H', label=label, text=text)
+        cancel_ok = QDialogButtonBox(QDialogButtonBox.Ok| QDialogButtonBox.Cancel| QDialogButtonBox.Discard)
+        dialog = QDialog()
+        layout = QVBoxLayout()
+        for arg in inputs.values():
+            layout.addWidget(arg)
+        layout.addWidget(cancel_ok)
+        dialog.setLayout(layout)
+        cancel_ok.accepted.connect(dialog.accept)
+        cancel_ok.rejected.connect(dialog.reject)
+
+        result = dialog.exec()
+        if result == 0: # Cancel button pressed
+            return
+        new_info = {}
+        for k, v in inputs.items():
+            if k == 'start_pos':
+                new_info[k] = json.loads(v.children()[2].toPlainText().replace("'", '"')) # save as dict
+            else:
+                value_type = type(getattr(self.cfg, k))
+                new_info[k] = value_type(v.children()[2].toPlainText())
+        if new_info != info:
+            #Find the old key where old info is saved
+            old_key = list(self.acquisition_order.keys())[list(self.acquisition_order.values()).index(info)]
+            del self.acquisition_order[old_key]
+
+            # Update with new info
+            self.acquisition_order[new_info['subject_id']] = new_info
+
+    def scan_popup(self, widgets):
+        """Create QDialog box for checking configured scans"""
+
+
 
     def run_volumeteric_imaging(self):
 
