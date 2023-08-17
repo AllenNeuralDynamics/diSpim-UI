@@ -40,21 +40,21 @@ class VolumetericAcquisition(WidgetBase):
 
     def volumeteric_imaging_button(self):
 
-        self.volumetric_image = {'start': QPushButton('Start Volumeteric Image'),
+        self.volumetric_image = {'start': QToolButton(),
                                  'overwrite': QCheckBox('Overwrite'),
                                  'save_config': QPushButton('Save Configuration')}
-        self.volumetric_image['start'].clicked.connect(self.run_volumeteric_imaging)
+        # self.volumetric_image['start'].clicked.connect(self.run_volumeteric_imaging)
         self.volumetric_image['save_config'].clicked.connect(self.instrument.cfg.save)
         # # Put in seperate function so upon initiation of gui, run() funtion does not start
         
         self.start_image_qwidget = self.create_layout(struct='H', **self.volumetric_image)  # Need qwidget to see actions
-        # self.volumetric_image['start'].setText('Start Volumetric Imaging')
-        #
-        # add_scan = QAction("Add Scan", self.start_image_qwidget)
-        # add_scan.triggered.connect(self.setup_additional_scan)
-        # self.volumetric_image['start'].addAction(add_scan)
-        # self.volumetric_image['start'].setPopupMode(QToolButton.MenuButtonPopup)
+        self.volumetric_image['start'].setText('Start Volumetric Imaging')
 
+        add_scan = QAction("Add Scan", self.start_image_qwidget)
+        add_scan.triggered.connect(self.setup_additional_scan)
+        self.volumetric_image['start'].addAction(add_scan)
+        self.volumetric_image['start'].setPopupMode(QToolButton.MenuButtonPopup)
+        self.volumetric_image['start'].actions()
         return self.start_image_qwidget
 
     def setup_additional_scan(self):
@@ -70,23 +70,26 @@ class VolumetericAcquisition(WidgetBase):
                       'tile_prefix': self.cfg.tile_prefix,
                       'volume_x_um': self.cfg.volume_x_um,
                       'volume_y_um': self.cfg.volume_y_um,
-                      'volume_z_um': self.cfg.volume_z_um
+                      'volume_z_um': self.cfg.volume_z_um,
+                      'channels': self.cfg.imaging_wavelengths
         }
 
         self.acquisition_order[scan_info['subject_id']] = scan_info
         new_scan = QAction(f'Scan {len(self.acquisition_order)}: {scan_info["subject_id"]}', self.start_image_qwidget)
-        new_scan.triggered.connect(lambda pressed = True, info = self.acquisition_order[scan_info['subject_id']]: self.configure_scan(pressed, info))
+        new_scan.triggered.connect(lambda pressed = True, key = scan_info['subject_id'], action = new_scan:
+                                   self.configure_scan(pressed, key, action))
         self.volumetric_image['start'].addAction(new_scan)
 
-    def configure_scan(self, pressed, info:dict):
+    def configure_scan(self, pressed, key:str, action):
         """View and edit previously setup scans"""
-
+        info = self.acquisition_order[key]
         inputs = {}
         for k, v in info.items():
             label = QLabel(str(k))
             text = QTextEdit(str(v))
             inputs[k] = self.create_layout('H', label=label, text=text)
-        cancel_ok = QDialogButtonBox(QDialogButtonBox.Ok| QDialogButtonBox.Cancel| QDialogButtonBox.Discard)
+        cancel_ok = QDialogButtonBox(QDialogButtonBox.Ok| QDialogButtonBox.Cancel)
+        cancel_ok.addButton("Remove Scan", QDialogButtonBox.ActionRole)
         dialog = QDialog()
         layout = QVBoxLayout()
         for arg in inputs.values():
@@ -95,29 +98,35 @@ class VolumetericAcquisition(WidgetBase):
         dialog.setLayout(layout)
         cancel_ok.accepted.connect(dialog.accept)
         cancel_ok.rejected.connect(dialog.reject)
+        # If Discard button pressed, shut down dialogbox and remove action
+        cancel_ok.children()[3].clicked.connect(lambda: cancel_ok.rejected.emit())
+        cancel_ok.children()[3].clicked.connect(lambda pressed = True, action = action: self.volumetric_image['start'].removeAction(action))
 
         result = dialog.exec()
         if result == 0: # Cancel button pressed
             return
+
         new_info = {}
-        for k, v in inputs.items():
-            if k == 'start_pos':
-                new_info[k] = json.loads(v.children()[2].toPlainText().replace("'", '"')) # save as dict
-            else:
-                value_type = type(getattr(self.cfg, k))
-                new_info[k] = value_type(v.children()[2].toPlainText())
+        try:
+            for k, v in inputs.items():
+                if k == 'start_pos' or k =='channels':
+                    new_info[k] = json.loads(v.children()[2].toPlainText().replace("'", '"')) # save as dict
+                    if k == 'channels': # Check if channel given is valid
+                        for wl in new_info[k]:
+                            if wl not in self.cfg.imaging_wavelengths:
+                                raise ValueError
+                else:
+                    value_type = type(getattr(self.cfg, k))
+                    new_info[k] = value_type(v.children()[2].toPlainText())
+
+        except ValueError:
+            self.error_msg('Error', f'Value {k} was incorrect type. Changes were NOT saved.')
+            return
         if new_info != info:
-            #Find the old key where old info is saved
-            old_key = list(self.acquisition_order.keys())[list(self.acquisition_order.values()).index(info)]
-            del self.acquisition_order[old_key]
+            del self.acquisition_order[key]
 
-            # Update with new info
-            self.acquisition_order[new_info['subject_id']] = new_info
-
-    def scan_popup(self, widgets):
-        """Create QDialog box for checking configured scans"""
-
-
+        # Update with new info
+        self.acquisition_order[new_info['subject_id']] = new_info
 
     def run_volumeteric_imaging(self):
 
@@ -144,18 +153,15 @@ class VolumetericAcquisition(WidgetBase):
             self.tab_widget.setTabEnabled(i,False)
         self.instrument.cfg.save()
 
-        #sleep(5)        # Allow threads to fully stop before starting scan
         self.run_worker = self._run()
         self.run_worker.finished.connect(lambda: self.end_scan())  # Napari threads have finished signals
         self.run_worker.start()
 
-        #sleep(5)
         self.viewer.layers.clear()     # Clear existing layers
         self.volumetric_image_worker = create_worker(self.instrument._acquisition_livestream_worker)
         self.volumetric_image_worker.yielded.connect(self.update_layer)
         self.volumetric_image_worker.start()
 
-        #sleep(5)
         self.progress_worker = self._progress_bar_worker()
         self.progress_worker.start()
 
