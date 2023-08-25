@@ -1,6 +1,7 @@
 from widgets.widget_base import WidgetBase
 from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, \
-    QSlider, QLineEdit,QMessageBox, QTabWidget, QProgressBar, QToolButton, QMenu, QAction, QDialog, QWidget, QTextEdit, QVBoxLayout,QDialogButtonBox
+    QSlider, QLineEdit,QMessageBox, QTabWidget, QProgressBar, QToolButton, QMenu, QAction, QDialog, QWidget, QTextEdit, \
+    QVBoxLayout,QDialogButtonBox, QTableWidget, QTableWidgetItem, QWidgetAction
 import numpy as np
 from pyqtgraph import PlotWidget, mkPen
 from ispim.compute_waveforms import generate_waveforms
@@ -34,6 +35,9 @@ class VolumetericAcquisition(WidgetBase):
         self.selected = {}
         self.progress = {}
         self.acquisition_order = {}
+        self.delete_scan_bt = {}
+        self.cells_changed = []
+
     def set_tab_widget(self, tab_widget: QTabWidget):
 
         self.tab_widget = tab_widget
@@ -43,18 +47,36 @@ class VolumetericAcquisition(WidgetBase):
         self.volumetric_image = {'start': QToolButton(),
                                  'overwrite': QCheckBox('Overwrite'),
                                  'save_config': QPushButton('Save Configuration')}
-        # self.volumetric_image['start'].clicked.connect(self.run_volumeteric_imaging)
+        #self.volumetric_image['start'].clicked.connect(self.run_volumeteric_imaging)
         self.volumetric_image['save_config'].clicked.connect(self.instrument.cfg.save)
         # # Put in seperate function so upon initiation of gui, run() funtion does not start
         
         self.start_image_qwidget = self.create_layout(struct='H', **self.volumetric_image)  # Need qwidget to see actions
         self.volumetric_image['start'].setText('Start Volumetric Imaging')
-
+        # Create dropdown menu for qtoolbutton
+        menu = QMenu(self.volumetric_image['start'])
         add_scan = QAction("Add Scan", self.start_image_qwidget)
         add_scan.triggered.connect(self.setup_additional_scan)
-        self.volumetric_image['start'].addAction(add_scan)
+        menu.addAction(add_scan)
+        # Create table widget
+        col_headers = ['start_pos_um' ,'ext_storage_dir','local_storage_dir','subject_id','tile_prefix','volume_x_um',
+                      'volume_y_um','volume_z_um','channels', '']
+        self.scan_table_widget = QTableWidget()
+        self.scan_table_widget.setColumnCount(10)
+        self.scan_table_widget.setHorizontalHeaderLabels(col_headers)
+        self.scan_table_widget.setRowCount(0)
+        # Create a QAction to put scan table in menu
+        table = QWidgetAction(self.start_image_qwidget)
+        table.setDefaultWidget(self.scan_table_widget)
+        menu.addAction(table)
+        # Set menu
+        menu.setMinimumWidth(920)
+        self.volumetric_image['start'].setMenu(menu)
         self.volumetric_image['start'].setPopupMode(QToolButton.MenuButtonPopup)
-        self.volumetric_image['start'].actions()
+
+        menu.aboutToHide.connect(self.configure_scans)
+        self.scan_table_widget.itemChanged.connect(self.table_items_changed)
+
         return self.start_image_qwidget
 
     def setup_additional_scan(self):
@@ -63,7 +85,7 @@ class VolumetericAcquisition(WidgetBase):
         with self.instrument.stage_query_lock:
             position = self.instrument.sample_pose.get_position()
 
-        scan_info = { 'start_pos' : position,
+        scan_info = { 'start_pos_um' : {k:round(1/10*v,1) for k,v in position.items()},
                       'ext_storage_dir': self.cfg.ext_storage_dir,
                       'local_storage_dir': self.cfg.local_storage_dir,
                       'subject_id': self.cfg.subject_id,
@@ -73,60 +95,108 @@ class VolumetericAcquisition(WidgetBase):
                       'volume_z_um': self.cfg.volume_z_um,
                       'channels': self.cfg.imaging_wavelengths
         }
+        # Check if scan is will exceed stage limits. Will use config values and current pos
+        if self.exceed_stage_limit_check():
+            return
+        # Add scan to acquisition dictionary
+        self.acquisition_order[len(self.acquisition_order)] = scan_info
+        self.scan_table_widget.insertRow(self.scan_table_widget.rowCount())
+        row = self.scan_table_widget.rowCount()-1
+        i = 0
+        for v in scan_info.values():
+            self.scan_table_widget.setItem(row, i, QTableWidgetItem(str(v)))
+            i += 1
 
-        self.acquisition_order[scan_info['subject_id']] = scan_info
-        new_scan = QAction(f'Scan {len(self.acquisition_order)}: {scan_info["subject_id"]}', self.start_image_qwidget)
-        new_scan.triggered.connect(lambda pressed = True, key = scan_info['subject_id'], action = new_scan:
-                                   self.configure_scan(pressed, key, action))
-        self.volumetric_image['start'].addAction(new_scan)
+        # create a delete button
+        self.table_delete_button(row)
 
-    def configure_scan(self, pressed, key:str, action):
+        self.cells_changed = [] # Reset cells changed to ignore items added
+
+    def remove_scan(self, pushed, row):
+        """Remove scan of row where button was pushed and reconfigures acquisition order"""
+        for i in self.cells_changed:
+            if i[0] == row:self.cells_changed.remove(i)
+        self.configure_scans()  # Check cells before rows change but ignore ones being deleted
+        self.scan_table_widget.removeRow(row)
+        del self.acquisition_order[row]  # delete scan
+        keys = list(self.acquisition_order.keys())
+        for i in keys: # Shift dictionary and cells to match rows
+            if i < row: continue
+            self.acquisition_order[i-1] = self.acquisition_order[i]
+            self.scan_table_widget.removeCellWidget(i-1, len(self.acquisition_order[i]))  # Remove delete button
+            self.table_delete_button(i-1) # create a delete button
+
+    def table_delete_button(self, row):
+        """Convenient function for creating delete button at certain row in scan_table_widget"""
+
+        delete = QPushButton(self.scan_table_widget)
+        delete.setText('Delete')
+        self.scan_table_widget.setCellWidget(row, self.scan_table_widget.columnCount()-1, delete)
+        delete.clicked.connect(lambda pushed=True, row=row: self.remove_scan(pushed, row))
+
+    def table_items_changed(self, cell):
+        """Function to keep track of changes made in scan_table widget"""
+
+        self.cells_changed.append((cell.row(), cell.column()))
+
+    def configure_scans(self):
         """View and edit previously setup scans"""
-        info = self.acquisition_order[key]
-        inputs = {}
-        for k, v in info.items():
-            label = QLabel(str(k))
-            text = QTextEdit(str(v))
-            inputs[k] = self.create_layout('H', label=label, text=text)
-        cancel_ok = QDialogButtonBox(QDialogButtonBox.Ok| QDialogButtonBox.Cancel)
-        cancel_ok.addButton("Remove Scan", QDialogButtonBox.ActionRole)
-        dialog = QDialog()
-        layout = QVBoxLayout()
-        for arg in inputs.values():
-            layout.addWidget(arg)
-        layout.addWidget(cancel_ok)
-        dialog.setLayout(layout)
-        cancel_ok.accepted.connect(dialog.accept)
-        cancel_ok.rejected.connect(dialog.reject)
-        # If Discard button pressed, shut down dialogbox and remove action
-        cancel_ok.children()[3].clicked.connect(lambda: cancel_ok.rejected.emit())
-        cancel_ok.children()[3].clicked.connect(lambda pressed = True, action = action: self.volumetric_image['start'].removeAction(action))
 
-        result = dialog.exec()
-        if result == 0: # Cancel button pressed
-            return
+        for cell in self.cells_changed:
+            key = self.scan_table_widget.horizontalHeaderItem(cell[1]).text()
+            scan_num = cell[0]
+            # Check to see if inputs make sense
+            try:
+                cell_value = self.scan_table_widget.item(cell[0], cell[1]).text()
+                if key == 'start_pos_um':
+                    new_value = json.loads(cell_value.replace("'", '"'))  # save as dict
+                    if self.exceed_stage_limit_check(new_value, {'x': self.acquisition_order[scan_num]['volume_x_um'],
+                                                                 'y': self.acquisition_order[scan_num]['volume_y_um'],
+                                                                 'z': self.acquisition_order[scan_num]['volume_z_um']}):
+                        raise ValueError
 
-        new_info = {}
-        try:
-            for k, v in inputs.items():
-                if k == 'start_pos' or k =='channels':
-                    new_info[k] = json.loads(v.children()[2].toPlainText().replace("'", '"')) # save as dict
-                    if k == 'channels': # Check if channel given is valid
-                        for wl in new_info[k]:
-                            if wl not in self.cfg.imaging_wavelengths:
-                                raise ValueError
+                elif key == 'channels':
+                    new_value = list(json.loads(cell_value.replace("'", '"')))  # save as or list
+                    for wl in new_value:
+                        if wl not in self.cfg.laser_wavelengths:    # check that wavelengths are valid
+                            raise ValueError
                 else:
-                    value_type = type(getattr(self.cfg, k))
-                    new_info[k] = value_type(v.children()[2].toPlainText())
+                    value_type = type(getattr(self.cfg, key))
+                    new_value = value_type(cell_value)
 
-        except ValueError:
-            self.error_msg('Error', f'Value {k} was incorrect type. Changes were NOT saved.')
-            return
-        if new_info != info:
-            del self.acquisition_order[key]
+                self.acquisition_order[scan_num][key] = new_value
 
-        # Update with new info
-        self.acquisition_order[new_info['subject_id']] = new_info
+            except(ValueError, TypeError):
+                self.error_msg('Error', f'Scan {scan_num} value {key} was invalid. Changes to were NOT saved.')
+                self.scan_table_widget.item(cell[0], cell[1]).setText(str(self.acquisition_order[scan_num][key]))
+                continue
+
+        self.cells_changed = []     # reset changed cells to none
+
+    def exceed_stage_limit_check(self, start_pos_um:dict = None, volume:dict = None):
+
+        """Check if scan with parameters in the cfg will exceed stage limits
+        :param start_pos_um: start position of scan in um"""
+
+        with self.instrument.stage_query_lock:
+            limits_mm = self.instrument.sample_pose.get_travel_limits(*['x', 'y', 'z'])
+        limits_um = {k:[v[0]*1000,v[1]*1000] for k, v in limits_mm.items()}
+        if start_pos_um == None:
+            with self.instrument.stage_query_lock:
+                start_pos = self.instrument.sample_pose.get_position()
+            start_pos_um = {k:v/10 for k,v in start_pos.items()}
+        limit_exceeded = []
+        for k in limits_um.keys():
+            end_pos = start_pos_um[k]+getattr(self.cfg, f'volume_{k}_um') \
+                if volume ==None else start_pos_um[k] + volume[k]
+            if not limits_um[k][0] < end_pos < limits_um[k][1]:
+                limit_exceeded.append(k)
+        if limit_exceeded != []:
+            self.error_msg('CAUTION', 'Starting stage at this position with '
+                                      'these scan parameters will exceed stage '
+                                      f'limits in these directions: {limit_exceeded}')
+            return True
+        return False
 
     def run_volumeteric_imaging(self):
 
@@ -135,7 +205,7 @@ class VolumetericAcquisition(WidgetBase):
 
         if [int(x) for x in self.cfg.imaging_wavelengths].sort() != [int(x) for x in self.instrument.channel_gene.keys()].sort() or \
                 None in self.instrument.channel_gene.values() or '' in self.instrument.channel_gene.values():
-            self.error_msg('Genes', 'Genes for cheannels are unspecified. '
+            self.error_msg('Genes', 'Genes for channels are unspecified. '
                                     'Enter genes in the text box next to power '
                                     'slider to continue to scan.')
             return
