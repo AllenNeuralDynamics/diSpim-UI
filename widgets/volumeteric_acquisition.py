@@ -1,7 +1,7 @@
 from widgets.widget_base import WidgetBase
 from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, \
     QSlider, QLineEdit,QMessageBox, QTabWidget, QProgressBar, QToolButton, QMenu, QAction, QDialog, QWidget, QTextEdit, \
-    QVBoxLayout,QDialogButtonBox, QTableWidget, QTableWidgetItem, QWidgetAction
+    QVBoxLayout,QDialogButtonBox, QTableWidget, QTableWidgetItem, QWidgetAction, QToolBar
 import numpy as np
 from pyqtgraph import PlotWidget, mkPen
 from ispim.compute_waveforms import generate_waveforms
@@ -47,12 +47,21 @@ class VolumetericAcquisition(WidgetBase):
         self.volumetric_image = {'start': QToolButton(),
                                  'overwrite': QCheckBox('Overwrite'),
                                  'save_config': QPushButton('Save Configuration')}
-        #self.volumetric_image['start'].clicked.connect(self.run_volumeteric_imaging)
+        self.volumetric_image['start'].clicked.connect(self.run_volumeteric_imaging)
         self.volumetric_image['save_config'].clicked.connect(self.instrument.cfg.save)
         # # Put in seperate function so upon initiation of gui, run() funtion does not start
-        
-        self.start_image_qwidget = self.create_layout(struct='H', **self.volumetric_image)  # Need qwidget to see actions
-        self.volumetric_image['start'].setText('Start Volumetric Imaging')
+
+        self.start_image_qwidget = self.create_layout('H', **self.volumetric_image)
+        self.volumetric_image['start'].setText('Start Volumeteric Image')
+        self.volumetric_image['start'].setStyleSheet(
+            "QToolButton{"
+            "background-color: rgb(65, 72, 81);"    # Napari dark theme foreground
+            "}"
+            "QToolButton:pressed{"
+            "background-color: rgb(38, 41, 48);"    # Napari dark theme background
+            "}"
+        )
+
         # Create dropdown menu for qtoolbutton
         menu = QMenu(self.volumetric_image['start'])
         add_scan = QAction("Add Scan", self.start_image_qwidget)
@@ -189,7 +198,7 @@ class VolumetericAcquisition(WidgetBase):
         for k in limits_um.keys():
             end_pos = start_pos_um[k]+getattr(self.cfg, f'volume_{k}_um') \
                 if volume ==None else start_pos_um[k] + volume[k]
-            if not limits_um[k][0] < end_pos < limits_um[k][1]:
+            if not limits_um[k][0] < end_pos < limits_um[k][1] or not limits_um[k][0] < start_pos_um[k] < limits_um[k][1]:
                 limit_exceeded.append(k)
         if limit_exceeded != []:
             self.error_msg('CAUTION', 'Starting stage at this position with '
@@ -214,33 +223,47 @@ class VolumetericAcquisition(WidgetBase):
             return_value = self.overwrite_warning()
             if return_value == QMessageBox.Cancel:
                 return
-
-        return_value = self.scan_summary()
-        if return_value == QMessageBox.Cancel:
-            return
-
-        for i in range(1,len(self.tab_widget)):
-            self.tab_widget.setTabEnabled(i,False)
-        self.instrument.cfg.save()
+        for scan in self.acquisition_order.values():
+            #Set up config for each scan
+            for k, v in scan.items():
+                if k == 'start_pos_um':
+                    self.instrument.set_scan_start({k1: 10 * v1 for k1, v1 in scan[k].items()})
+                    print(self.instrument.start_pos)
+                else:
+                    setattr(self.cfg, k, v)
+            return_value = self.scan_summary()
+            if return_value == QMessageBox.Cancel:
+                return
 
         self.run_worker = self._run()
         self.run_worker.finished.connect(lambda: self.end_scan())  # Napari threads have finished signals
         self.run_worker.start()
 
-        self.viewer.layers.clear()     # Clear existing layers
-        self.volumetric_image_worker = create_worker(self.instrument._acquisition_livestream_worker)
-        self.volumetric_image_worker.yielded.connect(self.update_layer)
-        self.volumetric_image_worker.start()
-
-        self.progress_worker = self._progress_bar_worker()
-        self.progress_worker.start()
-
     @thread_worker
     def _run(self):
 
         sleep(5)
-        self.instrument.run(overwrite=self.volumetric_image['overwrite'].isChecked())
+        for scan in self.acquisition_order.values():
+            #Set up config for each scan
+            for k, v in scan.items():
+                if k == 'start_pos_um':
+                    self.instrument.set_scan_start({k1: 10 * v1 for k1, v1 in scan[k].items()})
+                else:
+                    setattr(self.cfg, k, v)
 
+            for i in range(1,len(self.tab_widget)):
+                self.tab_widget.setTabEnabled(i,False)
+            self.instrument.cfg.save()
+
+            self.viewer.layers.clear()  # Clear existing layers
+            self.volumetric_image_worker = create_worker(self.instrument._acquisition_livestream_worker)
+            self.volumetric_image_worker.yielded.connect(self.update_layer)
+            self.volumetric_image_worker.start()
+
+            self.progress_worker = self._progress_bar_worker()
+            self.progress_worker.start()
+
+            self.instrument.run(overwrite=self.volumetric_image['overwrite'].isChecked())
 
     def end_scan(self):
 
@@ -300,9 +323,13 @@ class VolumetericAcquisition(WidgetBase):
                 total_time_days = self.instrument.tile_time_s*time_scale
                 completion_date = self.instrument.start_time + timedelta(days=total_time_days)
 
-            date_str = completion_date.strftime("%d %b, %Y at %H:%M %p")
-            weekday = calendar.day_name[completion_date.weekday()]
-            self.progress['end_time'].setText(f"End Time: {weekday}, {date_str}")
+            if completion_date >= datetime.now():
+                date_str = completion_date.strftime("%d %b, %Y at %H:%M %p")
+                weekday = calendar.day_name[completion_date.weekday()]
+                end_time = f'{weekday}, {date_str}'
+            else:
+                end_time = '¯\_(ツ)_/¯'
+            self.progress['end_time'].setText(f"End Time: {end_time}")
             yield
             yield  # So thread can stop
 
@@ -317,6 +344,7 @@ class VolumetericAcquisition(WidgetBase):
         msgBox = QMessageBox()
         msgBox.setIcon(QMessageBox.Information)
         msgBox.setText(f"Scan Summary\n"
+                       f"Start (um): {self.instrument.start_pos if self.instrument.start_pos != None else self.instrument.sample_pose.get_position()}"
                        f"Lasers: {self.cfg.imaging_wavelengths}\n"
                        f"Time: {round(self.instrument.acquisition_time(x, y, z), 3)} days\n"
                        f"X Tiles: {x}\n"
