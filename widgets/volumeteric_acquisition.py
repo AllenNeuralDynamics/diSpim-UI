@@ -37,7 +37,7 @@ class VolumetericAcquisition(WidgetBase):
         self.acquisition_order = {}
         self.delete_scan_bt = {}
         self.cells_changed = []
-
+        self.scans = []     # Scans performed in the UI instance
     def set_tab_widget(self, tab_widget: QTabWidget):
 
         self.tab_widget = tab_widget
@@ -47,7 +47,7 @@ class VolumetericAcquisition(WidgetBase):
         self.volumetric_image = {'start': QToolButton(),
                                  'overwrite': QCheckBox('Overwrite'),
                                  'save_config': QPushButton('Save Configuration')}
-        self.volumetric_image['start'].clicked.connect(self.run_volumeteric_imaging)
+        self.volumetric_image['start'].pressed.connect(self.run_volumeteric_imaging)
         self.volumetric_image['save_config'].clicked.connect(self.instrument.cfg.save)
         # # Put in seperate function so upon initiation of gui, run() funtion does not start
 
@@ -209,20 +209,29 @@ class VolumetericAcquisition(WidgetBase):
 
     def run_volumeteric_imaging(self):
 
+        self.volumetric_image['start'].blockSignals(True)  # Block release signal so transferring json doesn't start
+
         if self.instrument.livestream_enabled.is_set():
             self.error_msg('Livestream', 'Livestream is still set. Please stop livestream')
+            self.volumetric_image['start'].blockSignals(False)
 
         if [int(x) for x in self.cfg.imaging_wavelengths].sort() != [int(x) for x in self.instrument.channel_gene.keys()].sort() or \
                 None in self.instrument.channel_gene.values() or '' in self.instrument.channel_gene.values():
             self.error_msg('Genes', 'Genes for channels are unspecified. '
                                     'Enter genes in the text box next to power '
                                     'slider to continue to scan.')
+            self.volumetric_image['start'].blockSignals(False)
             return
 
         if self.volumetric_image['overwrite'].isChecked():
             return_value = self.overwrite_warning()
             if return_value == QMessageBox.Cancel:
+                self.volumetric_image['start'].blockSignals(False)
                 return
+
+        if self.acquisition_order == {}:       # Add scan of current configuration if none are configured
+            self.setup_additional_scan()
+
         for scan in self.acquisition_order.values():
             #Set up config for each scan
             for k, v in scan.items():
@@ -233,7 +242,13 @@ class VolumetericAcquisition(WidgetBase):
                     setattr(self.cfg, k, v)
             return_value = self.scan_summary()
             if return_value == QMessageBox.Cancel:
+                self.volumetric_image['start'].blockSignals(False)
                 return
+
+        self.viewer.layers.clear()  # Clear existing layers
+        self.volumetric_image_worker = create_worker(self.instrument._acquisition_livestream_worker)
+        self.volumetric_image_worker.yielded.connect(self.update_layer)
+        self.volumetric_image_worker.start()
 
         self.run_worker = self._run()
         self.run_worker.finished.connect(lambda: self.end_scan())  # Napari threads have finished signals
@@ -255,15 +270,13 @@ class VolumetericAcquisition(WidgetBase):
                 self.tab_widget.setTabEnabled(i,False)
             self.instrument.cfg.save()
 
-            self.viewer.layers.clear()  # Clear existing layers
-            self.volumetric_image_worker = create_worker(self.instrument._acquisition_livestream_worker)
-            self.volumetric_image_worker.yielded.connect(self.update_layer)
-            self.volumetric_image_worker.start()
-
             self.progress_worker = self._progress_bar_worker()
             self.progress_worker.start()
-
+            self.scans.append(self.instrument.img_storage_dir)
             self.instrument.run(overwrite=self.volumetric_image['overwrite'].isChecked())
+            self.volumetric_image['start'].blockSignals(False)
+            self.volumetric_image['start'].released.emit()  # Signal that scans are done
+            self.volumetric_image['start'].blockSignals(True)
 
     def end_scan(self):
 
@@ -273,6 +286,7 @@ class VolumetericAcquisition(WidgetBase):
         QtCore.QMetaObject.invokeMethod(self.progress['bar'], f'setValue', QtCore.Q_ARG(int, round(100)))
         for i in range(1,len(self.tab_widget)):
             self.tab_widget.setTabEnabled(i,True)
+        self.volumetric_image['start'].blockSignals(False)
 
     def progress_bar_widget(self):
 
