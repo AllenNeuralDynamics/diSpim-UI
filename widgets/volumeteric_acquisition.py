@@ -38,6 +38,7 @@ class VolumetericAcquisition(WidgetBase):
         self.delete_scan_bt = {}
         self.cells_changed = []
         self.scans = []     # Scans performed in the UI instance
+
     def set_tab_widget(self, tab_widget: QTabWidget):
 
         self.tab_widget = tab_widget
@@ -244,7 +245,6 @@ class VolumetericAcquisition(WidgetBase):
             if return_value == QMessageBox.Cancel:
                 self.volumetric_image['start'].blockSignals(False)
                 return
-
         self.viewer.layers.clear()  # Clear existing layers
         self.volumetric_image_worker = create_worker(self.instrument._acquisition_livestream_worker)
         self.volumetric_image_worker.yielded.connect(self.update_layer)

@@ -1,12 +1,14 @@
+"""Launch dispim UI"""
+
 import os
 from dispim_userinterface import UserInterface
-import traceback
 import logging
 from coloredlogs import ColoredFormatter
 import sys
 import ctypes
 from datetime import datetime
 from pathlib import Path
+import napari
 
 # Remove any handlers already attached to the root logger.
 logging.getLogger().handlers.clear()
@@ -21,7 +23,7 @@ class SpimLogFilter(logging.Filter):
 
 
 
-class launch_UI():
+class create_UI():
 
     def __init__(self):
         simulated = False
@@ -65,11 +67,17 @@ class launch_UI():
         else:
             config_path = rf'C:\Users\{os.getlogin()}\Documents\dispim_files\config.toml'
 
-        try:
-            self.UI = UserInterface(config_filepath=config_path,
+
+        self.UI = UserInterface(config_filepath=config_path,
                             console_output_level=log_level,
                             simulated=simulated)
-        finally:
-            file_handler.close()
-            logger.removeHandler(file_handler)
+        # finally:
+        #     file_handler.close()
+        #     logger.removeHandler(file_handler)
 
+if __name__ == "__main__":
+    run = create_UI()
+    try:
+        napari.run()
+    finally:
+        run.UI.close_instrument()

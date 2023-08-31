@@ -22,7 +22,7 @@ class UserInterface:
                  console_output_level: str = 'info',
                  simulated: bool = False):
 
-        try:
+        #try:
 
             self.instrument = ispim.Ispim(config_filepath=config_filepath, simulated=simulated)
             self.simulated = simulated
@@ -93,10 +93,9 @@ class UserInterface:
 
             # hide layers with <hidden> in name
             self.viewer.window.qt_viewer.layers.model().filterAcceptsRow = self._filter
-            napari.run()
 
-        finally:
-            self.close_instrument()
+        # finally:
+        #     self.close_instrument()
 
     def instrument_params_widget(self):
         self.instrument_params = InstrumentParameters(self.instrument.frame_grabber, self.cfg.sensor_column_count,
