@@ -13,7 +13,7 @@ logging.getLogger().handlers.clear()
 
 class SpimLogFilter(logging.Filter):
     # Note: calliphlox lib is quite chatty.
-    VALID_LOGGER_BASES = {'spim_core', 'ispim', 'tigerasi' }
+    VALID_LOGGER_BASES = {'spim_core', 'ispim'} #'tigerasi' }
 
     def filter(self, record):
         return record.name.split('.')[0].lower() in \

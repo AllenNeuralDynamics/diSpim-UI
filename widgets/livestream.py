@@ -141,7 +141,6 @@ class Livestream(WidgetBase):
                 self.live_view[buttons].setHidden(False)
 
         self.instrument.start_livestream(wavelengths, self.set_scan_start['scouting'].isChecked()) # Needs to be list
-
         self.sample_pos_worker = self._sample_pos_worker()
         self.sample_pos_worker.start()
         self.sample_pos_worker.finished.connect(self.instrument.stop_livestream)
@@ -161,7 +160,6 @@ class Livestream(WidgetBase):
     def stop_live_view(self):
 
         """Stop livestreaming"""
-
         self.disable_button(button=self.live_view['start'])
         self.live_view['start'].clicked.disconnect(self.stop_live_view)
         self.livestream_worker.quit()
