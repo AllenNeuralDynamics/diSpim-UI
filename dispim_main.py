@@ -1,3 +1,4 @@
+"""Script to launch UI"""
 import os
 from dispim_userinterface import UserInterface
 import traceback
