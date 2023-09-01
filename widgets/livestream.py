@@ -160,7 +160,6 @@ class Livestream(WidgetBase):
     def stop_live_view(self):
 
         """Stop livestreaming"""
-
         self.disable_button(button=self.live_view['start'])
         self.live_view['start'].clicked.disconnect(self.stop_live_view)
         self.livestream_worker.quit()
