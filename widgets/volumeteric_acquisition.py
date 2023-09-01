@@ -272,8 +272,10 @@ class VolumetericAcquisition(WidgetBase):
 
             self.progress_worker = self._progress_bar_worker()
             self.progress_worker.start()
-            self.scans.append(self.instrument.img_storage_dir)
             self.instrument.run(overwrite=self.volumetric_image['overwrite'].isChecked())
+            dest = str(self.instrument.img_storage_dir) if self.instrument.img_storage_dir != None else str(self.instrument.local_storage_dir)
+            print(dest)
+            self.scans.append(dest)
             self.volumetric_image['start'].blockSignals(False)
             self.volumetric_image['start'].released.emit()  # Signal that scans are done
             self.volumetric_image['start'].blockSignals(True)
