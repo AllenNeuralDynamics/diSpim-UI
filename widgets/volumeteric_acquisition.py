@@ -360,7 +360,7 @@ class VolumetericAcquisition(WidgetBase):
         msgBox = QMessageBox()
         msgBox.setIcon(QMessageBox.Information)
         msgBox.setText(f"Scan Summary\n"
-                       f"Start (um): {self.instrument.start_pos if self.instrument.start_pos != None else self.instrument.sample_pose.get_position()}"
+                       f"Start (um): {self.instrument.start_pos if self.instrument.start_pos != None else self.instrument.sample_pose.get_position()}\n"
                        f"Lasers: {self.cfg.imaging_wavelengths}\n"
                        f"Time: {round(self.instrument.acquisition_time(x, y, z), 3)} days\n"
                        f"X Tiles: {x}\n"
