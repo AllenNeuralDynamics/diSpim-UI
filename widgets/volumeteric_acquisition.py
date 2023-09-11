@@ -232,19 +232,27 @@ class VolumetericAcquisition(WidgetBase):
 
         if self.acquisition_order == {}:       # Add scan of current configuration if none are configured
             self.setup_additional_scan()
-
-        for scan in self.acquisition_order.values():
-            #Set up config for each scan
-            for k, v in scan.items():
-                if k == 'start_pos_um':
-                    self.instrument.set_scan_start({k1: 10 * v1 for k1, v1 in scan[k].items()})
-                    print(self.instrument.start_pos)
-                else:
-                    setattr(self.cfg, k, v)
             return_value = self.scan_summary()
             if return_value == QMessageBox.Cancel:
                 self.volumetric_image['start'].blockSignals(False)
+                self.scan_table_widget.removeRow(0)
+                self.acquisition_order = {}
                 return
+
+        else:
+            for scan in self.acquisition_order.values():
+                #Set up config for each scan
+                for k, v in scan.items():
+                    if k == 'start_pos_um':
+                        self.instrument.set_scan_start({k1: 10 * v1 for k1, v1 in scan[k].items()})
+                        print(self.instrument.start_pos)
+                    else:
+                        setattr(self.cfg, k, v)
+                return_value = self.scan_summary()
+                if return_value == QMessageBox.Cancel:
+
+                    self.volumetric_image['start'].blockSignals(False)
+                    return
         self.viewer.layers.clear()  # Clear existing layers
         self.volumetric_image_worker = create_worker(self.instrument._acquisition_livestream_worker)
         self.volumetric_image_worker.yielded.connect(self.update_layer)
@@ -274,7 +282,6 @@ class VolumetericAcquisition(WidgetBase):
             self.progress_worker.start()
             self.instrument.run(overwrite=self.volumetric_image['overwrite'].isChecked())
             dest = str(self.instrument.img_storage_dir) if self.instrument.img_storage_dir != None else str(self.instrument.local_storage_dir)
-            print(dest)
             self.scans.append(dest)
             self.volumetric_image['start'].blockSignals(False)
             self.volumetric_image['start'].released.emit()  # Signal that scans are done
@@ -348,6 +355,8 @@ class VolumetericAcquisition(WidgetBase):
             self.progress['end_time'].setText(f"End Time: {end_time}")
             yield
             yield  # So thread can stop
+        end_time = datetime.now().strftime("%d %b, %Y at %H:%M %p")
+        self.progress['end_time'].setText(f"End Time: {end_time}")
 
     def scan_summary(self):
 

@@ -241,8 +241,8 @@ class Livestream(WidgetBase):
             if self.tab_widget.currentIndex() != len(self.tab_widget) - 1:
                 moved = False
                 try:
-                    with self.instrument.stage_query_lock:
-                        self.sample_pos = self.instrument.sample_pose.get_position()
+
+                    self.sample_pos = self.instrument.sample_pose.get_position()
                     for direction in self.sample_pos.keys():
                         if direction in self.pos_widget.keys():
                             new_pos = int(self.sample_pos[direction] * 1 / 10)
@@ -258,9 +258,8 @@ class Livestream(WidgetBase):
                     # Deal with garbled replies from tigerbox
                     pass
                     yield
-            sleep(.5)
+            #sleep(.5)
             yield
-
     def screenshot_button(self):
 
         """Button that will take a screenshot of liveviewer"""
