@@ -241,10 +241,11 @@ class Livestream(WidgetBase):
             if self.tab_widget.currentIndex() != len(self.tab_widget) - 1:
                 moved = False
                 try:
-
-                    self.sample_pos = self.instrument.sample_pose.get_position()
+                    self.sample_pos = self.instrument.sample_pose.get_position(['x','y','z'])
                     for direction in self.sample_pos.keys():
+                        yield
                         if direction in self.pos_widget.keys():
+                            yield
                             new_pos = int(self.sample_pos[direction] * 1 / 10)
                             if self.pos_widget[direction].value() != new_pos:
                                 self.pos_widget[direction].setValue(new_pos)
