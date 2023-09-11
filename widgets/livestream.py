@@ -368,16 +368,6 @@ class Livestream(WidgetBase):
         self.move_stage_textbox(int(location['y']/10))
         self.move_stage['slider'].setValue(int(location['y']/10))
 
-
-
-
-
-
-
-
-
-
-
     @thread_worker
     def _focusing_metric(self):
 
@@ -387,7 +377,6 @@ class Livestream(WidgetBase):
                 yield entropy
             else:
                 yield None
-            sleep(.2)
 
     def updating_graph(self):
 
