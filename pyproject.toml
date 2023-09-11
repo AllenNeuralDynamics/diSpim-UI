@@ -10,4 +10,4 @@ dynamic = ["description"]
 description-file='README.md'
 dependencies = [
     'pyserial'
-]
+

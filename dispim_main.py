@@ -1,5 +1,4 @@
 """Launch dispim UI"""
-
 import os
 from dispim_userinterface import UserInterface
 import logging
