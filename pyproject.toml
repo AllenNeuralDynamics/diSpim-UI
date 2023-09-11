@@ -10,6 +10,4 @@ dynamic = ["description"]
 description-file='README.md'
 dependencies = [
     'pyserial'
-]
-[project.scripts]
-ispim = "bin.main:main"
+

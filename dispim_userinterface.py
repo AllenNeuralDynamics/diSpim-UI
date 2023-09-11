@@ -22,14 +22,12 @@ class UserInterface:
                  console_output_level: str = 'info',
                  simulated: bool = False):
 
-        try:
-            # TODO: Create logger tab at bottom of napari viewer. Also make logger for each class as well
-            logger = logging.getLogger()
-            logger.setLevel(console_output_level)
+        #try:
+
             self.instrument = ispim.Ispim(config_filepath=config_filepath, simulated=simulated)
             self.simulated = simulated
             self.cfg = self.instrument.cfg
-            self.viewer = napari.Viewer(title='ISPIM control', ndisplay=2, axis_labels=('y','x'))
+            self.viewer = napari.Viewer(title='ISPIM control', axis_labels=('y','x'))
             self.experimenters_name_popup()         # Popup for experimenters name.
                                                     # Determines what parameters will be exposed
             # Set up laser sliders and tabs
@@ -95,10 +93,9 @@ class UserInterface:
 
             # hide layers with <hidden> in name
             self.viewer.window.qt_viewer.layers.model().filterAcceptsRow = self._filter
-            napari.run()
 
-        finally:
-            self.close_instrument()
+        # finally:
+        #     self.close_instrument()
 
     def instrument_params_widget(self):
         self.instrument_params = InstrumentParameters(self.instrument.frame_grabber, self.cfg.sensor_column_count,

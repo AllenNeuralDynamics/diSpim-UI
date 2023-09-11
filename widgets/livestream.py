@@ -9,7 +9,8 @@ from skimage.io import imsave
 from napari.qt.threading import thread_worker, create_worker
 from time import sleep
 import logging
-
+import os
+import datetime
 
 class Livestream(WidgetBase):
 
@@ -37,6 +38,7 @@ class Livestream(WidgetBase):
         self.pos_widget = {}  # Holds widgets related to sample position
         self.move_stage = {}
         self.set_scan_start = {}  # Holds widgets related to setting volume limits during scan
+        self.live_view_lasers = []  # list containing lasers to play during livestream
         self.stage_position = None
         self.tab_widget = None
         self.sample_pos_worker = None
@@ -57,6 +59,7 @@ class Livestream(WidgetBase):
         if index == 0:
             try:
                 sleep(1)    # Sleep to allow threads to quit
+
                 self.stage_position = self.instrument.sample_pose.get_position()
                 # Update stage labels if stage has moved
                 for direction in directions:
@@ -80,12 +83,11 @@ class Livestream(WidgetBase):
 
         if self.cfg.acquisition_style == 'interleaved':
             self.live_view['wavelength'] = QListWidget()
-            self.live_view['wavelength'].setSelectionMode(QAbstractItemView.MultiSelection)
+            # Highlight of selection hide color so no selection and keep track of which are clicked
+            self.live_view['wavelength'].setSelectionMode(QAbstractItemView.NoSelection)
             wv_item = {}
             for wavelength in wv_strs:
                 wv_item[wavelength] = QListWidgetItem(wavelength)
-
-                wv_item[wavelength].setBackground(QtGui.QColor(65, 72, 81,255))
                 self.live_view['wavelength'].addItem(wv_item[wavelength])
             self.live_view['wavelength'].itemPressed.connect(self.color_change_list)
             self.live_view['wavelength'].setMaximumHeight(70)
@@ -123,9 +125,8 @@ class Livestream(WidgetBase):
     def start_live_view(self):
 
         """Start livestreaming"""
-        wavelengths = [int(item.text()) for item in self.live_view['wavelength'].selectedItems()] if \
-            self.cfg.acquisition_style == 'interleaved' else [int(self.live_view['wavelength'].currentText())]
-        if len(wavelengths) == 0:
+
+        if len(self.live_view_lasers) == 0:
             self.error_msg('No channel selected',
                            'Please select at least one channel to image in.')
             return
@@ -138,10 +139,11 @@ class Livestream(WidgetBase):
             for buttons in self.live_view:
                 self.live_view[buttons].setHidden(False)
 
-        self.instrument.start_livestream(wavelengths, self.set_scan_start['scouting'].isChecked()) # Needs to be list
+        self.instrument.start_livestream(self.live_view_lasers, self.set_scan_start['scouting'].isChecked()) # Needs to be list
 
         self.sample_pos_worker = self._sample_pos_worker()
         self.sample_pos_worker.start()
+        self.sample_pos_worker.finished.connect(self.instrument.stop_livestream)
 
         self.live_view['start'].clicked.connect(self.stop_live_view)
         # Only allow stopping once everything is initialized
@@ -150,7 +152,6 @@ class Livestream(WidgetBase):
         self.move_stage['slider'].setEnabled(False)
         self.move_stage['position'].setEnabled(False)
 
-        sleep(2)  # Allow livestream to start
         self.livestream_worker = create_worker(self.instrument._livestream_worker)
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
@@ -159,10 +160,8 @@ class Livestream(WidgetBase):
     def stop_live_view(self):
 
         """Stop livestreaming"""
-
         self.disable_button(button=self.live_view['start'])
         self.live_view['start'].clicked.disconnect(self.stop_live_view)
-        self.instrument.stop_livestream()
         self.livestream_worker.quit()
         self.sample_pos_worker.quit()
         self.live_view['start'].setText('Start Live View')
@@ -184,11 +183,13 @@ class Livestream(WidgetBase):
         """Changes selected iteams color in Qlistwidget"""
 
         wl = item.text()
-        if item.isSelected():
+        if item.background().color() == QtGui.QColor(self.cfg.laser_specs[wl]['color']):   # Deselected
+            self.live_view_lasers.remove(int(wl))
+            item.setBackground(QtGui.QColor(65, 72, 81, 255))
+        else:   #selected
             item.setBackground(QtGui.QColor(self.cfg.laser_specs[wl]['color']))
-        else:
-            item.setBackground(QtGui.QColor(65, 72, 81,255))
-
+            self.live_view_lasers.append(int(wl))
+        print(self.live_view_lasers)
     def color_change_combbox(self):
 
         """Changes color of drop down menu based on selected lasers """
@@ -196,7 +197,7 @@ class Livestream(WidgetBase):
         wavelength = int(self.live_view['wavelength'].currentText())
         self.live_view['wavelength'].setStyleSheet(
             f'QComboBox {{ background-color:{self.cfg.laser_specs[str(wavelength)]["color"]}; color : black; }}')
-
+        self.live_view_lasers = [wavelength]
         if self.instrument.livestream_enabled.is_set():
             self.instrument.setup_imaging_for_laser(wavelength, True)
 
@@ -234,12 +235,13 @@ class Livestream(WidgetBase):
     @thread_worker
     def _sample_pos_worker(self):
         """Update position widgets for volumetric imaging or manually moving"""
-
+        sleep(2)
         # While livestreaming and looking at the first tab the stage position updates
         while self.instrument.livestream_enabled.is_set():
             if self.tab_widget.currentIndex() != len(self.tab_widget) - 1:
                 moved = False
                 try:
+
                     self.sample_pos = self.instrument.sample_pose.get_position()
                     for direction in self.sample_pos.keys():
                         if direction in self.pos_widget.keys():
@@ -247,17 +249,17 @@ class Livestream(WidgetBase):
                             if self.pos_widget[direction].value() != new_pos:
                                 self.pos_widget[direction].setValue(new_pos)
                                 moved = True
-
+                                yield
                     if self.instrument.scout_mode and moved:
                         self.start_stop_ni()
                     self.update_slider(self.sample_pos)     # Update slide with newest z depth
+                    yield
                 except:
                     # Deal with garbled replies from tigerbox
                     pass
-
-            sleep(.5)
-
-
+                    yield
+            #sleep(.5)
+            yield
     def screenshot_button(self):
 
         """Button that will take a screenshot of liveviewer"""

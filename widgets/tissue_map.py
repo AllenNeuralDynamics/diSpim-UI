@@ -53,6 +53,7 @@ class TissueMap(WidgetBase):
         """Check if tab clicked is tissue map tab and start stage update when on tissue map tab
         :param index: clicked tab index. Tissue map is last tab"""
 
+        sleep(1)
         last_index = len(self.tab_widget) - 1
         if index == last_index:  # Start stage update when on tissue map tab
             self.map_pos_worker = self._map_pos_worker()
@@ -68,7 +69,7 @@ class TissueMap(WidgetBase):
 
     def map_pos_worker_finished(self):
         """Sets map_pos_alive to false when worker finishes"""
-        print('map pose finished')
+        print('map_pos_worker_finished')
         self.map_pos_alive = False
 
     def overview_widget(self):
@@ -309,12 +310,16 @@ class TissueMap(WidgetBase):
 
         """Update position of stage for tissue map, draw scanning volume, and tiling"""
         while True:
+            if self.instrument.setting_up_livestream:
+                yield
+                continue
             try:
                 if self.map_pose != self.instrument.sample_pose.get_position() and self.instrument.scout_mode:
                     # if stage has moved and scout mode is on
                     self.start_stop_ni()
-
-                self.map_pose = self.instrument.sample_pose.get_position()
+                with self.instrument.stage_query_lock:
+                    self.log.info(f"tissue_map")
+                    self.map_pose = self.instrument.sample_pose.get_position()
                 # Convert 1/10um to mm
                 coord = {k: v * 0.0001 for k, v in self.map_pose.items()}  # if not self.instrument.simulated \
                 #     else np.random.randint(-60000, 60000, 3)
@@ -333,7 +338,7 @@ class TissueMap(WidgetBase):
                                                               1, 0, 0, self.origin['y'],
                                                               0, 1, 0, gui_coord['z'],
                                                               0, 0, 0, 1))
-
+                yield
                 if self.instrument.start_pos == None:
 
                     # Translate volume of scan to gui coordinate plane
@@ -347,7 +352,7 @@ class TissueMap(WidgetBase):
                                                                      0, 0, 0, 1))
                     if self.checkbox['tiling'].isChecked():
                         self.draw_tiles(gui_coord)  # Draw tiles if checkbox is checked
-
+                    yield
                 else:
 
                     # Remap start position and shift position of scan vol to center of camera fov and convert um to mm
@@ -361,12 +366,12 @@ class TissueMap(WidgetBase):
                         self.draw_tiles(start_pos)
                     self.draw_volume(start_pos, self.remap_axis({k: self.cfg.imaging_specs[f'volume_{k}_um'] * .001
                                                                  for k in self.map_pose.keys()}))
+                    yield
             except:
                 pass
+                yield
             finally:
-                sleep(.5)
                 yield  # Yield so thread can stop
-            yield
 
     def draw_tiles(self, coord):
 
@@ -562,11 +567,18 @@ class TissueMap(WidgetBase):
         event.accept()
 
     def dropEvent(self, event):
+
         file_path = event.mimeData().urls()[0].toLocalFile()
         try:
+            self.map_pos_worker.quit()
             self.overview_finish(file_path)
         except:
             self.error_msg('Unusable Image', "Image dragged does not have the correct metadata. Tiff needs to have "
                                              "position, volume, and tile data for x, y, z")
+            self.map_pos_worker = self._map_pos_worker()
+            self.map_pos_alive = True
+            self.map_pos_worker.finished.connect(self.map_pos_worker_finished)
+            self.map_pos_worker.start()  # Restart map update
+
 
         event.accept()
