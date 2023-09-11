@@ -248,9 +248,30 @@ class TissueMap(WidgetBase):
         self.checkbox['objectives'].setChecked(True)
         self.checkbox['objectives'].stateChanged.connect(self.objective_display)
 
+        self.checkbox['save_points'] = QPushButton('Save Points')
+        self.checkbox['save_points'].clicked.connect(self.save_point)
         self.map['checkboxes'] = self.create_layout(struct='H', **self.checkbox)
 
         return self.create_layout(struct='V', **self.map)
+
+    def save_point(self):
+        """Save point plotted on the tissue map in txt file. To resee, drag file into map"""
+
+        file = open(fr'{self.cfg.local_storage_dir}\tissue_map_points.txt', "w+")
+        for item in self.plot.items:
+            if type(item) == gl.GLScatterPlotItem:
+                file.writelines(f'{list(item.pos)}\n')
+        file.close()
+
+    def load_points(self, file):
+        """Load txt file of points into tissue map"""
+
+        file = open(file, 'r')
+        data = file.readlines()
+        for line in data:
+            coord = json.loads(line)
+            point = gl.GLScatterPlotItem(pos=np.array(coord), size=.35, pxMode=False)
+            self.plot.addItem(point)
 
     def objective_display(self, state):
 
@@ -318,7 +339,6 @@ class TissueMap(WidgetBase):
                     # if stage has moved and scout mode is on
                     self.start_stop_ni()
                 with self.instrument.stage_query_lock:
-                    self.log.info(f"tissue_map")
                     self.map_pose = self.instrument.sample_pose.get_position()
                 # Convert 1/10um to mm
                 coord = {k: v * 0.0001 for k, v in self.map_pose.items()}  # if not self.instrument.simulated \
@@ -569,16 +589,20 @@ class TissueMap(WidgetBase):
     def dropEvent(self, event):
 
         file_path = event.mimeData().urls()[0].toLocalFile()
-        try:
-            self.map_pos_worker.quit()
-            self.overview_finish(file_path)
-        except:
-            self.error_msg('Unusable Image', "Image dragged does not have the correct metadata. Tiff needs to have "
-                                             "position, volume, and tile data for x, y, z")
-            self.map_pos_worker = self._map_pos_worker()
-            self.map_pos_alive = True
-            self.map_pos_worker.finished.connect(self.map_pos_worker_finished)
-            self.map_pos_worker.start()  # Restart map update
+        if file_path[-3:] == 'txt':
+            self.load_points(file_path)
+
+        else:
+            try:
+                self.map_pos_worker.quit()
+                self.overview_finish(file_path)
+            except:
+                self.error_msg('Unusable Image', "Image dragged does not have the correct metadata. Tiff needs to have "
+                                                 "position, volume, and tile data for x, y, z")
+                self.map_pos_worker = self._map_pos_worker()
+                self.map_pos_alive = True
+                self.map_pos_worker.finished.connect(self.map_pos_worker_finished)
+                self.map_pos_worker.start()  # Restart map update
 
 
         event.accept()
