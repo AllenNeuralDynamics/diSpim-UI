@@ -71,7 +71,7 @@ class WidgetBase:
         """Update viewer with latest image"""
         try:
             (image, layer) = args
-            key = f"Video {layer}"
+            key = f'Wavelength {layer}'
             layer = self.viewer.layers[key]
             layer._slice.image._view = image
             layer.events.set_data()
@@ -80,24 +80,46 @@ class WidgetBase:
 
             self.viewer.add_image(image, name = key, scale=[self.cfg.tile_specs['x_field_of_view_um'] / self.cfg.sensor_row_count,
                       self.cfg.tile_specs['y_field_of_view_um'] / self.cfg.sensor_column_count])
+            #self.viewer.layers[key].mouse_drag_callbacks.append(self.on_click)
             self.viewer.layers[key].rotate = 90
             self.viewer.layers[key].blending = 'additive'
+            self.viewer.layers[key].interpolation = 'nearest'
 
             if len(self.viewer.layers) == 1:  # Center viewer due to rotation
+                # self.viewer.add_image(np.zeros((1, self.cfg.row_count_px, self.cfg.column_count_px)),
+                #                               name='blank <hidden>',
+                #                               scale=(
+                #                               1, -self.cfg.tile_specs['x_field_of_view_um'] / self.cfg.sensor_row_count,
+                #                               self.cfg.tile_specs['y_field_of_view_um'] / self.cfg.sensor_column_count),
+                #                               rotate=0,
+                #                               visible=False)
+                # self.viewer.layers['blank <hidden>'].mouse_drag_callbacks.append(self.on_click)
+                # self.viewer.layers.selection.active = self.viewer.layers[key]
                 center = self.viewer.camera.center
                 self.viewer.camera.center = (center[0],
                                              -self.cfg.tile_specs['y_field_of_view_um'] * .5,  # Vertical
                                              self.cfg.tile_specs['x_field_of_view_um'] * .5)  # Horizontal
-            #     #TODO: Maybe add checkbox to add lines?
-            #     vert_line = np.array([[0, self.cfg.tile_specs['x_field_of_view_um'] * .5], [-self.cfg.tile_specs['y_field_of_view_um'], self.cfg.tile_specs['x_field_of_view_um'] * .5]])
-            #     horz_line = np.array([[-self.cfg.tile_specs['y_field_of_view_um'] * .5, 0], [-self.cfg.tile_specs['y_field_of_view_um'] * .5, self.cfg.tile_specs['x_field_of_view_um']]])
-            #     l = [vert_line, horz_line]
-            #     color = ['blue', 'green']
-            #
-            #     shapes_layer = self.viewer.add_shapes(l, shape_type='line', edge_width=1, edge_color=color, name='line')
-            #     shapes_layer.mode = 'select'
         except:
             pass
+
+    # Ability to pan when the dimension is being displayed as 3d
+    def on_click(self, layer, event):
+        center = self.viewer.camera.center
+        zoom = self.viewer.camera.zoom
+        self.viewer.dims.ndisplay = 2
+        self.viewer.camera.center = center
+        self.viewer.camera.zoom = zoom
+        yield
+        # on move
+        while event.type == 'mouse_move':
+            center = self.viewer.camera.center
+            zoom = self.viewer.camera.zoom
+            yield
+        # on release
+        self.viewer.dims.ndisplay = 3
+        self.viewer.dims.axis_labels = ('x', 'y', 'z')
+        self.viewer.camera.center = center
+        self.viewer.camera.zoom = zoom
 
     def scroll_box(self, widget: QWidget):
 

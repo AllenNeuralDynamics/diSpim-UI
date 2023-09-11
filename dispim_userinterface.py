@@ -21,18 +21,14 @@ class UserInterface:
                  console_output_level: str = 'info',
                  simulated: bool = False):
 
-        try:
-            # TODO: Create logger tab at bottom of napari viewer. Also make logger for each class as well
-            logger = logging.getLogger()
-            logger.setLevel(console_output_level)
+        #try:
+
             self.instrument = ispim.Ispim(config_filepath=config_filepath, simulated=simulated)
             self.simulated = simulated
             self.cfg = self.instrument.cfg
-            self.viewer = napari.Viewer(title='ISPIM control', ndisplay=2, axis_labels=('x', 'y'))
-
-            #self.experimenters_name_popup()         # Popup for experimenters name.
+            self.viewer = napari.Viewer(title='ISPIM control', axis_labels=('y','x'))
+            self.experimenters_name_popup()         # Popup for experimenters name.
                                                     # Determines what parameters will be exposed
-
             # Set up laser sliders and tabs
             self.laser_widget()
 
@@ -70,7 +66,7 @@ class UserInterface:
             self.tissue_map.set_tab_widget(tabbed_widgets)  # Passing in tab widget to tissue map
             self.livestream_parameters.set_tab_widget(tabbed_widgets)  # Passing in tab widget to livestream
             self.vol_acq_params.set_tab_widget(tabbed_widgets)
-            tabbed_widgets.setMinimumHeight(650)
+            tabbed_widgets.setMinimumHeight(700)
 
 
             # Widget contains start/stop, wl select, and progress bar
@@ -91,18 +87,25 @@ class UserInterface:
 
             self.viewer.scale_bar.visible = True
             self.viewer.scale_bar.unit = "um"
+            self.viewer.axes.visible = True
 
-            napari.run()
+            # hide layers with <hidden> in name
+            self.viewer.window.qt_viewer.layers.model().filterAcceptsRow = self._filter
 
-        finally:
-            self.close_instrument()
+        # finally:
+        #     self.close_instrument()
 
     def instrument_params_widget(self):
         self.instrument_params = InstrumentParameters(self.instrument.frame_grabber, self.cfg.sensor_column_count,
                                                       self.simulated, self.instrument, self.cfg)
-        x_game_mode = ['Micah Woodard', 'Xiaoyun Jiang', 'Adam Glaser', 'Joshua Vasquez', 'Kevin Cao']
+
+        tabbed_widgets = QTabWidget()  # Creating tab object
+        tabbed_widgets.setTabPosition(QTabWidget.North)
+        tabbed_widgets.addTab(self.instrument_params.joystick_remap_tab(), 'Joystick')
+        x_game_mode = ['Micah Woodard', 'Xiaoyun Jiang', 'Adam Glaser', 'Joshua Vasquez', 'Kevin Cao', 'Christian Bonatto', 'Erica Peterson']
         if self.cfg.experimenters_name not in x_game_mode:
             widgets = {'config_properties': self.instrument_params.scan_config(self.cfg, False)}
+            tabbed_widgets.setTabVisible(0, False) # Hide joystick
         else:
             widgets = {
                 'filetype_widget': self.instrument_params.filetype_widget(),
@@ -111,12 +114,16 @@ class UserInterface:
                 'cpx_exposure_widget': self.instrument_params.slit_width_widget(),
                 'config_properties': self.instrument_params.scan_config(self.cfg, x_game_mode),
             }
+
+
         instrument_params_widget = self.instrument_params.create_layout('V', **widgets)
         scroll_box = self.instrument_params.scroll_box(instrument_params_widget)
         instrument_params_dock = QDockWidget()
         instrument_params_dock.setWidget(scroll_box)
+        tabbed_widgets.addTab(instrument_params_dock, 'Parameters')
+        tabbed_widgets.setCurrentIndex(1)
 
-        return instrument_params_dock
+        return tabbed_widgets
 
     def livestream_widget(self):
 
@@ -162,11 +169,11 @@ class UserInterface:
         self.tissue_map = TissueMap(self.instrument, self.viewer)
         quick_scan_widget = self.tissue_map.overview_widget()
         # Connect quick scan to progress bar
-        quick_scan_widget.children()[1].clicked.connect(lambda: self.vol_acq_params._progress_bar_worker().start())
-
+        quick_scan_widget.children()[1].released.connect(lambda: self.vol_acq_params._progress_bar_worker().start())
         widgets = {
             'graph': self.tissue_map.graph(),
-            'functions': self.tissue_map.create_layout(struct='H',point=self.tissue_map.mark_graph(),
+            'functions': self.tissue_map.create_layout
+            (struct='H',point=self.tissue_map.mark_graph(),
                                                        quick_scan = quick_scan_widget)
         }
 
@@ -184,6 +191,9 @@ class UserInterface:
             self.experimenters_name_popup()
 
         self.cfg.experimenters_name = text
+
+    def _filter(self,row, parent):
+        return "<hidden>" not in self.viewer.layers[row].name
 
     def close_instrument(self):
         self.instrument.cfg.save()

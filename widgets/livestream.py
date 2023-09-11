@@ -1,6 +1,6 @@
 from widgets.widget_base import WidgetBase
 from qtpy.QtWidgets import QPushButton, QComboBox, QSpinBox, QLineEdit, QTabWidget,QListWidget,QListWidgetItem, \
-    QAbstractItemView, QScrollArea, QSlider, QLabel, QCheckBox
+    QAbstractItemView, QScrollArea, QSlider, QLabel, QCheckBox, QToolButton, QDial
 import qtpy.QtGui as QtGui
 import qtpy.QtCore as QtCore
 import numpy as np
@@ -11,6 +11,8 @@ from time import sleep
 import logging
 from pyqtgraph import PlotWidget
 import numpy as np
+import os
+import datetime
 
 class Livestream(WidgetBase):
 
@@ -38,6 +40,7 @@ class Livestream(WidgetBase):
         self.pos_widget = {}  # Holds widgets related to sample position
         self.move_stage = {}
         self.set_scan_start = {}  # Holds widgets related to setting volume limits during scan
+        self.live_view_lasers = []  # list containing lasers to play during livestream
         self.stage_position = None
         self.tab_widget = None
         self.sample_pos_worker = None
@@ -54,12 +57,17 @@ class Livestream(WidgetBase):
 
     def update_positon(self, index):
 
-        directions = ['X', 'Y', 'Z']
+        directions = ['x', 'y', 'z']
         if index == 0:
-            self.stage_position = self.instrument.tigerbox.get_position()
-            # Update stage labels if stage has moved
-            for direction in directions:
-                self.pos_widget[direction].setValue(int(self.stage_position[direction] * 1 / 10))
+            try:
+                sleep(1)    # Sleep to allow threads to quit
+
+                self.stage_position = self.instrument.sample_pose.get_position()
+                # Update stage labels if stage has moved
+                for direction in directions:
+                    self.pos_widget[direction].setValue(int(self.stage_position[direction] * 1 / 10))
+            except ValueError:
+                pass    # Pass if stage coughs up garbage
 
 
     def liveview_widget(self):
@@ -77,12 +85,11 @@ class Livestream(WidgetBase):
 
         if self.cfg.acquisition_style == 'interleaved':
             self.live_view['wavelength'] = QListWidget()
-            self.live_view['wavelength'].setSelectionMode(QAbstractItemView.MultiSelection)
+            # Highlight of selection hide color so no selection and keep track of which are clicked
+            self.live_view['wavelength'].setSelectionMode(QAbstractItemView.NoSelection)
             wv_item = {}
             for wavelength in wv_strs:
                 wv_item[wavelength] = QListWidgetItem(wavelength)
-
-                wv_item[wavelength].setBackground(QtGui.QColor(65, 72, 81,255))
                 self.live_view['wavelength'].addItem(wv_item[wavelength])
             self.live_view['wavelength'].itemPressed.connect(self.color_change_list)
             self.live_view['wavelength'].setMaximumHeight(70)
@@ -120,9 +127,8 @@ class Livestream(WidgetBase):
     def start_live_view(self):
 
         """Start livestreaming"""
-        wavelengths = [int(item.text()) for item in self.live_view['wavelength'].selectedItems()] if \
-            self.cfg.acquisition_style == 'interleaved' else [int(self.live_view['wavelength'].currentText())]
-        if len(wavelengths) == 0:
+
+        if len(self.live_view_lasers) == 0:
             self.error_msg('No channel selected',
                            'Please select at least one channel to image in.')
             return
@@ -135,11 +141,11 @@ class Livestream(WidgetBase):
             for buttons in self.live_view:
                 self.live_view[buttons].setHidden(False)
 
-        self.instrument.start_livestream(wavelengths,
-                                         self.set_scan_start['scouting'].isChecked())  # Wvs needs to be list
+        self.instrument.start_livestream(self.live_view_lasers, self.set_scan_start['scouting'].isChecked()) # Needs to be list
 
         self.sample_pos_worker = self._sample_pos_worker()
         self.sample_pos_worker.start()
+        self.sample_pos_worker.finished.connect(self.instrument.stop_livestream)
 
 
         self.graph_worker = self._focusing_metric()
@@ -151,23 +157,19 @@ class Livestream(WidgetBase):
         # Only allow stopping once everything is initialized
         # to avoid crashing gui
 
-        sleep(2)
+        self.move_stage['slider'].setEnabled(False)
+        self.move_stage['position'].setEnabled(False)
+
         self.livestream_worker = create_worker(self.instrument._livestream_worker)
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
-
-
-        self.move_stage['slider'].setEnabled(False)
-        self.move_stage['position'].setEnabled(False)
         # Disable moving stage while in liveview
 
     def stop_live_view(self):
 
         """Stop livestreaming"""
-
         self.disable_button(button=self.live_view['start'])
         self.live_view['start'].clicked.disconnect(self.stop_live_view)
-        self.instrument.stop_livestream()
         self.livestream_worker.quit()
         self.sample_pos_worker.quit()
         self.graph_worker.quit()
@@ -191,10 +193,12 @@ class Livestream(WidgetBase):
         """Changes selected iteams color in Qlistwidget"""
 
         wl = item.text()
-        if item.isSelected():
+        if item.background().color() == QtGui.QColor(self.cfg.laser_specs[wl]['color']):   # Deselected
+            self.live_view_lasers.remove(int(wl))
+            item.setBackground(QtGui.QColor(65, 72, 81, 255))
+        else:   #selected
             item.setBackground(QtGui.QColor(self.cfg.laser_specs[wl]['color']))
-        else:
-            item.setBackground(QtGui.QColor(65, 72, 81,255))
+            self.live_view_lasers.append(int(wl))
 
     def color_change_combbox(self):
 
@@ -203,7 +207,7 @@ class Livestream(WidgetBase):
         wavelength = int(self.live_view['wavelength'].currentText())
         self.live_view['wavelength'].setStyleSheet(
             f'QComboBox {{ background-color:{self.cfg.laser_specs[str(wavelength)]["color"]}; color : black; }}')
-
+        self.live_view_lasers = [wavelength]
         if self.instrument.livestream_enabled.is_set():
             self.instrument.setup_imaging_for_laser(wavelength, True)
 
@@ -211,8 +215,8 @@ class Livestream(WidgetBase):
 
         """Creates labels and boxs to indicate sample position"""
 
-        directions = ['X', 'Y', 'Z']
-        self.stage_position = self.instrument.tigerbox.get_position()
+        directions = ['x', 'y', 'z']
+        self.stage_position = self.instrument.sample_pose.get_position()
 
         # Create X, Y, Z labels and displays for where stage is
         for direction in directions:
@@ -241,30 +245,32 @@ class Livestream(WidgetBase):
     @thread_worker
     def _sample_pos_worker(self):
         """Update position widgets for volumetric imaging or manually moving"""
-
-        self.log.info('Starting stage update')
+        sleep(2)
         # While livestreaming and looking at the first tab the stage position updates
         while self.instrument.livestream_enabled.is_set():
             if self.tab_widget.currentIndex() != len(self.tab_widget) - 1:
                 moved = False
                 try:
-                    self.sample_pos = self.instrument.tigerbox.get_position()
+                    self.sample_pos = self.instrument.sample_pose.get_position(['x','y','z'])
                     for direction in self.sample_pos.keys():
+                        yield
                         if direction in self.pos_widget.keys():
+                            yield
                             new_pos = int(self.sample_pos[direction] * 1 / 10)
                             if self.pos_widget[direction].value() != new_pos:
                                 self.pos_widget[direction].setValue(new_pos)
                                 moved = True
-
+                                yield
                     if self.instrument.scout_mode and moved:
                         self.start_stop_ni()
                     self.update_slider(self.sample_pos)     # Update slide with newest z depth
+                    yield
                 except:
                     # Deal with garbled replies from tigerbox
                     pass
-            sleep(.5)
-
-
+                    yield
+            #sleep(.5)
+            yield
     def screenshot_button(self):
 
         """Button that will take a screenshot of liveviewer"""
@@ -280,7 +286,8 @@ class Livestream(WidgetBase):
         if self.viewer.layers != []:
             screenshot = self.viewer.screenshot()
             self.viewer.add_image(screenshot)
-            imsave('screenshot.png', screenshot)
+            imsave(rf'C:\Users\{os.getlogin()}\Projects\screenshot_{self.live_view["wavelength"].currentText()}_'
+                   rf'{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png', screenshot)
         else:
             self.error_msg('Screenshot', 'No image to screenshot')
 
@@ -289,8 +296,8 @@ class Livestream(WidgetBase):
         """Widget to move stage up and down w/o joystick control"""
 
         z_position = self.instrument.tigerbox.get_position('z')
-        self.z_limit = self.instrument.sample_pose.get_travel_limits('y') if not self.simulated else {'y':[0,100]}
-        self.z_limit['y'] = [round(x*10000) for x in self.z_limit['y']]
+        self.z_limit = self.instrument.sample_pose.get_travel_limits('y') if not self.instrument.simulated else {'y':[0,10]}
+        self.z_limit['y'] = [round(x*1000) for x in self.z_limit['y']]
         self.z_range = self.z_limit["y"][1] + abs(self.z_limit["y"][0]) # Shift range up by lower limit so no negative numbers
         self.move_stage['up'] = QLabel(
             f'Upper Limit: {round(self.z_limit["y"][0])}')  # Upper limit will be the more negative limit
@@ -299,7 +306,7 @@ class Livestream(WidgetBase):
         self.move_stage['slider'].setInvertedAppearance(True)
         self.move_stage['slider'].setMinimum(self.z_limit["y"][0])
         self.move_stage['slider'].setMaximum(self.z_limit["y"][1])
-        self.move_stage['slider'].setValue(int(z_position['Z']))
+        self.move_stage['slider'].setValue(int(z_position['Z']/10))
         self.move_stage['slider'].setTracking(False)
         self.move_stage['slider'].sliderReleased.connect(self.move_stage_vertical_released)
         self.move_stage['low'] = QLabel(
@@ -330,8 +337,8 @@ class Livestream(WidgetBase):
             self.move_stage['slider'].setValue(location)
             self.move_stage_textbox(location)
         self.tab_widget.setTabEnabled(len(self.tab_widget)-1, False)
-        self.instrument.tigerbox.move_absolute(z=location)
-        self.move_stage_worker = create_worker(lambda axis='y', pos=float(location): self.instrument.wait_to_stop(axis, pos))
+        self.instrument.tigerbox.move_absolute(z=(location*10))
+        self.move_stage_worker = create_worker(lambda axis='y', pos=float(location*10): self.instrument.wait_to_stop(axis, pos))
         self.move_stage_worker.start()
         self.move_stage_worker.finished.connect(lambda:self.enable_stage_slider())
 
@@ -353,13 +360,23 @@ class Livestream(WidgetBase):
 
     def update_slider(self, location:dict):
 
-        """Update position of slider if stage halted"""
+        """Update position of slider if stage halted. Location passed in as samplepose"""
 
         if type(location) == bool:      # if location is bool, then halt button was pressed
             self.move_stage_worker.quit()
             location = self.instrument.tigerbox.get_position('z')
-        self.move_stage_textbox(int(location['Z']))
-        self.move_stage['slider'].setValue(int(location['Z']))
+        self.move_stage_textbox(int(location['y']/10))
+        self.move_stage['slider'].setValue(int(location['y']/10))
+
+
+
+
+
+
+
+
+
+
 
     @thread_worker
     def _focusing_metric(self):
