@@ -245,7 +245,6 @@ class VolumetericAcquisition(WidgetBase):
                 for k, v in scan.items():
                     if k == 'start_pos_um':
                         self.instrument.set_scan_start({k1: 10 * v1 for k1, v1 in scan[k].items()})
-                        print(self.instrument.start_pos)
                     else:
                         setattr(self.cfg, k, v)
                 return_value = self.scan_summary()

@@ -9,7 +9,7 @@ from time import sleep
 from pyqtgraph.Qt import QtCore, QtGui
 import qtpy.QtGui
 import stl
-from math import cos, sin, pi
+from math import cos, sin, pi, tan, radians
 import os
 import blend_modes
 import tifffile
@@ -27,7 +27,7 @@ class TissueMap(WidgetBase):
         self.map_pos_worker = None
         self.pos = None
         self.plot = None
-        self.gl_overview = None
+        self.gl_overview = []
         self.map_pos_alive = False
 
 
@@ -36,6 +36,7 @@ class TissueMap(WidgetBase):
         self.origin = {}
         self.overview = {}
         self.tiles = []
+        self.scan_areas = []
         self.initial_volume = [self.cfg.volume_x_um, self.cfg.volume_y_um, self.cfg.volume_z_um]
         self.tile_offset = self.remap_axis({'x': (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
                                             'y': (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
@@ -78,7 +79,10 @@ class TissueMap(WidgetBase):
 
         self.overview['start'] = QPushButton('Start overview')
         self.overview['start'].pressed.connect(self.start_overview)
-        #self.overview['start'].setCheckable(True)
+        self.overview['view'] = QComboBox()
+        self.overview['view'].currentIndexChanged.connect(self.view_overview)
+
+
         return self.create_layout(struct='V', **self.overview)
 
     def start_overview(self):
@@ -145,16 +149,14 @@ class TissueMap(WidgetBase):
         for wl, array in zip(wavelengths, self.overview_array):
             wl = int(wl)
             key = f'Overview {wl}'
-            self.viewer.add_image(np.flip(np.rot90(array, 3)), name=key,
+            self.viewer.add_image(np.flip(np.rot90(array, 3), axis=0), name=key,
                                   scale=[self.scale_x * 1000,
                                          self.scale_y * 1000])  # scale so it won't be squished in viewer
             self.viewer.layers[key].rotate = 90
             self.viewer.layers[key].blending = 'additive'
-            #self.viewer.layers[key].mouse_drag_callbacks.append(self.on_click)
 
             wl_color = self.cfg.laser_specs[str(wl)]["color"]
             rgb = [x / 255 for x in qtpy.QtGui.QColor(wl_color).getRgb()]
-
             max = np.percentile(array, 90)
             min = np.percentile(array, 5)
             array.clip(min, max, out=array)
@@ -171,15 +173,19 @@ class TissueMap(WidgetBase):
             alpha = 1 - (i / (i + 1))
             blended = blend_modes.darken_only(blended.astype('f8'), colormap_array[i].astype('f8'), alpha)
         final_RGBA = pg.makeRGBA(blended, levels=[0, 256])[0]
-        self.gl_overview = gl.GLImageItem(final_RGBA, glOptions='translucent')
-        self.gl_overview.scale(self.scale_x, self.scale_y, 0, local=False)  # Scale Image
-        self.gl_overview.translate(gui_coord['x'] - self.tile_offset['x'],
+        final_RGBA[:, :, 3] = 200
+        self.gl_overview.append(gl.GLImageItem(final_RGBA, glOptions='translucent'))
+        self.gl_overview[-1].scale(self.scale_x, self.scale_y, 0, local=False)  # Scale Image
+        self.gl_overview[-1].translate(gui_coord['x'] - self.tile_offset['x'],
                                    gui_coord['y'] - self.tile_offset['y'],
                                    gui_coord['z'] - self.tile_offset['z'])
         self.plot.removeItem(self.objectives)
-        self.plot.addItem(self.gl_overview)  # GlImage doesn't like threads, do this outside of thread
+        self.plot.addItem(self.gl_overview[-1])  # GlImage doesn't like threads, do this outside of thread
         self.plot.addItem(self.objectives)  # Remove and add objectives to see view through them
 
+        # Add overview to combobox to be able to snap back to
+        self.overview['view'].addItem(str(len(self.gl_overview)-1))
+        self.overview['view'].setCurrentIndex(len(self.gl_overview)-1)
         self.map_pos_worker = self._map_pos_worker()
         self.map_pos_alive = True
         self.map_pos_worker.finished.connect(self.map_pos_worker_finished)
@@ -203,6 +209,19 @@ class TissueMap(WidgetBase):
         # self.overview_array = tifffile.imread(fr'C:\dispim_test\overview_img_405_2023-08-09_12-09-55.tiff')
         # self.xtiles = 10
 
+    def view_overview(self, index):
+        """Snap to specified overview for easier viewing"""
+
+        transform = self.gl_overview[index].transform().data()
+        self.plot.opts['center'] = QtGui.QVector3D(
+            transform[12] + ((self.gl_overview[index].data.shape[0] * transform[0]) / 2),
+            transform[13] + (
+                    (self.gl_overview[index].data.shape[1] * transform[5]) / 2),
+            transform[14])
+        self.plot.opts['elevation'] = 90
+        self.plot.opts['azimuth'] = 90
+        self.plot.opts['distance'] = (self.gl_overview[index].data.shape[1] * transform[5]) / (
+            tan(0.5 * radians(self.plot.opts['fov'])))
 
     def scan_summary(self):
 
@@ -359,6 +378,7 @@ class TissueMap(WidgetBase):
                                                               0, 1, 0, gui_coord['z'],
                                                               0, 0, 0, 1))
                 yield
+
                 if self.instrument.start_pos == None:
 
                     # Translate volume of scan to gui coordinate plane
@@ -442,6 +462,27 @@ class TissueMap(WidgetBase):
         box.setSize(**size)
         return box
 
+    def draw_configured_scans(self, scans: dict):
+        """Draw configured scans in tissue map"""
+
+        for scan in self.scan_areas:
+            if scan in self.plot.items:
+                self.plot.removeItem(scan)
+        self.scan_areas = []
+        for scan in scans.values():  # Scans is nested dictionaries outer dictionary key is the order of the scan
+            # Remap start position and shift position of scan vol to center of camera fov and convert um to mm
+            start_pos = self.remap_axis({k: v * 0.001 for k, v in scan['start_pos_um'].items()})  # start of scan coords
+            start_pos = {'x': start_pos['x'] - self.tile_offset['x'],
+                         'y': start_pos['y'] - self.tile_offset['y'],
+                         'z': start_pos['z'] - self.tile_offset['z']}
+            area = self.draw_volume(start_pos, self.remap_axis({'x': scan['volume_x_um'] * .001,
+                                                         'y': scan['volume_y_um'] * .001,
+                                                         'z': scan['volume_z_um'] * .001}))
+            area.setColor(qtpy.QtGui.QColor('darkviolet'))
+            self.plot.addItem(area)
+            self.scan_areas.append(area)
+
+
     def rotate_buttons(self):
 
         self.rotate['x-y'] = QPushButton("X/Y Plane")
@@ -489,7 +530,7 @@ class TissueMap(WidgetBase):
         """Remaps sample pose coordinates to gui 3d map coordinates.
         Sample pose comes in dictionary with uppercase keys and gui uses lowercase"""
 
-        remap = {'x': 'z', 'y': 'x', 'z': '-y'}     # TODO: Maybe make this config based
+        remap = {'x': 'z', 'y': '-x', 'z': '-y'}     # TODO: Maybe make this config based
         remap_coords = {}
 
         for k, v in remap.items():
@@ -593,16 +634,16 @@ class TissueMap(WidgetBase):
             self.load_points(file_path)
 
         else:
-            try:
-                self.map_pos_worker.quit()
-                self.overview_finish(file_path)
-            except:
-                self.error_msg('Unusable Image', "Image dragged does not have the correct metadata. Tiff needs to have "
-                                                 "position, volume, and tile data for x, y, z")
-                self.map_pos_worker = self._map_pos_worker()
-                self.map_pos_alive = True
-                self.map_pos_worker.finished.connect(self.map_pos_worker_finished)
-                self.map_pos_worker.start()  # Restart map update
+            #try:
+            self.map_pos_worker.quit()
+            self.overview_finish(file_path)
+            # except:
+            #     self.error_msg('Unusable Image', "Image dragged does not have the correct metadata. Tiff needs to have "
+            #                                      "position, volume, and tile data for x, y, z")
+            #     self.map_pos_worker = self._map_pos_worker()
+            #     self.map_pos_alive = True
+            #     self.map_pos_worker.finished.connect(self.map_pos_worker_finished)
+            #     self.map_pos_worker.start()  # Restart map update
 
 
         event.accept()

@@ -239,27 +239,26 @@ class Livestream(WidgetBase):
         directions = ['x', 'y', 'z']
         # While livestreaming and looking at the first tab the stage position updates
         while self.instrument.livestream_enabled.is_set():
-            if self.tab_widget.currentIndex() != len(self.tab_widget) - 1:
+            if self.tab_widget.currentIndex() == 0:
                 moved = False
-                #try:
-                self.sample_pos = self.instrument.sample_pose.get_position()
-                for direction in directions:
+                try:
+                    self.sample_pos = self.instrument.sample_pose.get_position()
+                    for direction in directions:
 
-                    yield
-                    new_pos = int(self.sample_pos[direction] * 1 / 10)
-                    if self.pos_widget[direction].value() != new_pos:
-                        self.pos_widget[direction].setValue(new_pos)
-                        moved = True
                         yield
-                if self.instrument.scout_mode and moved:
-                    self.start_stop_ni()
-                print('about to enter update slider')
-                self.update_slider(self.sample_pos)     # Update slide with newest z depth
-                yield
-                # except:
-                #     # Deal with garbled replies from tigerbox
-                #     pass
-                #     yield
+                        new_pos = int(self.sample_pos[direction] * 1 / 10)
+                        if self.pos_widget[direction].value() != new_pos:
+                            self.pos_widget[direction].setValue(new_pos)
+                            moved = True
+                            yield
+                    if self.instrument.scout_mode and moved:
+                        self.start_stop_ni()
+                    self.update_slider(self.sample_pos)     # Update slide with newest z depth
+                    yield
+                except:
+                    # Deal with garbled replies from tigerbox
+                    pass
+                    yield
             #sleep(.5)
             yield
     def screenshot_button(self):
@@ -352,7 +351,7 @@ class Livestream(WidgetBase):
     def update_slider(self, location:dict):
 
         """Update position of slider if stage halted. Location passed in as samplepose"""
-        print('in update slider')
+
         if type(location) == bool:      # if location is bool, then halt button was pressed
             self.move_stage_worker.quit()
             location = self.instrument.tigerbox.get_position('z')

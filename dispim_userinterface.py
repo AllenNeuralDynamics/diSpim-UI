@@ -119,6 +119,11 @@ class UserInterface:
 
 
         instrument_params_widget = self.instrument_params.create_layout('V', **widgets)
+        # Needs work to make this functional
+        # instrument_params_widget.setAcceptDrops(True)
+        # instrument_params_widget.dragEnterEvent = self.instrument_params.dragEnterEvent
+        # instrument_params_widget.dragMoveEvent = self.instrument_params.dragMoveEvent
+        # instrument_params_widget.dropEvent = self.instrument_params.dropEvent
         scroll_box = self.instrument_params.scroll_box(instrument_params_widget)
         instrument_params_dock = QDockWidget()
         instrument_params_dock.setWidget(scroll_box)
@@ -170,6 +175,9 @@ class UserInterface:
         quick_scan_widget = self.tissue_map.overview_widget()
         # Connect quick scan to progress bar
         quick_scan_widget.children()[1].released.connect(lambda: self.vol_acq_params._progress_bar_worker().start())
+        # Add scans to tissue map
+        self.vol_acq_params.volumetric_image['start'].menu().aboutToHide.connect(lambda:self.tissue_map.draw_configured_scans(self.vol_acq_params.acquisition_order))
+        self.vol_acq_params.volumetric_image['start'].menu().actions()[0].triggered.connect(lambda:self.tissue_map.draw_configured_scans(self.vol_acq_params.acquisition_order))
         widgets = {
             'graph': self.tissue_map.graph(),
             'functions': self.tissue_map.create_layout
