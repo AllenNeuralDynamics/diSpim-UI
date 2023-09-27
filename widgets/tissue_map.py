@@ -530,7 +530,7 @@ class TissueMap(WidgetBase):
         """Remaps sample pose coordinates to gui 3d map coordinates.
         Sample pose comes in dictionary with uppercase keys and gui uses lowercase"""
 
-        remap = {'x': 'z', 'y': '-x', 'z': '-y'}     # TODO: Maybe make this config based
+        remap = {'x': 'z', 'y': 'x', 'z': '-y'}     # TODO: Maybe make this config based
         remap_coords = {}
 
         for k, v in remap.items():

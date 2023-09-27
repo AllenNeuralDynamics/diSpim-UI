@@ -105,6 +105,7 @@ class Livestream(WidgetBase):
                 i += 1
             self.live_view['wavelength'].setStyleSheet(
                 f'QComboBox {{ background-color:{self.cfg.laser_specs[wv_strs[0]]["color"]}; color : black; }}')
+            self.live_view['wavelength'].setCurrentIndex(0)
 
         # Sets start position of scan to current position of sample
         self.set_scan_start['set_start'] = QPushButton()
