@@ -103,7 +103,6 @@ class TissueMap(WidgetBase):
             return
 
         self.overview['start'].blockSignals(False)
-        self.overview['start'].released.emit()      # Start progress bar
         self.map_pos_worker.quit()  # Stopping tissue map update
         for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, False)  # Disable tabs during scan
 
@@ -115,6 +114,8 @@ class TissueMap(WidgetBase):
         self.volumetric_image_worker = create_worker(self.instrument._acquisition_livestream_worker)
         self.volumetric_image_worker.yielded.connect(self.update_layer)
         self.volumetric_image_worker.start()
+
+        self.overview['start'].released.emit()  # Start progress bar
 
     def overview_finish(self, overview_path = None):
 
