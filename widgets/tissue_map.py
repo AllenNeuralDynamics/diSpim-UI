@@ -212,7 +212,7 @@ class TissueMap(WidgetBase):
 
     def view_overview(self, index):
         """Snap to specified overview for easier viewing"""
-
+        print(index)
         transform = self.gl_overview[index].transform().data()
         self.plot.opts['center'] = QtGui.QVector3D(
             transform[12] + ((self.gl_overview[index].data.shape[0] * transform[0]) / 2),

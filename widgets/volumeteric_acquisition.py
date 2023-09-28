@@ -252,6 +252,10 @@ class VolumetericAcquisition(WidgetBase):
 
                     self.volumetric_image['start'].blockSignals(False)
                     return
+        self.run_worker = self._run()
+        self.run_worker.finished.connect(lambda: self.end_scan())  # Napari threads have finished signals
+        self.run_worker.start()
+
         self.viewer.layers.clear()  # Clear existing layers
         self.volumetric_image_worker = create_worker(self.instrument._acquisition_livestream_worker)
         self.volumetric_image_worker.yielded.connect(self.update_layer)
@@ -259,10 +263,6 @@ class VolumetericAcquisition(WidgetBase):
 
         self.progress_worker = self._progress_bar_worker()
         self.progress_worker.start()
-
-        self.run_worker = self._run()
-        self.run_worker.finished.connect(lambda: self.end_scan())  # Napari threads have finished signals
-        self.run_worker.start()
 
     @thread_worker
     def _run(self):
@@ -312,10 +312,14 @@ class VolumetericAcquisition(WidgetBase):
     @thread_worker
     def _progress_bar_worker(self):
         """Displays progress bar of the current scan"""
-
+        print('enter progress bar')
+        print(self.instrument.overview_set.is_set())
+        while self.instrument.total_tiles == None or self.instrument.est_run_time == None:
+            yield
         scan_num = len(self.acquisition_order.values()) if not self.instrument.overview_set.is_set() else 1
+        print(scan_num)
         for i in range(0, scan_num):
-
+            print('in scan loop')
             QtCore.QMetaObject.invokeMethod(self.progress['bar'], 'setHidden', QtCore.Q_ARG(bool, False))
             QtCore.QMetaObject.invokeMethod(self.progress['end_time'], 'setHidden', QtCore.Q_ARG(bool, False))
             QtCore.QMetaObject.invokeMethod(self.progress['bar'], 'setValue', QtCore.Q_ARG(int, 0))
