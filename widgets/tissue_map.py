@@ -80,8 +80,7 @@ class TissueMap(WidgetBase):
         self.overview['start'] = QPushButton('Start overview')
         self.overview['start'].pressed.connect(self.start_overview)
         self.overview['view'] = QComboBox()
-        self.overview['view'].currentIndexChanged.connect(self.view_overview)
-
+        self.overview['view'].activated.connect(self.view_overview)
 
         return self.create_layout(struct='V', **self.overview)
 
