@@ -62,7 +62,7 @@ class create_UI():
             kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
 
         if simulated:
-            config_path =  rf'C:\Users\{os.getlogin()}\Downloads\dispim_files\config.toml'
+            config_path = rf'C:\Users\micah.woodard\PycharmProjects\diSpim-UI\config_restructure.toml'
         else:
             config_path = rf'C:\Users\{os.getlogin()}\Documents\dispim_files\config.toml'
 
