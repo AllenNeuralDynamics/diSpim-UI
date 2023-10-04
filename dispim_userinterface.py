@@ -98,7 +98,7 @@ class UserInterface:
         #     self.close_instrument()
 
     def instrument_params_widget(self):
-        self.instrument_params = InstrumentParameters(self.instrument.frame_grabber, self.cfg.sensor_column_count,
+        self.instrument_params = InstrumentParameters(self.cfg.sensor_column_count,
                                                       self.simulated, self.instrument, self.cfg)
 
         tabbed_widgets = QTabWidget()  # Creating tab object
@@ -110,10 +110,6 @@ class UserInterface:
             tabbed_widgets.setTabVisible(0, False) # Hide joystick
         else:
             widgets = {
-                'filetype_widget': self.instrument_params.filetype_widget(),
-                'cpx_scan_direction_widget': self.instrument_params.shutter_direction_widgets(),
-                'cpx_line_interval_widget': self.instrument_params.exposure_time_widget(),
-                'cpx_exposure_widget': self.instrument_params.slit_width_widget(),
                 'config_properties': self.instrument_params.scan_config(self.cfg, x_game_mode),
             }
 

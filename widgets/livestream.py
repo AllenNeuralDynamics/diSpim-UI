@@ -142,9 +142,9 @@ class Livestream(WidgetBase):
 
         self.instrument.start_livestream(self.live_view_lasers, self.set_scan_start['scouting'].isChecked()) # Needs to be list
 
-        self.sample_pos_worker = self._sample_pos_worker()
-        self.sample_pos_worker.start()
-        self.sample_pos_worker.finished.connect(self.instrument.stop_livestream)
+        # self.sample_pos_worker = self._sample_pos_worker()
+        # self.sample_pos_worker.start()
+        # self.sample_pos_worker.finished.connect(self.instrument.stop_livestream)
 
         self.live_view['start'].clicked.connect(self.stop_live_view)
         # Only allow stopping once everything is initialized
@@ -153,7 +153,7 @@ class Livestream(WidgetBase):
         self.livestream_worker = create_worker(self.instrument._livestream_worker)
         self.livestream_worker.yielded.connect(self.update_layer)
         self.livestream_worker.start()
-        # Disable moving stage while in liveview
+        
 
     def stop_live_view(self):
 
@@ -161,7 +161,8 @@ class Livestream(WidgetBase):
         self.disable_button(button=self.live_view['start'])
         self.live_view['start'].clicked.disconnect(self.stop_live_view)
         self.livestream_worker.quit()
-        self.sample_pos_worker.quit()
+        #self.sample_pos_worker.quit()
+        self.instrument.stop_livestream()
         self.live_view['start'].setText('Start Live View')
 
         self.live_view['start'].clicked.connect(self.start_live_view)
