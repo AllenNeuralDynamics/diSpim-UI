@@ -312,14 +312,12 @@ class VolumetericAcquisition(WidgetBase):
     @thread_worker
     def _progress_bar_worker(self):
         """Displays progress bar of the current scan"""
-        print('enter progress bar')
-        print(self.instrument.overview_set.is_set())
         while self.instrument.total_tiles == None or self.instrument.est_run_time == None:
+            sleep(.5)
             yield
         scan_num = len(self.acquisition_order.values()) if not self.instrument.overview_set.is_set() else 1
-        print(scan_num)
+
         for i in range(0, scan_num):
-            print('in scan loop')
             QtCore.QMetaObject.invokeMethod(self.progress['bar'], 'setHidden', QtCore.Q_ARG(bool, False))
             QtCore.QMetaObject.invokeMethod(self.progress['end_time'], 'setHidden', QtCore.Q_ARG(bool, False))
             QtCore.QMetaObject.invokeMethod(self.progress['bar'], 'setValue', QtCore.Q_ARG(int, 0))
@@ -347,7 +345,8 @@ class VolumetericAcquisition(WidgetBase):
 
                 if self.instrument.tiles_acquired == 0:
                     yield
-                    completion_date = self.instrument.start_time + timedelta(days=self.instrument.est_run_time)
+                    completion_date = self.instrument.start_time + timedelta(days=self.instrument.est_run_time) \
+                        if self.instrument.est_run_time != None else datetime.now()
 
                 else:
                     yield
@@ -361,7 +360,7 @@ class VolumetericAcquisition(WidgetBase):
                 else:
                     end_time = '¯\_(ツ)_/¯'
                 self.progress['end_time'].setText(f"End Time: {end_time}")
-                yield
+                sleep(.5)
                 yield  # So thread can stop
             end_time = datetime.now().strftime("%d %b, %Y at %H:%M %p")
             self.progress['end_time'].setText(f"End Time: {end_time}")
