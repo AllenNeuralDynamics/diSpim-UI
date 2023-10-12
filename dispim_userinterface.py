@@ -45,6 +45,7 @@ class UserInterface:
                                                                       vol = self.volumeteric_acquisition_widget()),
                 'stage_slider': self.livestream_parameters.move_stage_widget(),
             }
+            main_widgets['stage_slider'].setMaximumWidth(100)
             main_window.setWidget(self.instrument_params.create_layout(struct='H', **main_widgets))
 
             # Set up laser window combining laser sliders and selection

@@ -301,7 +301,6 @@ class TissueMap(WidgetBase):
             self.stage.setVisible(True)
         if state == 0:
             self.objectives.setVisible(False)
-            self.stage.setVisible(False)
 
     def set_tiling(self, state):
 
@@ -326,6 +325,7 @@ class TissueMap(WidgetBase):
             for item in self.tiles:
                 if item in self.plot.items:
                     self.plot.removeItem(item)
+            self.tiles = []
 
     def set_point(self):
 
@@ -354,6 +354,7 @@ class TissueMap(WidgetBase):
                 yield
                 continue
             try:
+                gui_coord = self.instrument.sample_pose.get_position()
                 if self.map_pose != self.instrument.sample_pose.get_position() and self.instrument.scout_mode:
                     # if stage has moved and scout mode is on
                     self.start_stop_ni()
@@ -391,7 +392,9 @@ class TissueMap(WidgetBase):
                                                                      0, 0, 1, gui_coord['z'] - self.tile_offset['z'],
                                                                      0, 0, 0, 1))
                     if self.checkbox['tiling'].isChecked():
-                        self.draw_tiles(gui_coord)  # Draw tiles if checkbox is checked
+                        if old_coord != gui_coord or self.tiles == [] or \
+                                self.initial_volume != [self.cfg.volume_x_um, self.cfg.volume_y_um, self.cfg.volume_z_um]:
+                            self.draw_tiles(gui_coord)  # Draw tiles if checkbox is checked if something has changed
                     yield
                 else:
 
@@ -411,6 +414,7 @@ class TissueMap(WidgetBase):
                 pass
                 yield
             finally:
+                old_coord = gui_coord
                 yield  # Yield so thread can stop
 
     def draw_tiles(self, coord):
@@ -478,7 +482,7 @@ class TissueMap(WidgetBase):
             area = self.draw_volume(start_pos, self.remap_axis({'x': scan['volume_x_um'] * .001,
                                                          'y': scan['volume_y_um'] * .001,
                                                          'z': scan['volume_z_um'] * .001}))
-            area.setColor(qtpy.QtGui.QColor('darkviolet'))
+            area.setColor(qtpy.QtGui.QColor('lime'))
             self.plot.addItem(area)
             self.scan_areas.append(area)
 
