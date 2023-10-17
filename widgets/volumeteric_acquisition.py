@@ -80,13 +80,13 @@ class VolumetericAcquisition(WidgetBase):
         table.setDefaultWidget(self.scan_table_widget)
         menu.addAction(table)
         # Set menu
-        menu.setMinimumWidth(920)
+        menu.setMinimumWidth(1000)
         self.volumetric_image['start'].setMenu(menu)
         self.volumetric_image['start'].setPopupMode(QToolButton.MenuButtonPopup)
 
         menu.aboutToHide.connect(self.configure_scans)
         self.scan_table_widget.itemChanged.connect(self.table_items_changed)
-
+        self.scan_table_widget.setMinimumWidth(2000)
         return self.start_image_qwidget
 
     def setup_additional_scan(self):
