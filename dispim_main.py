@@ -64,7 +64,7 @@ class create_UI():
         if simulated:
             config_path =  rf'C:\Users\{os.getlogin()}\Downloads\dispim_files\config.toml'
         else:
-            config_path = rf'C:\Users\{os.getlogin()}\Documents\dispim_files\config_refactor.toml'
+            config_path = rf'C:\Users\{os.getlogin()}\Documents\dispim_files\config.toml'
 
 
         self.UI = UserInterface(config_filepath=config_path,

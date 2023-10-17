@@ -282,7 +282,7 @@ class VolumetericAcquisition(WidgetBase):
 
 
             self.instrument.run(overwrite=self.volumetric_image['overwrite'].isChecked())
-            dest = str(self.instrument.img_storage_dir) if self.instrument.img_storage_dir != None else str(self.instrument.local_storage_dir)
+            dest = str(self.instrument.img_storage_dir) if self.instrument.img_storage_dir != None else str(self.instrument.cache_storage_dir)
             self.scans.append(dest)
             self.volumetric_image['start'].blockSignals(False)
             self.volumetric_image['start'].released.emit()  # Signal that scans are done

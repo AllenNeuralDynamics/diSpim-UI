@@ -130,7 +130,7 @@ class TissueMap(WidgetBase):
                 self.xtiles = meta_dict['tile']['x']
                 z_volume = meta_dict['volume']['z']
                 gui_coord = self.remap_axis({k: v * 0.0001 for k, v in meta_dict['position'].items()})
-                wavelengths = overview_path[(overview_path.find('overview_img_')+len('overview_img_')):-25].split('_')
+                wavelengths = [x for x in overview_path[:-5].split('_') if x.isdigit() and int(x) in self.cfg.laser_wavelengths]
         else:
             z_volume = self.cfg.imaging_specs[f'volume_z_um']
             gui_coord =self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
