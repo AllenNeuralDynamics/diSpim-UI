@@ -4,6 +4,7 @@ from qtpy.QtWidgets import QLineEdit, QVBoxLayout, QWidget, \
 from qtpy.QtGui import QIntValidator
 from tigerasi.device_codes import JoystickInput
 import qtpy.QtCore as QtCore
+from ispim.ispim_config import IspimConfig
 
 def get_dict_attr(class_def, attr):
     # for obj in [obj] + obj.__class__.mro():
@@ -279,4 +280,23 @@ class InstrumentParameters(WidgetBase):
 
         # Update joystick axis
         self.joystick_axes[joystick_axis] = stage_ax
+
+    def dragEnterEvent(self, event):
+        event.accept()
+
+    def dragMoveEvent(self, event):
+        event.accept()
+
+    def dropEvent(self, event):
+
+        file_path = event.mimeData().urls()[0].toLocalFile()
+        # Load new config
+        new_cfg = IspimConfig(file_path)
+        for k, v in new_cfg.__dict__.items():
+            if k == 'path':
+                self.cfg.__dict__[k] = v
+
+
+
+
 

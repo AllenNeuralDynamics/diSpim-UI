@@ -26,7 +26,7 @@ class create_UI():
 
     def __init__(self):
         simulated = False
-        log_level = "DEBUG"  # ["INFO", "DEBUG"]
+        log_level = "INFO"  # ["INFO", "DEBUG"]
         color_console_output = True
         console_output = True
 
@@ -44,10 +44,10 @@ class create_UI():
             else logging.Formatter(fmt=fmt, datefmt=datefmt)
 
         # Write logs to file to capture gui activity
-        file_handler = logging.FileHandler(Path(f'./gui_log_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.log'), 'w')
-        file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(logging.Formatter(fmt=fmt, datefmt=datefmt))
-        logger.addHandler(file_handler)
+        # file_handler = logging.FileHandler(Path(f'./gui_log_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.log'), 'w')
+        # file_handler.setLevel(logging.DEBUG)
+        # file_handler.setFormatter(logging.Formatter(fmt=fmt, datefmt=datefmt))
+        # logger.addHandler(file_handler)
         # Print console output if user requests it
         if console_output:
             log_handler = logging.StreamHandler(sys.stdout)

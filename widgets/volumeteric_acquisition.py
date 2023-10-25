@@ -80,13 +80,13 @@ class VolumetericAcquisition(WidgetBase):
         table.setDefaultWidget(self.scan_table_widget)
         menu.addAction(table)
         # Set menu
-        menu.setMinimumWidth(920)
+        menu.setMinimumWidth(1000)
         self.volumetric_image['start'].setMenu(menu)
         self.volumetric_image['start'].setPopupMode(QToolButton.MenuButtonPopup)
 
         menu.aboutToHide.connect(self.configure_scans)
         self.scan_table_widget.itemChanged.connect(self.table_items_changed)
-
+        self.scan_table_widget.setMinimumWidth(2000)
         return self.start_image_qwidget
 
     def setup_additional_scan(self):
@@ -245,7 +245,6 @@ class VolumetericAcquisition(WidgetBase):
                 for k, v in scan.items():
                     if k == 'start_pos_um':
                         self.instrument.set_scan_start({k1: 10 * v1 for k1, v1 in scan[k].items()})
-                        print(self.instrument.start_pos)
                     else:
                         setattr(self.cfg, k, v)
                 return_value = self.scan_summary()
@@ -253,14 +252,17 @@ class VolumetericAcquisition(WidgetBase):
 
                     self.volumetric_image['start'].blockSignals(False)
                     return
+        self.run_worker = self._run()
+        self.run_worker.finished.connect(lambda: self.end_scan())  # Napari threads have finished signals
+        self.run_worker.start()
+
         self.viewer.layers.clear()  # Clear existing layers
         self.volumetric_image_worker = create_worker(self.instrument._acquisition_livestream_worker)
         self.volumetric_image_worker.yielded.connect(self.update_layer)
         self.volumetric_image_worker.start()
 
-        self.run_worker = self._run()
-        self.run_worker.finished.connect(lambda: self.end_scan())  # Napari threads have finished signals
-        self.run_worker.start()
+        self.progress_worker = self._progress_bar_worker()
+        self.progress_worker.start()
 
     @thread_worker
     def _run(self):
@@ -278,10 +280,9 @@ class VolumetericAcquisition(WidgetBase):
                 self.tab_widget.setTabEnabled(i,False)
             self.instrument.cfg.save()
 
-            self.progress_worker = self._progress_bar_worker()
-            self.progress_worker.start()
+
             self.instrument.run(overwrite=self.volumetric_image['overwrite'].isChecked())
-            dest = str(self.instrument.img_storage_dir) if self.instrument.img_storage_dir != None else str(self.instrument.local_storage_dir)
+            dest = str(self.instrument.img_storage_dir) if self.instrument.img_storage_dir != None else str(self.instrument.cache_storage_dir)
             self.scans.append(dest)
             self.volumetric_image['start'].blockSignals(False)
             self.volumetric_image['start'].released.emit()  # Signal that scans are done
@@ -296,6 +297,7 @@ class VolumetericAcquisition(WidgetBase):
         for i in range(1,len(self.tab_widget)):
             self.tab_widget.setTabEnabled(i,True)
         self.volumetric_image['start'].blockSignals(False)
+        self.instrument._setup_waveform_hardware(self.cfg.imaging_wavelengths, live=True)
 
     def progress_bar_widget(self):
 
@@ -311,52 +313,58 @@ class VolumetericAcquisition(WidgetBase):
     @thread_worker
     def _progress_bar_worker(self):
         """Displays progress bar of the current scan"""
-
-        QtCore.QMetaObject.invokeMethod(self.progress['bar'], 'setHidden', QtCore.Q_ARG(bool, False))
-        QtCore.QMetaObject.invokeMethod(self.progress['end_time'], 'setHidden', QtCore.Q_ARG(bool, False))
-        QtCore.QMetaObject.invokeMethod(self.progress['bar'], 'setValue', QtCore.Q_ARG(int, 0))
         while self.instrument.total_tiles == None or self.instrument.est_run_time == None:
-            yield
             sleep(.5)
-        # Calculate total tiles within all stacks
-        if self.cfg.acquisition_style == 'interleaved' and not self.instrument.overview_set.is_set():
-            total_tiles = self.instrument.total_tiles*len(self.cfg.imaging_wavelengths)
-            z_tiles = total_tiles / self.instrument.x_y_tiles
-            time_scale = self.instrument.x_y_tiles/86400
-        else:
-            total_tiles = self.instrument.total_tiles * (len(self.cfg.imaging_wavelengths))^2
-            z_tiles = self.instrument.total_tiles/self.instrument.x_y_tiles
-            time_scale = (self.instrument.x_y_tiles * len(self.cfg.imaging_wavelengths))/86400
-
-        pct = 0
-        while self.instrument.total_tiles != None:
-            pct = (self.instrument.latest_frame_layer+(self.instrument.tiles_acquired*z_tiles))/total_tiles \
-                if self.instrument.latest_frame_layer != 0 else pct
-            QtCore.QMetaObject.invokeMethod(self.progress['bar'], f'setValue', QtCore.Q_ARG(int, round(pct*100)))
             yield
-            # Qt threads are so weird. Can't invoke repaint method outside of main thread and Qthreads don't play nice
-            # with napari threads so QMetaObject is static read-only instances
+        scan_num = len(self.acquisition_order.values()) if not self.instrument.overview_set.is_set() else 1
 
-            if self.instrument.tiles_acquired == 0:
+        for i in range(0, scan_num):
+            QtCore.QMetaObject.invokeMethod(self.progress['bar'], 'setHidden', QtCore.Q_ARG(bool, False))
+            QtCore.QMetaObject.invokeMethod(self.progress['end_time'], 'setHidden', QtCore.Q_ARG(bool, False))
+            QtCore.QMetaObject.invokeMethod(self.progress['bar'], 'setValue', QtCore.Q_ARG(int, 0))
+            while self.instrument.total_tiles == None or self.instrument.est_run_time == None:
                 yield
-                completion_date = self.instrument.start_time + timedelta(days=self.instrument.est_run_time)
-
+                sleep(.5)
+            # Calculate total tiles within all stacks
+            if self.cfg.acquisition_style == 'interleaved' and not self.instrument.overview_set.is_set():
+                total_tiles = self.instrument.total_tiles*len(self.cfg.imaging_wavelengths)
+                z_tiles = total_tiles / self.instrument.x_y_tiles
+                time_scale = self.instrument.x_y_tiles/86400
             else:
+                total_tiles = self.instrument.total_tiles * (len(self.cfg.imaging_wavelengths))^2
+                z_tiles = self.instrument.total_tiles/self.instrument.x_y_tiles
+                time_scale = (self.instrument.x_y_tiles * len(self.cfg.imaging_wavelengths))/86400
+
+            pct = 0
+            while self.instrument.total_tiles != None:
+                pct = (self.instrument.latest_frame_layer+(self.instrument.tiles_acquired*z_tiles))/total_tiles \
+                    if self.instrument.latest_frame_layer != 0 else pct
+                QtCore.QMetaObject.invokeMethod(self.progress['bar'], f'setValue', QtCore.Q_ARG(int, round(pct*100)))
                 yield
-                total_time_days = self.instrument.tile_time_s*time_scale
-                completion_date = self.instrument.start_time + timedelta(days=total_time_days)
+                # Qt threads are so weird. Can't invoke repaint method outside of main thread and Qthreads don't play nice
+                # with napari threads so QMetaObject is static read-only instances
 
-            if completion_date >= datetime.now():
-                date_str = completion_date.strftime("%d %b, %Y at %H:%M %p")
-                weekday = calendar.day_name[completion_date.weekday()]
-                end_time = f'{weekday}, {date_str}'
-            else:
-                end_time = '¯\_(ツ)_/¯'
+                if self.instrument.tiles_acquired == 0:
+                    yield
+                    completion_date = self.instrument.start_time + timedelta(days=self.instrument.est_run_time) \
+                        if self.instrument.est_run_time != None else datetime.now()
+
+                else:
+                    yield
+                    total_time_days = self.instrument.tile_time_s*time_scale
+                    completion_date = self.instrument.start_time + timedelta(days=total_time_days)
+
+                if completion_date >= datetime.now():
+                    date_str = completion_date.strftime("%d %b, %Y at %H:%M %p")
+                    weekday = calendar.day_name[completion_date.weekday()]
+                    end_time = f'{weekday}, {date_str}'
+                else:
+                    end_time = '¯\_(ツ)_/¯'
+                self.progress['end_time'].setText(f"End Time: {end_time}")
+                sleep(.5)
+                yield  # So thread can stop
+            end_time = datetime.now().strftime("%d %b, %Y at %H:%M %p")
             self.progress['end_time'].setText(f"End Time: {end_time}")
-            yield
-            yield  # So thread can stop
-        end_time = datetime.now().strftime("%d %b, %Y at %H:%M %p")
-        self.progress['end_time'].setText(f"End Time: {end_time}")
 
     def scan_summary(self):
 
