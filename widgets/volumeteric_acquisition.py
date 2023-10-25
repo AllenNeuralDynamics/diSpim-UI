@@ -297,6 +297,7 @@ class VolumetericAcquisition(WidgetBase):
         for i in range(1,len(self.tab_widget)):
             self.tab_widget.setTabEnabled(i,True)
         self.volumetric_image['start'].blockSignals(False)
+        self.instrument._setup_waveform_hardware(self.cfg.imaging_wavelengths, live=True)
 
     def progress_bar_widget(self):
 

@@ -42,6 +42,9 @@ class TissueMap(WidgetBase):
                                             'y': (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
                                             'z': 0})
 
+        self.pause_worker = QPushButton()
+        self.pause_worker.clicked.connect(self.pause_tissue_map_worker)
+
     def set_tab_widget(self, tab_widget: QTabWidget):
 
         """Set the tabwidget that contains main, wavelength, and tissue map tab"""
@@ -66,7 +69,19 @@ class TissueMap(WidgetBase):
             if self.map_pos_worker is not None:
                 self.map_pos_worker.quit()
 
-            pass
+    def pause_tissue_map_worker(self):
+
+        print(self.tab_widget.currentIndex())
+        print(len(self.tab_widget) - 1)
+        if self.tab_widget.currentIndex() == len(self.tab_widget) - 1:
+            print('pause')
+            self.map_pos_worker.pause()
+            while self.instrument.setting_up_livestream:
+                print('setting up livestream')
+                continue
+            print('resuming')
+            self.map_pos_worker.resume()
+
 
     def map_pos_worker_finished(self):
         """Sets map_pos_alive to false when worker finishes"""
@@ -131,6 +146,7 @@ class TissueMap(WidgetBase):
                 z_volume = meta_dict['volume']['z']
                 gui_coord = self.remap_axis({k: v * 0.0001 for k, v in meta_dict['position'].items()})
                 wavelengths = [x for x in overview_path[:-5].split('_') if x.isdigit() and int(x) in self.cfg.laser_wavelengths]
+                self.instrument.overview_imgs.append(overview_path)
         else:
             z_volume = self.cfg.imaging_specs[f'volume_z_um']
             gui_coord =self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
@@ -187,6 +203,10 @@ class TissueMap(WidgetBase):
         self.overview['view'].addItem(str(len(self.gl_overview)-1))
         self.overview['view'].setCurrentIndex(len(self.gl_overview)-1)
         self.map_pos_worker = self._map_pos_worker()
+
+        # Reprovision nidaq to be in live mode
+        self.instrument._setup_waveform_hardware(self.cfg.imaging_wavelengths, live=True)
+
         self.map_pos_alive = True
         self.map_pos_worker.finished.connect(self.map_pos_worker_finished)
         self.map_pos_worker.start()  # Restart map update
@@ -197,7 +217,7 @@ class TissueMap(WidgetBase):
 
         while self.map_pos_alive == True:   # Stalling til map pos worker quits
             sleep(.5)
-
+        print(self.instrument.sample_pose.get_position())
         self.x_grid_step_um, self.y_grid_step_um = self.instrument.get_xy_grid_step(self.cfg.tile_overlap_x_percent,
                                                                                     self.cfg.tile_overlap_y_percent)
 
@@ -353,6 +373,7 @@ class TissueMap(WidgetBase):
             if self.instrument.setting_up_livestream:
                 yield
                 continue
+
             try:
                 gui_coord = self.instrument.sample_pose.get_position()
                 if self.map_pose != self.instrument.sample_pose.get_position() and self.instrument.scout_mode:

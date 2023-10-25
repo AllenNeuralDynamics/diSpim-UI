@@ -48,6 +48,9 @@ class Livestream(WidgetBase):
         self.scale = [self.cfg.tile_specs['x_field_of_view_um'] / self.cfg.sensor_row_count,
                       self.cfg.tile_specs['y_field_of_view_um'] / self.cfg.sensor_column_count]
 
+        # Put nidaq in correct state
+        self.instrument._setup_waveform_hardware(self.cfg.imaging_wavelengths, live=True)
+
     def set_tab_widget(self, tab_widget: QTabWidget):
 
         self.tab_widget = tab_widget
@@ -66,6 +69,12 @@ class Livestream(WidgetBase):
                     self.pos_widget[direction].setValue(int(self.stage_position[direction] * 1 / 10))
             except ValueError:
                 pass    # Pass if stage coughs up garbage
+
+            if self.instrument.livestream_enabled.is_set():
+                self.sample_pos_worker.resume()
+
+        if index != 0 and self.instrument.livestream_enabled.is_set():
+            self.sample_pos_worker.pause()
 
 
     def liveview_widget(self):
@@ -145,6 +154,8 @@ class Livestream(WidgetBase):
 
         self.sample_pos_worker = self._sample_pos_worker()
         self.sample_pos_worker.start()
+        if self.tab_widget.currentIndex() != 0:
+            self.sample_pos_worker.pause()
         self.sample_pos_worker.finished.connect(self.instrument.stop_livestream)
 
         self.live_view['start'].clicked.connect(self.stop_live_view)
@@ -238,27 +249,26 @@ class Livestream(WidgetBase):
         directions = ['x', 'y', 'z']
         # While livestreaming and looking at the first tab the stage position updates
         while self.instrument.livestream_enabled.is_set():
-            if self.tab_widget.currentIndex() == 0:
-                moved = False
-                try:
-                    self.sample_pos = self.instrument.sample_pose.get_position()
-                    for direction in directions:
+            moved = False
+            try:
+                self.sample_pos = self.instrument.sample_pose.get_position()
+                for direction in directions:
+                    yield
+                    new_pos = int(self.sample_pos[direction] * 1 / 10)
+                    if self.pos_widget[direction].value() != new_pos:
+                        self.pos_widget[direction].setValue(new_pos)
+                        moved = True
                         yield
-                        new_pos = int(self.sample_pos[direction] * 1 / 10)
-                        if self.pos_widget[direction].value() != new_pos:
-                            self.pos_widget[direction].setValue(new_pos)
-                            moved = True
-                            yield
-                    if moved:
-                        self.update_slider(self.sample_pos)     # Update slide with newest z depth
-                        if self.instrument.scout_mode:
-                            self.start_stop_ni()
+                if moved:
+                    self.update_slider(self.sample_pos)     # Update slide with newest z depth
+                    if self.instrument.scout_mode:
+                        self.start_stop_ni()
 
-                    yield
-                except:
-                    # Deal with garbled replies from tigerbox
-                    pass
-                    yield
+                yield
+            except:
+                # Deal with garbled replies from tigerbox
+
+                yield
             #sleep(.5)
             yield
     def screenshot_button(self):
@@ -327,7 +337,6 @@ class Livestream(WidgetBase):
             self.move_stage['slider'].setValue(location)
             self.move_stage_textbox(location)
         if self.instrument.livestream_enabled.is_set():
-            print('quiting smaple pose worker')
             self.sample_pos_worker.pause()
         self.tab_widget.setTabEnabled(len(self.tab_widget)-1, False)
         self.instrument.tigerbox.move_absolute(z=(location*10))
