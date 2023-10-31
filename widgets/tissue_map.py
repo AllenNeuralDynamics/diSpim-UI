@@ -14,6 +14,8 @@ import os
 import blend_modes
 import tifffile
 import json
+from nidaqmx.constants import TaskMode, FrequencyUnits, Level
+from ispim.compute_waveforms import generate_waveforms
 
 class TissueMap(WidgetBase):
 
@@ -29,7 +31,7 @@ class TissueMap(WidgetBase):
         self.plot = None
         self.gl_overview = []
         self.map_pos_alive = False
-
+        self.overview_array = {}
 
         self.rotate = {}
         self.map = {}
@@ -137,77 +139,122 @@ class TissueMap(WidgetBase):
 
         for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, True)  # Enabled tabs
 
-        if overview_path != None:
-            with tifffile.TiffFile(overview_path) as tif:
-                tag = tif.pages[0].tags['ImageDescription']
-                meta_dict = json.loads(tag.value)
-                self.overview_array = tif.asarray()
-                self.xtiles = meta_dict['tile']['x']
-                z_volume = meta_dict['volume']['z']
-                gui_coord = self.remap_axis({k: v * 0.0001 for k, v in meta_dict['position'].items()})
-                wavelengths = [x for x in overview_path[:-5].split('_') if x.isdigit() and int(x) in self.cfg.laser_wavelengths]
-                self.instrument.overview_imgs.append(overview_path)
-        else:
-            z_volume = self.cfg.imaging_specs[f'volume_z_um']
-            gui_coord =self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
-            wavelengths = self.cfg.imaging_wavelengths
+        # if overview_path != None:
+        #     with tifffile.TiffFile(overview_path) as tif:
+        #         tag = tif.pages[0].tags['ImageDescription']
+        #         meta_dict = json.loads(tag.value)
+        #         print(meta_dict)
+        #         orientations = [overview_path[15:17]]
+        #         self.overview_array[orientations[0]] = tif.asarray()
+        #         self.xtiles = meta_dict['tile']['x']
+        #         z_volume = meta_dict['volume']['z']
+        #         gui_coord = self.remap_axis({k: v * 0.0001 for k, v in meta_dict['position'].items()})
+        #         wavelengths = [x for x in overview_path[:-5].split('_') if x.isdigit() and int(x) in self.cfg.laser_wavelengths]
+        #         self.instrument.overview_imgs.append(overview_path)
+        #
+        # else:
+        #     z_volume = self.cfg.imaging_specs[f'volume_z_um']
+        #     gui_coord =self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
+        #     wavelengths = self.cfg.imaging_wavelengths
+        #     orientations = ['xy', 'xz', 'yz']
 
-        overlap_um = round((self.cfg.tile_overlap_x_percent / 100) * self.cfg.tile_specs['x_field_of_view_um'])
-        self.scale_y = (
-                (((self.cfg.tile_specs['x_field_of_view_um'] * self.xtiles) - (overlap_um * (self.xtiles - 1))) * 0.001)
-                / self.overview_array[0].shape[0])
+        z_volume = self.cfg.imaging_specs[f'volume_z_um']
+        gui_coord =self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
+        wavelengths = self.cfg.imaging_wavelengths
+        orientations = ['xy', 'xz', 'yz']
 
-        self.scale_x = ((z_volume * 0.001) / self.overview_array[0].shape[1])
+        self.set_tiling(2)  # Update tiles and gridsteps
 
-        j = 0
-        colormap_array = [None] * len(wavelengths)
+        scale_x = (((((self.xtiles - 1) * self.x_grid_step_um) + self.cfg.tile_size_x_um)) / self.overview_array['xz'][0].shape[0])/1000
+        scale_z = (((z_volume) / self.overview_array['xz'][0].shape[1]))/1000
+        scale_y = (((((self.ytiles - 1) * self.y_grid_step_um) + self.cfg.tile_size_y_um)) / self.overview_array['xy'][0].shape[1])/1000
 
-        for wl, array in zip(wavelengths, self.overview_array):
+        overview_specs = {
+            'xy':
+                {'scale': (scale_y, scale_x, 1),
+                 'rotation': (90, 0, 1, 0),
+                 'k': 1
+                 },
+            'yz':
+                {'scale': (scale_z, -scale_y, 1),
+                 'rotation': (90, 1, 0, 0),
+                 'k': 0
+                 },
+            'xz':
+                {'scale': (scale_z, scale_x, 0),
+                 'rotation': (0, 0, 0, 0),
+                 'k': 3
+                 }
+        }
+
+        # Add images to napari
+        for wl in wavelengths:
             wl = int(wl)
-            key = f'Overview {wl}'
-            self.viewer.add_image(np.flip(np.rot90(array, 3), axis=0), name=key,
-                                  scale=[self.scale_x * 1000,
-                                         self.scale_y * 1000])  # scale so it won't be squished in viewer
-            self.viewer.layers[key].rotate = 90
-            self.viewer.layers[key].blending = 'additive'
+            key = f'Overview {wl} '
+            self.viewer.add_image(self.overview_array['xy'], name=key+'xy',
+                                  scale=[scale_x*1000,scale_y*1000])  # scale so it won't be squished in viewer
+            self.viewer.add_image(np.rot90(self.overview_array['yz']), name=key + 'yz',
+                                  scale=[scale_y*1000, scale_z*1000])  # scale so it won't be squished in viewer
+            self.viewer.add_image(self.overview_array['xz'], name=key + 'xz',
+                                  scale=[scale_x*1000, scale_z*1000])  # scale so it won't be squished in viewer
 
-            wl_color = self.cfg.laser_specs[str(wl)]["color"]
-            rgb = [x / 255 for x in qtpy.QtGui.QColor(wl_color).getRgb()]
-            max = np.percentile(array, 90)
-            min = np.percentile(array, 5)
-            array.clip(min, max, out=array)
-            array -= min
-            array = np.floor_divide(array, (max - min) / 256, out=array, casting='unsafe')
-            overview_RGBA = \
-                pg.makeRGBA(np.flip(np.rot90(array, 3), axis=1), levels=[0, 256])[0]  # GLImage needs to be RGBA
-            for i in range(0, len(rgb)):
-                overview_RGBA[:, :, i] = overview_RGBA[:, :, i] * rgb[i]
-            colormap_array[j] = overview_RGBA
-            j += 1
-        blended = colormap_array[0]
-        for i in range(1, len(colormap_array)):
-            alpha = 1 - (i / (i + 1))
-            blended = blend_modes.darken_only(blended.astype('f8'), colormap_array[i].astype('f8'), alpha)
-        final_RGBA = pg.makeRGBA(blended, levels=[0, 256])[0]
-        final_RGBA[:, :, 3] = 200
-        self.gl_overview.append(gl.GLImageItem(final_RGBA, glOptions='translucent'))
-        self.gl_overview[-1].scale(self.scale_x, self.scale_y, 0, local=False)  # Scale Image
-        self.gl_overview[-1].translate(gui_coord['x'] - self.tile_offset['x'],
-                                   gui_coord['y'] - self.tile_offset['y'],
-                                   gui_coord['z'] - self.tile_offset['z'])
-        self.plot.removeItem(self.objectives)
-        self.plot.addItem(self.gl_overview[-1])  # GlImage doesn't like threads, do this outside of thread
-        self.plot.addItem(self.objectives)  # Remove and add objectives to see view through them
+        colormap_array = {orientation:[None] * len(wavelengths) for orientation in orientations}
+        final_RGBA = {}
+        for orientation in orientations:
+            # Auto contrasting image for tissue map
+            j = 0
+            for wl, array in zip(wavelengths, self.overview_array[orientation]):
+                wl = int(wl)
+                wl_color = 'purple'
+                rgb = [x / 255 for x in qtpy.QtGui.QColor(wl_color).getRgb()]
+                max = np.percentile(array, 90)
+                min = np.percentile(array, 5)
+                array.clip(min, max, out=array)
+                array -= min
+                array = np.floor_divide(array, (max - min) / 256, out=array, casting='unsafe')
 
-        # Add overview to combobox to be able to snap back to
-        self.overview['view'].addItem(str(len(self.gl_overview)-1))
-        self.overview['view'].setCurrentIndex(len(self.gl_overview)-1)
-        self.map_pos_worker = self._map_pos_worker()
+                if orientation == 'xz':
+                    overview_RGBA = \
+                    pg.makeRGBA(np.flip(np.rot90(array, overview_specs[orientation]['k']), axis=1), levels=[0, 256])[0]
+                elif orientation == 'xy':
+                    overview_RGBA = pg.makeRGBA(np.flip(np.rot90(array, 1), axis=0), levels=[0, 256])[0]
+                else:
+                    overview_RGBA = pg.makeRGBA(np.flip(array, axis=0), levels=[0, 256])[0]
 
-        # Reprovision nidaq to be in live mode
+                for i in range(0, len(rgb)):
+                    overview_RGBA[:, :, i] = overview_RGBA[:, :, i] * rgb[i]
+                colormap_array[orientation][j] = overview_RGBA
+                j += 1
+
+            blended = colormap_array[orientation][0]
+            for i in range(1, len(colormap_array[orientation])):
+                alpha = 1 - (i / (i + 1))
+                blended = blend_modes.darken_only(blended.astype('f8'), colormap_array[orientation][i].astype('f8'),
+                                                  alpha)
+            final_RGBA[orientation] = pg.makeRGBA(blended, levels=[0, 256])[0]
+            final_RGBA[orientation][:, :, 3] = 200
+
+
+            image = gl.GLImageItem(final_RGBA[orientation],
+                                   glOptions='translucent')
+            image.scale(overview_specs[orientation]['scale'][0],
+                        overview_specs[orientation]['scale'][1],
+                        overview_specs[orientation]['scale'][2], local=False)  # Scale Image
+            image.rotate(*overview_specs[orientation]['rotation'])
+            image.translate(gui_coord['x'] - self.tile_offset['x'],
+                                           gui_coord['y'] - self.tile_offset['y'],
+                                           gui_coord['z'] - self.tile_offset['z'])
+            self.plot.addItem(image)
+            self.gl_overview.append(image)
+            self.overview['view'].addItem(str(len(self.gl_overview) - 1))
+            self.overview['view'].setCurrentIndex(len(self.gl_overview)-1)
+
+        # Put nidaq in correct state for liveview.
+        # Configuring the ni tasks during other threads is buggy so avoid doing if possible
         self.instrument._setup_waveform_hardware(self.cfg.imaging_wavelengths, live=True)
 
         self.map_pos_alive = True
+        self.map_pos_worker = self._map_pos_worker()
         self.map_pos_worker.finished.connect(self.map_pos_worker_finished)
         self.map_pos_worker.start()  # Restart map update
 
@@ -216,19 +263,20 @@ class TissueMap(WidgetBase):
     def _overview_worker(self):
 
         while self.map_pos_alive == True:   # Stalling til map pos worker quits
+            print('map pose alive')
             sleep(.5)
-        print(self.instrument.sample_pose.get_position())
         self.x_grid_step_um, self.y_grid_step_um = self.instrument.get_xy_grid_step(self.cfg.tile_overlap_x_percent,
                                                                                     self.cfg.tile_overlap_y_percent)
 
 
-        self.overview_array, self.xtiles = self.instrument.overview_scan()
+        self.overview_array = self.instrument.overview_scan()
 
         self.volumetric_image_worker.quit()
 
-        # self.overview_array = tifffile.imread(fr'C:\dispim_test\overview_img_405_2023-08-09_12-09-55.tiff')
-        # self.xtiles = 10
-
+        # self.overview_array = {'xy': tifffile.imread(fr'C:\dispim_test\xy_overview_img_405_2023-10-27_14-57-52.tiff'),
+        #                        'yz': tifffile.imread(fr'C:\dispim_test\yz_overview_img_405_2023-10-27_14-57-52.tiff'),
+        #                        'xz': tifffile.imread(fr'C:\dispim_test\xz_overview_img_405_2023-10-27_14-57-52.tiff')}
+        #print(self.overview_array)
     def view_overview(self, index):
         """Snap to specified overview for easier viewing"""
         print(index)
@@ -249,7 +297,7 @@ class TissueMap(WidgetBase):
                                                            self.cfg.tile_overlap_y_percent,
                                                            .8 * 10,
                                                            self.cfg.volume_x_um,
-                                                           300,
+                                                           self.cfg.volume_y_um,
                                                            self.cfg.volume_z_um)
         msgBox = QMessageBox()
         msgBox.setIcon(QMessageBox.Information)
@@ -369,6 +417,7 @@ class TissueMap(WidgetBase):
     def _map_pos_worker(self):
 
         """Update position of stage for tissue map, draw scanning volume, and tiling"""
+        gui_coord = None
         while True:
             if self.instrument.setting_up_livestream:
                 yield

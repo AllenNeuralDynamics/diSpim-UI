@@ -3,6 +3,8 @@ from qtpy.QtWidgets import QPushButton, QComboBox, QSpinBox, QLineEdit, QTabWidg
     QAbstractItemView, QScrollArea, QSlider, QLabel, QCheckBox, QToolButton, QDial
 import qtpy.QtGui as QtGui
 import qtpy.QtCore as QtCore
+from nidaqmx.constants import TaskMode, FrequencyUnits, Level
+from ispim.compute_waveforms import generate_waveforms
 import numpy as np
 from math import ceil
 from skimage.io import imsave
@@ -48,7 +50,8 @@ class Livestream(WidgetBase):
         self.scale = [self.cfg.tile_specs['x_field_of_view_um'] / self.cfg.sensor_row_count,
                       self.cfg.tile_specs['y_field_of_view_um'] / self.cfg.sensor_column_count]
 
-        # Put nidaq in correct state
+        # Put nidaq in correct state for liveview.
+        # Configuring the ni tasks during other threads is buggy so avoid doing if possible
         self.instrument._setup_waveform_hardware(self.cfg.imaging_wavelengths, live=True)
 
     def set_tab_widget(self, tab_widget: QTabWidget):
@@ -149,6 +152,10 @@ class Livestream(WidgetBase):
             self.live_view['start'].setText('Stop Live View')
             for buttons in self.live_view:
                 self.live_view[buttons].setHidden(False)
+
+        # Reconfigure buffer of ni for livestream
+        _, ao_voltages, do_voltages_out = generate_waveforms(self.cfg, self.live_view_lasers)
+        self.instrument.ni.rereserve_buffer(len(ao_voltages[0]))
 
         self.instrument.start_livestream(self.live_view_lasers, self.set_scan_start['scouting'].isChecked()) # Needs to be list
 
