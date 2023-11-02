@@ -73,10 +73,10 @@ class Livestream(WidgetBase):
             except ValueError:
                 pass    # Pass if stage coughs up garbage
 
-            if self.instrument.livestream_enabled.is_set():
+            if self.instrument.livestream_enabled.is_set() and self.instrument.scout_mode != True:
                 self.sample_pos_worker.resume()
 
-        if index != 0 and self.instrument.livestream_enabled.is_set():
+        if index != 0 and self.instrument.livestream_enabled.is_set() and self.instrument.scout_mode != True:
             self.sample_pos_worker.pause()
 
 

@@ -43,10 +43,6 @@ class TissueMap(WidgetBase):
         self.tile_offset = self.remap_axis({'x': (.5 * 0.001 * (self.cfg.tile_specs['x_field_of_view_um'])),
                                             'y': (.5 * 0.001 * (self.cfg.tile_specs['y_field_of_view_um'])),
                                             'z': 0})
-
-        self.pause_worker = QPushButton()
-        self.pause_worker.clicked.connect(self.pause_tissue_map_worker)
-
     def set_tab_widget(self, tab_widget: QTabWidget):
 
         """Set the tabwidget that contains main, wavelength, and tissue map tab"""
@@ -70,20 +66,6 @@ class TissueMap(WidgetBase):
         else:  # Quit updating tissue map if not on tissue map tab
             if self.map_pos_worker is not None:
                 self.map_pos_worker.quit()
-
-    def pause_tissue_map_worker(self):
-
-        print(self.tab_widget.currentIndex())
-        print(len(self.tab_widget) - 1)
-        if self.tab_widget.currentIndex() == len(self.tab_widget) - 1:
-            print('pause')
-            self.map_pos_worker.pause()
-            while self.instrument.setting_up_livestream:
-                print('setting up livestream')
-                continue
-            print('resuming')
-            self.map_pos_worker.resume()
-
 
     def map_pos_worker_finished(self):
         """Sets map_pos_alive to false when worker finishes"""
@@ -139,36 +121,44 @@ class TissueMap(WidgetBase):
 
         for i in range(0, len(self.tab_widget)): self.tab_widget.setTabEnabled(i, True)  # Enabled tabs
 
-        # if overview_path != None:
-        #     with tifffile.TiffFile(overview_path) as tif:
-        #         tag = tif.pages[0].tags['ImageDescription']
-        #         meta_dict = json.loads(tag.value)
-        #         print(meta_dict)
-        #         orientations = [overview_path[15:17]]
-        #         self.overview_array[orientations[0]] = tif.asarray()
-        #         self.xtiles = meta_dict['tile']['x']
-        #         z_volume = meta_dict['volume']['z']
-        #         gui_coord = self.remap_axis({k: v * 0.0001 for k, v in meta_dict['position'].items()})
-        #         wavelengths = [x for x in overview_path[:-5].split('_') if x.isdigit() and int(x) in self.cfg.laser_wavelengths]
-        #         self.instrument.overview_imgs.append(overview_path)
-        #
-        # else:
-        #     z_volume = self.cfg.imaging_specs[f'volume_z_um']
-        #     gui_coord =self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
-        #     wavelengths = self.cfg.imaging_wavelengths
-        #     orientations = ['xy', 'xz', 'yz']
-
-        z_volume = self.cfg.imaging_specs[f'volume_z_um']
-        gui_coord =self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
-        wavelengths = self.cfg.imaging_wavelengths
-        orientations = ['xy', 'xz', 'yz']
-
         self.set_tiling(2)  # Update tiles and gridsteps
 
-        scale_x = (((((self.xtiles - 1) * self.x_grid_step_um) + self.cfg.tile_size_x_um)) / self.overview_array['xz'][0].shape[0])/1000
-        scale_z = (((z_volume) / self.overview_array['xz'][0].shape[1]))/1000
-        scale_y = (((((self.ytiles - 1) * self.y_grid_step_um) + self.cfg.tile_size_y_um)) / self.overview_array['xy'][0].shape[1])/1000
+        if overview_path != None:
+            with tifffile.TiffFile(overview_path) as tif:
+                tag = tif.pages[0].tags['ImageDescription']
+                meta_dict = json.loads(tag.value)
+                orientations = [overview_path[overview_path.find('overview_img_')-3:overview_path.find('overview_img_')-1]]
+                self.overview_array[orientations[0]] = tif.asarray()
+                self.xtiles = meta_dict['tile']['x']
+                self.ytiles = meta_dict['tile']['y']
+                z_volume = meta_dict['volume']['z']
+                gui_coord = self.remap_axis({k: v * 0.0001 for k, v in meta_dict['position'].items()})
+                wavelengths = [x for x in overview_path[:-5].split('_') if x.isdigit() and int(x) in self.cfg.laser_wavelengths]
+                self.instrument.overview_imgs.append(overview_path)
 
+                # only not x if yz and x scale doens't matter in that case
+                x_px_len = self.overview_array[orientations[0]][0].shape[0] if orientations[0][0] == 'x' else 1
+                # in xy and yz, y is always second dimension
+                y_px_len = self.overview_array[orientations[0]][0].shape[1]
+                z_px_len = self.overview_array[orientations[0]][0].shape[1] if orientations[0][0] == 'x' else \
+                self.overview_array[orientations[0]][0].shape[0]
+
+        else:
+            z_volume = self.cfg.imaging_specs[f'volume_z_um']
+            gui_coord = self.remap_axis({k: v * 0.0001 for k, v in self.map_pose.items()})
+            wavelengths = self.cfg.imaging_wavelengths
+            orientations = ['xy', 'xz', 'yz']
+            x_px_len = self.overview_array['xz'][0].shape[0]
+            y_px_len = self.overview_array['xy'][0].shape[1]
+            z_px_len =  self.overview_array['xz'][0].shape[1]
+
+            # Put nidaq in correct state for liveview.
+            # Configuring the ni tasks during other threads is buggy so avoid doing if possible
+            self.instrument._setup_waveform_hardware(self.cfg.imaging_wavelengths, live=True)
+
+        scale_x = (((((self.xtiles - 1) * self.x_grid_step_um) + self.cfg.tile_size_x_um)) / x_px_len) / 1000
+        scale_z = (((z_volume) / z_px_len)) / 1000
+        scale_y = (((((self.ytiles - 1) * self.y_grid_step_um) + self.cfg.tile_size_y_um)) / y_px_len) / 1000
         overview_specs = {
             'xy':
                 {'scale': (scale_y, scale_x, 1),
@@ -187,24 +177,18 @@ class TissueMap(WidgetBase):
                  }
         }
 
-        # Add images to napari
-        for wl in wavelengths:
-            wl = int(wl)
-            key = f'Overview {wl} '
-            self.viewer.add_image(self.overview_array['xy'], name=key+'xy',
-                                  scale=[scale_x*1000,scale_y*1000])  # scale so it won't be squished in viewer
-            self.viewer.add_image(np.rot90(self.overview_array['yz']), name=key + 'yz',
-                                  scale=[scale_y*1000, scale_z*1000])  # scale so it won't be squished in viewer
-            self.viewer.add_image(self.overview_array['xz'], name=key + 'xz',
-                                  scale=[scale_x*1000, scale_z*1000])  # scale so it won't be squished in viewer
-
         colormap_array = {orientation:[None] * len(wavelengths) for orientation in orientations}
         final_RGBA = {}
         for orientation in orientations:
             # Auto contrasting image for tissue map
             j = 0
             for wl, array in zip(wavelengths, self.overview_array[orientation]):
-                wl = int(wl)
+                print(self.map_pos_alive)
+                key = f'Overview {wl} {orientation}'
+                self.viewer.add_image(np.rot90(array, overview_specs[orientation]['k']), name=key,
+                                      scale=[round(overview_specs[orientation]['scale'][0] * 1000, 3),
+                                             round(overview_specs[orientation]['scale'][1] * 1000, 3)])
+                # scale so it won't be squished in viewer
                 wl_color = 'purple'
                 rgb = [x / 255 for x in qtpy.QtGui.QColor(wl_color).getRgb()]
                 max = np.percentile(array, 90)
@@ -249,10 +233,6 @@ class TissueMap(WidgetBase):
             self.overview['view'].addItem(str(len(self.gl_overview) - 1))
             self.overview['view'].setCurrentIndex(len(self.gl_overview)-1)
 
-        # Put nidaq in correct state for liveview.
-        # Configuring the ni tasks during other threads is buggy so avoid doing if possible
-        self.instrument._setup_waveform_hardware(self.cfg.imaging_wavelengths, live=True)
-
         self.map_pos_alive = True
         self.map_pos_worker = self._map_pos_worker()
         self.map_pos_worker.finished.connect(self.map_pos_worker_finished)
@@ -263,7 +243,6 @@ class TissueMap(WidgetBase):
     def _overview_worker(self):
 
         while self.map_pos_alive == True:   # Stalling til map pos worker quits
-            print('map pose alive')
             sleep(.5)
         self.x_grid_step_um, self.y_grid_step_um = self.instrument.get_xy_grid_step(self.cfg.tile_overlap_x_percent,
                                                                                     self.cfg.tile_overlap_y_percent)
@@ -279,16 +258,21 @@ class TissueMap(WidgetBase):
         #print(self.overview_array)
     def view_overview(self, index):
         """Snap to specified overview for easier viewing"""
-        print(index)
         transform = self.gl_overview[index].transform().data()
+        self.gl_overview[index].transform()
         self.plot.opts['center'] = QtGui.QVector3D(
             transform[12] + ((self.gl_overview[index].data.shape[0] * transform[0]) / 2),
             transform[13] + (
                     (self.gl_overview[index].data.shape[1] * transform[5]) / 2),
             transform[14])
-        self.plot.opts['elevation'] = 90
-        self.plot.opts['azimuth'] = 90
-        self.plot.opts['distance'] = (self.gl_overview[index].data.shape[1] * transform[5]) / (
+        self.plot.opts['elevation'] = 90 if transform[0] != 0 and transform[9] != -1 else 0
+        self.plot.opts['azimuth'] = 90 if transform[0] != 0 and transform[9] != -1 else 0
+
+        print(transform)
+        transform_dim = 5 if transform[9] != -1 else 6
+        shape_dim = 1 if transform[9] != -1 else 0
+        print(self.plot.opts['elevation'], self.plot.opts['azimuth'], transform_dim, shape_dim)
+        self.plot.opts['distance'] = (self.gl_overview[index].data.shape[shape_dim] * transform[transform_dim]) / (
             tan(0.5 * radians(self.plot.opts['fov'])))
 
     def scan_summary(self):
@@ -708,16 +692,19 @@ class TissueMap(WidgetBase):
             self.load_points(file_path)
 
         else:
-            #try:
-            self.map_pos_worker.quit()
-            self.overview_finish(file_path)
-            # except:
-            #     self.error_msg('Unusable Image', "Image dragged does not have the correct metadata. Tiff needs to have "
-            #                                      "position, volume, and tile data for x, y, z")
-            #     self.map_pos_worker = self._map_pos_worker()
-            #     self.map_pos_alive = True
-            #     self.map_pos_worker.finished.connect(self.map_pos_worker_finished)
-            #     self.map_pos_worker.start()  # Restart map update
+            try:
+
+                self.map_pos_worker.finished.connect(lambda path = file_path: self.overview_finish(path))
+                self.map_pos_worker.quit()
+            except OSError:
+                pass
+            except:
+                self.error_msg('Unusable Image', "Image dragged does not have the correct metadata. Tiff needs to have "
+                                                 "position, volume, and tile data for x, y, z")
+                self.map_pos_worker = self._map_pos_worker()
+                self.map_pos_alive = True
+                self.map_pos_worker.finished.connect(self.map_pos_worker_finished)
+                self.map_pos_worker.start()  # Restart map update
 
 
         event.accept()
