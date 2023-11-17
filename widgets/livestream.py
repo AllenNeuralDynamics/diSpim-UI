@@ -201,11 +201,11 @@ class Livestream(WidgetBase):
 
         wl = item.text()
         if item.background().color() == QtGui.QColor(self.cfg.laser_specs[wl]['color']):   # Deselected
-            self.live_view_lasers.remove(int(wl))
+            self.live_view_lasers.remove(wl)
             item.setBackground(QtGui.QColor(65, 72, 81, 255))
         else:   #selected
             item.setBackground(QtGui.QColor(self.cfg.laser_specs[wl]['color']))
-            self.live_view_lasers.append(int(wl))
+            self.live_view_lasers.append(wl)
 
     def color_change_combbox(self):
 

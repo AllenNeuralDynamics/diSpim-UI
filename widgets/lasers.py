@@ -7,8 +7,11 @@ import logging
 import numpy as np
 from math import floor, ceil
 from sympy import symbols, Eq, solve
-
-
+from ispim.compute_waveforms import generate_waveforms, plot_waveforms_to_pdf, galvo_waveforms, etl_waveforms
+from math import pi
+from napari.qt.threading import thread_worker, create_worker
+from time import time, sleep
+import copy
 class Lasers(WidgetBase):
 
     def __init__(self, viewer, cfg, instrument, simulated):
@@ -66,12 +69,10 @@ class Lasers(WidgetBase):
         for wavelengths in self.possible_wavelengths:
             wavelengths = str(wavelengths)
             self.selected[wavelengths] = QPushButton(wavelengths)
-            color = self.cfg.laser_specs[wavelengths]
-            self.selected[wavelengths].setStyleSheet(f'QPushButton {{ background-color:{color["color"]}; color '
+            self.selected[wavelengths].setStyleSheet(f'QPushButton {{ background-color:{self.cfg.laser_specs[wavelengths]["color"]}; color '
                                                      f':black; }}')
             self.selected[wavelengths].clicked.connect(lambda clicked=None, widget=self.selected[wavelengths]:
                                                        self.hide_labels(clicked, widget))
-
 
             if int(wavelengths) not in self.imaging_wavelengths:
                 self.selected[wavelengths].setHidden(True)
@@ -79,7 +80,7 @@ class Lasers(WidgetBase):
         return self.selected_wl_layout
 
     def geneprompt(self, wl):
-        text, okPressed = QInputDialog.getText(QWidget(),f"Enter gene for channel {wl}", "Gene:")
+        text, okPressed = QInputDialog.getText(QWidget(), f"Enter gene for channel {wl}", "Gene:")
         self.laser_power[f'{wl} textbox'].setText(text)
         self.instrument.channel_gene[wl] = text
 
@@ -101,7 +102,7 @@ class Lasers(WidgetBase):
         self.imaging_wavelengths.sort()
         self.wavelength_selection['unselected'].addItem(widget.text())
 
-    def unhide_labels(self, index = None):
+    def unhide_labels(self, index=None):
 
         """Reveals laser labels and tabs that are now in use"""
 
@@ -155,11 +156,12 @@ class Lasers(WidgetBase):
 
         # Not on the main tab or the tissue map
         if self.tab_widget.currentIndex() != len(self.tab_widget) - 1 and self.tab_widget.currentIndex() != 0:
-            for i in range(1,self.tab_widget.count()-1):    # skipping over main and tissue map
+            for i in range(1, self.tab_widget.count() - 1):  # skipping over main and tissue map
                 if str(self.viewer.layers.selection.active) == str(self.tab_widget.tabText(i)):
                     self.tab_widget.setCurrentIndex(i)
                     if not self.tab_widget.isTabVisible(i):
-                        combo_index = self.wavelength_selection['unselected'].findText(str(self.viewer.layers.selection.active)[-3:])
+                        combo_index = self.wavelength_selection['unselected'].findText(
+                            str(self.viewer.layers.selection.active)[-3:])
                         self.unhide_labels(combo_index)
                     return
 
@@ -167,8 +169,7 @@ class Lasers(WidgetBase):
         """Scans config for relevant laser wavelength parameters
         :param wavelength: the wavelength of the laser"""
 
-
-        galvo = {f'laser_specs.{wv}.galvo.{k}':v for k,v in self.cfg.laser_specs[wv]['galvo'].items()}
+        galvo = {f'laser_specs.{wv}.galvo.{k}': v for k, v in self.cfg.laser_specs[wv]['galvo'].items()}
         etl = {f'laser_specs.{wv}.etl.{k}': v for k, v in self.cfg.laser_specs[wv]['etl'].items()}
         dial_values = {**galvo, **etl}
 
@@ -176,39 +177,91 @@ class Lasers(WidgetBase):
         self.dial_widgets[wv] = {}
         for k, v in dial_values.items():
             self.dials[wv][k] = QDial()
-            self.dials[wv][k].setRange(0, 5000)        # QDials only do int values
+            self.dials[wv][k].setRange(0, 5000)  # QDials only do int values
             self.dials[wv][k].setNotchesVisible(True)
-            self.dials[wv][k].setValue(round(v*1000))
+            self.dials[wv][k].setValue(round(v * 1000))
             self.dials[wv][k].setSingleStep(1)
             self.dials[wv][k].setStyleSheet(
-                f"QDial{{ background-color:{self.cfg.laser_specs[str(wv)]['color']}; }}")
+                f"QDial{{ background-color:{self.cfg.laser_specs[wv]['color']}; }}")
 
-
-            self.dials[wv][k+'value'] = QLineEdit(str(v))
-            self.dials[wv][k+'value'].setAlignment(QtCore.Qt.AlignCenter)
-            self.dials[wv][k+'value'].setReadOnly(True)
-            self.dials[wv][k+'label'] = QLabel(" ".join(k.split('.')[1:]))
+            self.dials[wv][k + 'value'] = QLineEdit(str(v))
+            self.dials[wv][k + 'value'].setAlignment(QtCore.Qt.AlignCenter)
+            self.dials[wv][k + 'value'].setReadOnly(True)
+            self.dials[wv][k + 'label'] = QLabel(" ".join(k.split('.')[1:]))
             self.dials[wv][k + 'label'].setAlignment(QtCore.Qt.AlignCenter)
 
-            self.dials[wv][k].valueChanged.connect(lambda value = str(self.dials[wv][k].value() / 1000),    # Divide to get dec
-                                                   widget = self.dials[wv][k+'value']: self.update_dial_label(value, widget))
-            self.dials[wv][k + 'value'].textChanged.connect(lambda value = self.dials[wv][k].value() / 1000,
-                                                                   path = k.split('.')[1:],
-                                                                   dict = getattr(self.cfg, k.split('.')[0]):
+            self.dials[wv][k].valueChanged.connect(
+                lambda value=str(self.dials[wv][k].value() / 1000),  # Divide to get dec
+                       widget=self.dials[wv][k + 'value']: self.update_dial_label(value, widget))
+            self.dials[wv][k + 'value'].textChanged.connect(lambda value=self.dials[wv][k].value() / 1000,
+                                                                   path=k.split('.')[1:],
+                                                                   dict=getattr(self.cfg, k.split('.')[0]):
                                                             self.config_change(value, path, dict))
-            self.dial_widgets[wv][k] = self.create_layout(struct='V', label =self.dials[wv][k+'label'],
-                                                       dial = self.dials[wv][k],
-                                                       value = self.dials[wv][k+'value'])
 
-        return self.create_layout(struct = 'HV', **self.dial_widgets[wv])
+            self.dials[wv][k + 'autofocus'] = QPushButton('Autofocus')
+            self.dials[wv][k + 'autofocus'].clicked.connect(lambda click = False, value=self.dials[wv][k].value() / 1000,
+                                                                   attribute=k,
+                                                                   wl=wv:
+                                                            self.autofocus_thread(click, value, attribute, wl))
+
+            self.dial_widgets[wv][k] = self.create_layout(struct='V', label=self.dials[wv][k + 'label'],
+                                                          dial=self.dials[wv][k],
+                                                          value=self.dials[wv][k + 'value'],
+                                                          autofocus = self.dials[wv][k + 'autofocus'])
 
 
+        return self.create_layout(struct='HV', **self.dial_widgets[wv])
 
     def update_dial_label(self, value, widget):
 
-        widget.setText(str(value/1000))
+        widget.setText(str(value / 1000))
 
-    def calculate_laser_current(self, func, num = 0):
+    def autofocus_thread(self, click, start_value, attribute, wl, step=.1):
+
+          autofocus_worker = create_worker(lambda value=start_value,
+                                                   attribute=attribute,
+                                                   wl=wl:
+                                            self.autofocus(value, attribute, wl))
+          autofocus_worker.start()
+
+          self.image_worker = create_worker(self.instrument._acquisition_livestream_worker)
+          self.image_worker.yielded.connect(self.update_layer)
+          self.image_worker.start()
+    def autofocus(self, start_value, attribute, wl, step=.1):
+
+        self.instrument.active_lasers = [wl]    # Set active lasers to wl so image_worker will work
+        self.instrument.lasers[wl].enable()
+        self.instrument.frame_grabber.setup_stack_capture([self.cfg.local_storage_dir], 1000000000, 'Trash')
+        self.instrument.frame_grabber.start()
+        self.instrument.lasers[wl].enable()
+        
+        shannon_entropy = {start_value: 0}
+        step_start = start_value - (step * 10) if start_value - (step * 10) >= 0 else 0.0
+        step_range = (step * 10) + start_value if (step * 10) + start_value < 5 else 5.0
+        step_i = step_start
+        while step_i <= step_range:
+            self.config_change(step_i, attribute.split('.')[1:], self.cfg.laser_specs)    # Change config to new voltage
+            self.instrument._setup_waveform_hardware([wl], True, True)
+            self.start_stop_ni()
+            self.instrument.framedata(0)
+            im = self.instrument.latest_frame
+            shannon_entropy_im = self.instrument.calculate_normalized_dct_shannon_entropy(im)
+            if list(shannon_entropy.values())[0] < shannon_entropy_im:
+                shannon_entropy = {step_i: shannon_entropy_im}
+
+            step_i += step
+        self.instrument.frame_grabber.runtime.abort()
+        if step > .001:
+            self.autofocus(list(shannon_entropy.keys())[0], attribute, wl, step/10)
+            self.instrument.active_lasers = None
+            self.instrument.lasers[wl].disable()
+            self.image_worker.quit()
+        else:
+            self.dials[wl][attribute + 'value'].setText(str(round(list(shannon_entropy.keys())[0], 3)))
+            self.dials[wl][attribute].setValue(round(1000*list(shannon_entropy.keys())[0], 3))
+            self.config_change(round(list(shannon_entropy.keys())[0], 3), attribute.split('.')[1:], self.cfg.laser_specs)
+
+    def calculate_laser_current(self, func, num=0):
 
         """Will find the solution of a polynomial function between 0 and 100
         coresponding to curent % of laser
@@ -243,8 +296,8 @@ class Lasers(WidgetBase):
                 continue
 
             # Coeffiecients and order of coeffs describing power vs current curve
-            if 'coeffecients' in self.cfg.laser_specs[str(wl)]:
-                coeffiecients =  self.cfg.laser_specs[str(wl)]['coeffecients']
+            if 'coeffecients' in self.cfg.laser_specs[wl]:
+                coeffiecients = self.cfg.laser_specs[wl]['coeffecients']
             else:
                 coeffiecients = {}
 
@@ -254,11 +307,13 @@ class Lasers(WidgetBase):
             for order, co in coeffiecients.items():
                 func = func + float(co) * x ** int(order)
 
-            intensity = float(self.lasers[wl].get_setpoint()) if not self.simulated else 15
+            intensity = getattr(self.lasers[wl], self.cfg.laser_specs[wl]['intensity_mode']+'_setpoint')#float(self.lasers[wl].get_setpoint()) if not self.simulated else 15
             value = intensity if coeffiecients == {} else round(func.subs(x, intensity))
             unit = '%' if coeffiecients == {} and self.cfg.laser_specs[wl]['intensity_mode'] == 'current' else 'mW'
             min = 0
-            max = self.lasers[wl].get_max_setpoint() if coeffiecients == {} and not self.simulated else round(func.subs(x, float(self.lasers[wl].get_max_setpoint())))
+            max = float(getattr(self.lasers[wl], 'max_'+self.cfg.laser_specs[wl]['intensity_mode'])) if (coeffiecients == {}
+                                                                   and not self.simulated) else round(func.subs(x, 100))
+
 
             # Create slider and label
             self.laser_power[f'{wl} label'], self.laser_power[wl] = self.create_widget(
@@ -267,42 +322,42 @@ class Lasers(WidgetBase):
                 label=f'{wl}: {value} {unit}')
             # Set background of slider to laser color, set min, max, and current value
             self.laser_power[wl].setStyleSheet(
-                f"QSlider::sub-page:horizontal{{ background-color:{self.cfg.laser_specs[str(wl)]['color']}; }}")
+                f"QSlider::sub-page:horizontal{{ background-color:{self.cfg.laser_specs[wl]['color']}; }}")
             self.laser_power[wl].setMinimum(min)
             self.laser_power[wl].setMaximum(int(float(max)))
             self.laser_power[wl].setValue(int(float(value)))
 
             # Creating textbox for gene
             self.laser_power[f'{wl} textbox'] = QLineEdit()
-            self.laser_power[f'{wl} textbox'].editingFinished.connect(lambda wl=wl: self.add_gene( wl))
+            self.laser_power[f'{wl} textbox'].editingFinished.connect(lambda wl=wl: self.add_gene(wl))
             self.laser_power[f'{wl} textbox'].setMaximumWidth(50)
             # Setting activity when slider is moved (update label value)
             # or released (update laser current or power to slider setpoint)
             self.laser_power[wl].sliderReleased.connect(
-                lambda value = value, unit=unit, wl=wl, curve = func, released=True:
+                lambda value=value, unit=unit, wl=wl, curve=func, released=True:
                 self.laser_power_label(value, unit, wl, curve, released))
             self.laser_power[wl].sliderMoved.connect(
-                lambda value = value, unit=unit, wl=wl: self.laser_power_label(value,unit, wl))
-
+                lambda value=value, unit=unit, wl=wl: self.laser_power_label(value, unit, wl))
 
             # Hides sliders that are not being used in imaging
             if int(wl) not in self.imaging_wavelengths:
+                print('hiding ', wl)
                 self.laser_power[wl].setHidden(True)
                 self.laser_power[f'{wl} label'].setHidden(True)
                 self.laser_power[f'{wl} textbox'].setHidden(True)
             else:
                 self.instrument.channel_gene[wl] = None
             laser_power_layout[str(wl)] = self.create_layout(struct='H',
-                                                        gene=self.laser_power[f'{wl} textbox'],
-                                                        label=self.laser_power[f'{wl} label'],
-                                                        text=self.laser_power[wl])
+                                                             gene=self.laser_power[f'{wl} textbox'],
+                                                             label=self.laser_power[f'{wl} label'],
+                                                             text=self.laser_power[wl])
 
         return self.create_layout(struct='V', **laser_power_layout)
 
     def add_gene(self, wl):
-       self.instrument.channel_gene[wl] = self.laser_power[f'{wl} textbox'].text()
+        self.instrument.channel_gene[wl] = self.laser_power[f'{wl} textbox'].text()
 
-    def laser_power_label(self, value, unit, wl: int, curve = None, release=False):
+    def laser_power_label(self, value, unit, wl: int, curve=None, release=False):
 
         """Set laser current or power to slider set point if released and update label if slider moved
         :param value: value of slider
@@ -322,10 +377,9 @@ class Lasers(WidgetBase):
                 power = self.calculate_laser_current(curve, value)
                 if power == QMessageBox.Ok:
                     return
-
-                self.lasers[wl].set_setpoint(float(round(power)))
+                setattr(self.lasers[wl], self.cfg.laser_specs[wl]['intensity_mode'] + '_setpoint', round(power))
             else:
-                self.lasers[wl].set_setpoint(float(round(value)))
+                setattr(self.lasers[wl], self.cfg.laser_specs[wl]['intensity_mode'] + '_setpoint',value)
 
     def laser_power_splitter(self):
 

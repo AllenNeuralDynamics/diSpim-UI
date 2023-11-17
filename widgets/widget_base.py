@@ -4,7 +4,7 @@ from qtpy.QtWidgets import  QMessageBox, QLineEdit, QVBoxLayout, QWidget, \
     QComboBox
 import qtpy.QtCore as QtCore
 import numpy as np
-from time import sleep
+from time import sleep, time
 
 class WidgetBase:
 
@@ -28,9 +28,10 @@ class WidgetBase:
                     self.start_stop_ni()
     def start_stop_ni(self):
         """Start and stop ni task """
+
         self.instrument.ni.start()
-        sleep(self.cfg.get_period_time())
-        self.instrument.ni.stop()
+        sleep(self.cfg.get_period_time())   # wait a period time for ao task to finish
+        self.instrument.ni.stop(self.cfg.get_period_time()) # wait a period time for ao task to finish
 
     def scan(self, dictionary: dict, attr: str, prev_key: str = None, QDictionary: dict = None,
              WindowDictionary: dict = None, wl: str = None, input_type: str = QLineEdit, subdict: bool = False):
@@ -72,6 +73,7 @@ class WidgetBase:
         """Update viewer with latest image"""
         try:
             (image, layer) = args
+
             key = f'Wavelength {layer}'
             layer = self.viewer.layers[key]
             layer._slice.image._view = image

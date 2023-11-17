@@ -215,6 +215,7 @@ class VolumetericAcquisition(WidgetBase):
         if self.instrument.livestream_enabled.is_set():
             self.error_msg('Livestream', 'Livestream is still set. Please stop livestream')
             self.volumetric_image['start'].blockSignals(False)
+            return
 
         if [int(x) for x in self.cfg.imaging_wavelengths].sort() != [int(x) for x in self.instrument.channel_gene.keys()].sort() or \
                 None in self.instrument.channel_gene.values() or '' in self.instrument.channel_gene.values():
@@ -242,9 +243,12 @@ class VolumetericAcquisition(WidgetBase):
         else:
             for scan in self.acquisition_order.values():
                 #Set up config for each scan
+                print(scan)
                 for k, v in scan.items():
                     if k == 'start_pos_um':
                         self.instrument.set_scan_start({k1: 10 * v1 for k1, v1 in scan[k].items()})
+                        print(scan[k])
+                        print(self.instrument.start_pos)
                     else:
                         setattr(self.cfg, k, v)
                 return_value = self.scan_summary()
@@ -273,6 +277,8 @@ class VolumetericAcquisition(WidgetBase):
             for k, v in scan.items():
                 if k == 'start_pos_um':
                     self.instrument.set_scan_start({k1: 10 * v1 for k1, v1 in scan[k].items()})
+                    print(scan[k])
+                    print(self.instrument.start_pos)
                 else:
                     setattr(self.cfg, k, v)
 
