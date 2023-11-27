@@ -183,13 +183,12 @@ class TissueMap(WidgetBase):
             # Auto contrasting image for tissue map
             j = 0
             for wl, array in zip(wavelengths, self.overview_array[orientation]):
-                print(self.map_pos_alive)
                 key = f'Overview {wl} {orientation}'
                 self.viewer.add_image(np.rot90(array, overview_specs[orientation]['k']), name=key,
                                       scale=[round(overview_specs[orientation]['scale'][0] * 1000, 3),
                                              round(overview_specs[orientation]['scale'][1] * 1000, 3)])
                 # scale so it won't be squished in viewer
-                wl_color = 'purple'
+                wl_color = self.cfg.laser_specs[wl]['color']
                 rgb = [x / 255 for x in qtpy.QtGui.QColor(wl_color).getRgb()]
                 max = np.percentile(array, 90)
                 min = np.percentile(array, 5)

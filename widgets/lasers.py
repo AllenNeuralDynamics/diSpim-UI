@@ -1,7 +1,7 @@
 from widgets.widget_base import WidgetBase
-from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtCore import Qt, QSize, QPoint
 from qtpy.QtWidgets import QPushButton, QCheckBox, QLabel, QComboBox, QSpinBox, QDockWidget, QSlider, QLineEdit, \
-    QTabWidget, QVBoxLayout, QMessageBox, QDial, QFrame, QInputDialog, QWidget
+    QTabWidget, QVBoxLayout, QMessageBox, QDial, QFrame, QInputDialog, QWidget, QDialog, QDialogButtonBox
 import qtpy.QtCore as QtCore
 import logging
 import numpy as np
@@ -12,6 +12,9 @@ from math import pi
 from napari.qt.threading import thread_worker, create_worker
 from time import time, sleep
 import copy
+from qtpy.QtGui import QPixmap, QImage, QPainter, QPen
+import qtpy.QtGui as QtGui
+
 class Lasers(WidgetBase):
 
     def __init__(self, viewer, cfg, instrument, simulated):
@@ -198,17 +201,20 @@ class Lasers(WidgetBase):
                                                                    dict=getattr(self.cfg, k.split('.')[0]):
                                                             self.config_change(value, path, dict))
 
-            self.dials[wv][k + 'autofocus'] = QPushButton('Autofocus')
-            self.dials[wv][k + 'autofocus'].clicked.connect(lambda click = False, value=self.dials[wv][k].value() / 1000,
+            roi_button = QPushButton('Draw Autofocus ROI')
+            roi_button.clicked.connect(lambda click = False, wl=wv, attribute=k:
+                                                            self.autofocus_roi(click, wl, attribute))
+            autofocus_button = QPushButton('Autofocus')
+            autofocus_button.clicked.connect(lambda click = False, value=self.dials[wv][k].value() / 1000,
                                                                    attribute=k,
                                                                    wl=wv:
                                                             self.autofocus_thread(click, value, attribute, wl))
 
+            self.dials[wv][k + 'autofocus'] = self.create_layout(struct='H', roi=roi_button, autofocus=autofocus_button)
             self.dial_widgets[wv][k] = self.create_layout(struct='V', label=self.dials[wv][k + 'label'],
                                                           dial=self.dials[wv][k],
                                                           value=self.dials[wv][k + 'value'],
                                                           autofocus = self.dials[wv][k + 'autofocus'])
-
 
         return self.create_layout(struct='HV', **self.dial_widgets[wv])
 
@@ -216,7 +222,7 @@ class Lasers(WidgetBase):
 
         widget.setText(str(value / 1000))
 
-    def autofocus_thread(self, click, start_value, attribute, wl, step=.1):
+    def autofocus_thread(self, click, start_value, attribute, wl, step=.1, roi=[slice(None, None), slice(None, None)]):
 
           autofocus_worker = create_worker(lambda value=start_value,
                                                    attribute=attribute,
@@ -227,10 +233,9 @@ class Lasers(WidgetBase):
           self.image_worker = create_worker(self.instrument._acquisition_livestream_worker)
           self.image_worker.yielded.connect(self.update_layer)
           self.image_worker.start()
-    def autofocus(self, start_value, attribute, wl, step=.1):
+    def autofocus(self, start_value, attribute, wl, step=.1, roi = [slice(None, None), slice(None, None)]):
 
         self.instrument.active_lasers = [wl]    # Set active lasers to wl so image_worker will work
-        self.instrument.lasers[wl].enable()
         self.instrument.frame_grabber.setup_stack_capture([self.cfg.local_storage_dir], 1000000000, 'Trash')
         self.instrument.frame_grabber.start()
         self.instrument.lasers[wl].enable()
@@ -245,7 +250,7 @@ class Lasers(WidgetBase):
             self.start_stop_ni()
             self.instrument.framedata(0)
             im = self.instrument.latest_frame
-            shannon_entropy_im = self.instrument.calculate_normalized_dct_shannon_entropy(im)
+            shannon_entropy_im = self.instrument.calculate_normalized_dct_shannon_entropy(im[roi[0], roi[1]])
             if list(shannon_entropy.values())[0] < shannon_entropy_im:
                 shannon_entropy = {step_i: shannon_entropy_im}
 
@@ -260,6 +265,60 @@ class Lasers(WidgetBase):
             self.dials[wl][attribute + 'value'].setText(str(round(list(shannon_entropy.keys())[0], 3)))
             self.dials[wl][attribute].setValue(round(1000*list(shannon_entropy.keys())[0], 3))
             self.config_change(round(list(shannon_entropy.keys())[0], 3), attribute.split('.')[1:], self.cfg.laser_specs)
+
+    def autofocus_roi(self, click, wl, attribute):
+
+        def paintEvent(event):
+            painter = QPainter(self.roi_selection)
+            br = QtGui.QBrush(QtGui.QColor(0, 100, 0, 100))
+            painter.drawPixmap(self.roi_selection.rect(), self.image)
+            painter.setBrush(br)
+            painter.drawRect(QtCore.QRect(self.begin, self.end))
+        def mousePressEvent(event):
+            self.begin = event.pos()
+            self.end = event.pos()
+            self.roi_selection.update()
+
+        def mouseMoveEvent(event):
+            painter = QPainter(self.image)
+            self.end = event.pos()
+            self.roi_selection.update()
+
+        self.begin = QtCore.QPoint()
+        self.end = QtCore.QPoint()
+        key = f'Wavelength {wl}'
+        if key in self.viewer.layers:
+            self.roi_selection = QDialog()
+            self.roi_selection.setGeometry(100, 100, self.cfg.sensor_row_count/2, self.cfg.sensor_column_count/2)
+            self.roi_selection.setFixedSize(self.cfg.sensor_row_count/2, self.cfg.sensor_column_count/2)
+            layout = QVBoxLayout()
+            img = self.viewer.layers[key].data
+            max = np.percentile(img, 90)
+            min = np.percentile(img, 5)
+            img = img.clip(min, max)
+            img -= min
+            img = np.floor_divide(img, (max - min) / 256, out=img, casting='unsafe')
+
+            pixmap = QImage(img, img.shape[1], img.shape[0], QImage.Format_Grayscale16)
+            img_widget = QLabel()
+            self.image = QPixmap(pixmap.scaled(self.cfg.sensor_row_count/2, self.cfg.sensor_column_count/2,
+                                                       QtCore.Qt.KeepAspectRatio))
+            cancel_ok = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            layout.addWidget(cancel_ok)
+            cancel_ok.accepted.connect(self.roi_selection.accept)
+            cancel_ok.rejected.connect(self.roi_selection.reject)
+            self.roi_selection.setLayout(layout)
+            self.roi_selection.paintEvent = paintEvent
+            self.roi_selection.mousePressEvent = mousePressEvent
+            self.roi_selection.mouseMoveEvent = mouseMoveEvent
+            result = self.roi_selection.exec()
+            if result == 1:     # 1 means okay button pressed
+                x = slice(self.begin.x(), self.end.x()) if self.end.x() > 0 else slice(self.begin.x(), 0)
+                y = slice(self.begin.y(), self.end.y()) if self.end.y() > 0 else slice(self.begin.y(), 0)
+                path = attribute.split('.')
+                self.autofocus_thread(False, self.cfg.laser_specs[wl][path[2]][path[3]],
+                                      attribute, wl, .1, [y, x])
+
 
     def calculate_laser_current(self, func, num=0):
 
@@ -341,7 +400,6 @@ class Lasers(WidgetBase):
 
             # Hides sliders that are not being used in imaging
             if int(wl) not in self.imaging_wavelengths:
-                print('hiding ', wl)
                 self.laser_power[wl].setHidden(True)
                 self.laser_power[f'{wl} label'].setHidden(True)
                 self.laser_power[f'{wl} textbox'].setHidden(True)

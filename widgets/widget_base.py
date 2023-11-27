@@ -83,21 +83,12 @@ class WidgetBase:
 
             self.viewer.add_image(image, name = key, scale=[self.cfg.tile_specs['x_field_of_view_um'] / self.cfg.sensor_row_count,
                       self.cfg.tile_specs['y_field_of_view_um'] / self.cfg.sensor_column_count])
-            #self.viewer.layers[key].mouse_drag_callbacks.append(self.on_click)
+
             self.viewer.layers[key].rotate = 90
             self.viewer.layers[key].blending = 'additive'
             self.viewer.layers[key].interpolation = 'nearest'
 
             if len(self.viewer.layers) == 1:  # Center viewer due to rotation
-                # self.viewer.add_image(np.zeros((1, self.cfg.row_count_px, self.cfg.column_count_px)),
-                #                               name='blank <hidden>',
-                #                               scale=(
-                #                               1, -self.cfg.tile_specs['x_field_of_view_um'] / self.cfg.sensor_row_count,
-                #                               self.cfg.tile_specs['y_field_of_view_um'] / self.cfg.sensor_column_count),
-                #                               rotate=0,
-                #                               visible=False)
-                # self.viewer.layers['blank <hidden>'].mouse_drag_callbacks.append(self.on_click)
-                # self.viewer.layers.selection.active = self.viewer.layers[key]
                 center = self.viewer.camera.center
                 self.viewer.camera.center = (center[0],
                                              -self.cfg.tile_specs['y_field_of_view_um'] * .5,  # Vertical
