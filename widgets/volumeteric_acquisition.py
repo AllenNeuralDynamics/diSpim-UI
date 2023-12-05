@@ -92,7 +92,7 @@ class VolumetericAcquisition(WidgetBase):
     def setup_additional_scan(self):
         """Add scan to imaging run"""
 
-        with self.instrument.stage_query_lock:
+        with self.instrument.stage_lock:
             position = self.instrument.sample_pose.get_position()
 
         scan_info = { 'start_pos_um' : {k:round(1/10*v,1) for k,v in position.items()},

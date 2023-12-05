@@ -71,6 +71,8 @@ class TissueMap(WidgetBase):
         """Sets map_pos_alive to false when worker finishes"""
         print('map_pos_worker_finished')
         self.map_pos_alive = False
+        if self.instrument.stage_lock.locked():
+            self.instrument.stage_lock.release()
 
     def overview_widget(self):
 
@@ -402,18 +404,16 @@ class TissueMap(WidgetBase):
 
         """Update position of stage for tissue map, draw scanning volume, and tiling"""
         gui_coord = None
+        stage_position = {}
         while True:
-            if self.instrument.setting_up_livestream:
-                yield
-                continue
-
             try:
-                gui_coord = self.instrument.sample_pose.get_position()
-                if self.map_pose != self.instrument.sample_pose.get_position() and self.instrument.scout_mode:
+                with self.instrument.stage_lock:
+                        stage_position = self.instrument.sample_pose.get_position()
+                        sleep(.01)
+                if self.map_pose != stage_position and self.instrument.scout_mode:
                     # if stage has moved and scout mode is on
                     self.start_stop_ni()
-                with self.instrument.stage_query_lock:
-                    self.map_pose = self.instrument.sample_pose.get_position()
+                self.map_pose = stage_position
                 # Convert 1/10um to mm
                 coord = {k: v * 0.0001 for k, v in self.map_pose.items()}  # if not self.instrument.simulated \
                 #     else np.random.randint(-60000, 60000, 3)
@@ -464,11 +464,14 @@ class TissueMap(WidgetBase):
                     self.draw_volume(start_pos, self.remap_axis({k: self.cfg.imaging_specs[f'volume_{k}_um'] * .001
                                                                  for k in self.map_pose.keys()}))
                     yield
-            except:
-                pass
+            except Exception as e:
+                print(e)
                 yield
             finally:
                 old_coord = gui_coord
+                if self.instrument.stage_lock.locked():
+                    # release stage lock if try errors out before releasing
+                    self.instrument.stage_lock.release()
                 yield  # Yield so thread can stop
 
     def draw_tiles(self, coord):

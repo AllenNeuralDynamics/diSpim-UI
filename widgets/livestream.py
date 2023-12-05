@@ -62,22 +62,28 @@ class Livestream(WidgetBase):
     def update_positon(self, index):
 
         directions = ['x', 'y', 'z']
-        if index == 0:
-            try:
-                sleep(1)    # Sleep to allow threads to quit
 
-                self.stage_position = self.instrument.sample_pose.get_position()
-                # Update stage labels if stage has moved
-                for direction in directions:
-                    self.pos_widget[direction].setValue(int(self.stage_position[direction] * 1 / 10))
-            except ValueError:
-                pass    # Pass if stage coughs up garbage
+        if index == 0 or self.instrument.scout_mode == True and index != self.tab_widget.count() -1:
+            with self.instrument.stage_lock:
+                    try:
+                        self.stage_position = self.instrument.sample_pose.get_position()
+                        # Update stage labels if stage has moved
+                        for direction in directions:
+                            self.pos_widget[direction].setValue(int(self.stage_position[direction] * 1 / 10))
+                    except ValueError:
+                        pass    # Pass if stage coughs up garbage
 
-            if self.instrument.livestream_enabled.is_set() and self.instrument.scout_mode != True:
+            if self.instrument.livestream_enabled.is_set():
                 self.sample_pos_worker.resume()
 
-        if index != 0 and self.instrument.livestream_enabled.is_set() and self.instrument.scout_mode != True:
-            self.sample_pos_worker.pause()
+        # pause sample_pos worker if not in scout mode and not going to tissue map widget
+        if (index != 0 and self.instrument.livestream_enabled.is_set() and self.instrument.scout_mode != True
+                or index == self.tab_widget.count() -1):
+            if self.sample_pos_worker is not None:
+                self.sample_pos_worker.pause()
+            # Make sure stage lock is unlocked for tissue map
+            if self.instrument.stage_lock.locked():
+                self.instrument.stage_lock.release()
 
 
     def liveview_widget(self):
@@ -161,7 +167,8 @@ class Livestream(WidgetBase):
 
         self.sample_pos_worker = self._sample_pos_worker()
         self.sample_pos_worker.start()
-        if self.tab_widget.currentIndex() != 0:
+        if (self.tab_widget.currentIndex() != 0 and self.instrument.scout_mode != True or
+                self.tab_widget.currentIndex() == self.tab_widget.count() -1):
             self.sample_pos_worker.pause()
         self.sample_pos_worker.finished.connect(self.instrument.stop_livestream)
 
@@ -257,29 +264,29 @@ class Livestream(WidgetBase):
         # While livestreaming and looking at the first tab the stage position updates
         while self.instrument.livestream_enabled.is_set():
             moved = False
-            if not self.instrument.stage_lock.locked():
+            try:
                 with self.instrument.stage_lock:
-                    try:
-                        self.sample_pos = self.instrument.sample_pose.get_position()
-                        sleep(.01)
-                        for direction in directions:
-                            new_pos = int(self.sample_pos[direction] * 1 / 10)
-                            print(self.pos_widget[direction].value(), new_pos)
-                            if self.pos_widget[direction].value() != new_pos:
-                                self.pos_widget[direction].setValue(new_pos)
-                                moved = True
-                                yield
-                        if moved:
-                            print('moved')
-                            self.update_slider(self.sample_pos)     # Update slide with newest z depth
-                            if self.instrument.scout_mode:
-                                self.start_stop_ni()
+                    self.sample_pos = self.instrument.sample_pose.get_position()
+                sleep(.01)
+                for direction in directions:
+                    new_pos = int(self.sample_pos[direction] * 1 / 10)
+                    if self.pos_widget[direction].value() != new_pos:
+                        self.pos_widget[direction].setValue(new_pos)
+                        moved = True
+                        yield
+                if moved:
+                    self.update_slider(self.sample_pos)     # Update slide with newest z depth
+                    if self.instrument.scout_mode:
+                        self.start_stop_ni()
 
-                        yield
-                    except Exception as e:
-                        # Deal with garbled replies from tigerbox
-                        print(e)
-                        yield
+                yield
+            except Exception as e:
+                # Deal with garbled replies from tigerbox
+                print(e)
+                if self.instrument.stage_lock.locked():
+                    # release stage lock if try errors out before releasing
+                    self.instrument.stage_lock.release()
+                yield
 
             yield
     def screenshot_button(self):
