@@ -30,6 +30,12 @@ class UserInterface:
             self.viewer = napari.Viewer(title='ISPIM control', axis_labels=('y','x'))
             self.experimenters_name_popup()         # Popup for experimenters name.
                                                     # Determines what parameters will be exposed
+
+            x_game_mode = ['Micah Woodard', 'Xiaoyun Jiang', 'Adam Glaser', 'Joshua Vasquez', 'Kevin Cao', 'Christian Bonatto',
+                           'Erica Peterson']
+            self.x_game_mode = False if self.cfg.experimenters_name not in x_game_mode else True
+
+
             # Set up laser sliders and tabs
             self.laser_widget()
 
@@ -63,7 +69,7 @@ class UserInterface:
             tabbed_widgets = QTabWidget()  # Creating tab object
             tabbed_widgets.setTabPosition(QTabWidget.South)
             tabbed_widgets.addTab(main_window, 'Main Window')  # Adding main window tab
-            tabbed_widgets = self.laser_parameters.add_wavelength_tabs(tabbed_widgets)  # Generate laser wl tabs
+            tabbed_widgets = self.laser_parameters.add_wavelength_tabs(tabbed_widgets, self.x_game_mode)  # Generate laser wl tabs
             tabbed_widgets.addTab(self.tissue_map_window, 'Tissue Map')  # Adding tissue map tab
             self.tissue_map.set_tab_widget(tabbed_widgets)  # Passing in tab widget to tissue map
             self.livestream_parameters.set_tab_widget(tabbed_widgets)  # Passing in tab widget to livestream

@@ -154,7 +154,7 @@ class Livestream(WidgetBase):
                 self.live_view[buttons].setHidden(False)
 
         # Reconfigure buffer of ni for livestream
-        _, ao_voltages = generate_waveforms(self.cfg, self.live_view_lasers)
+        _, ao_voltages, do_voltages = generate_waveforms(self.cfg, self.live_view_lasers)
         self.instrument.ni.rereserve_buffer(len(ao_voltages[0]))
 
         self.instrument.start_livestream(self.live_view_lasers, self.set_scan_start['scouting'].isChecked()) # Needs to be list

@@ -118,7 +118,7 @@ class Lasers(WidgetBase):
                 self.laser_power[f'{widget_wavelength} label'].setHidden(False)
                 self.laser_power[f'{widget_wavelength} textbox'].setHidden(False)
 
-    def add_wavelength_tabs(self, tab_widget: QTabWidget):
+    def add_wavelength_tabs(self, tab_widget: QTabWidget, x_game_mode):
 
         """Adds laser parameters tabs onto main window for all possible wavelengths
         :param imaging_dock: main window to tabify laser parameter """
@@ -126,7 +126,7 @@ class Lasers(WidgetBase):
         self.tab_widget = tab_widget
         for wl in self.possible_wavelengths:
             wl = str(wl)
-            wl_dock = self.scan_wavelength_params(wl)
+            wl_dock = self.scan_wavelength_params(wl, x_game_mode)
             scroll_box = self.scroll_box(wl_dock)
             scrollable_dock = QDockWidget()
             scrollable_dock.setWidget(scroll_box)
@@ -163,15 +163,17 @@ class Lasers(WidgetBase):
                         self.unhide_labels(combo_index)
                     return
 
-    def scan_wavelength_params(self, wv: str):
+    def scan_wavelength_params(self, wv: str, x_game_mode):
         """Scans config for relevant laser wavelength parameters
         :param wavelength: the wavelength of the laser"""
 
-
-        galvo = {f'laser_specs.{wv}.galvo.{k}':v for k,v in self.cfg.laser_specs[wv]['galvo'].items()}
-        etl = {f'laser_specs.{wv}.etl.{k}': v for k, v in self.cfg.laser_specs[wv]['etl'].items()}
+        if x_game_mode:
+            galvo = {f'laser_specs.{wv}.galvo.{k}':v for k,v in self.cfg.laser_specs[wv]['galvo'].items()}
+            etl = {f'laser_specs.{wv}.etl.{k}': v for k, v in self.cfg.laser_specs[wv]['etl'].items()}
+        else:
+            galvo = {f'laser_specs.{wv}.galvo.x_offset': self.cfg.laser_specs[wv]['galvo']['x_offset']}
+            etl = {}
         dial_values = {**galvo, **etl}
-
         self.dials[wv] = {}
         self.dial_widgets[wv] = {}
         for k, v in dial_values.items():
@@ -200,7 +202,7 @@ class Lasers(WidgetBase):
                                                        dial = self.dials[wv][k],
                                                        value = self.dials[wv][k+'value'])
 
-        return self.create_layout(struct = 'HV', **self.dial_widgets[wv])
+        return self.create_layout(struct = 'HV', **self.dial_widgets[wv]) if x_game_mode else self.dial_widgets[wv][k]
 
 
 
