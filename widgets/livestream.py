@@ -257,26 +257,30 @@ class Livestream(WidgetBase):
         # While livestreaming and looking at the first tab the stage position updates
         while self.instrument.livestream_enabled.is_set():
             moved = False
-            try:
-                self.sample_pos = self.instrument.sample_pose.get_position()
-                for direction in directions:
-                    yield
-                    new_pos = int(self.sample_pos[direction] * 1 / 10)
-                    if self.pos_widget[direction].value() != new_pos:
-                        self.pos_widget[direction].setValue(new_pos)
-                        moved = True
+            if not self.instrument.stage_lock.locked():
+                with self.instrument.stage_lock:
+                    try:
+                        self.sample_pos = self.instrument.sample_pose.get_position()
+                        sleep(.01)
+                        for direction in directions:
+                            new_pos = int(self.sample_pos[direction] * 1 / 10)
+                            print(self.pos_widget[direction].value(), new_pos)
+                            if self.pos_widget[direction].value() != new_pos:
+                                self.pos_widget[direction].setValue(new_pos)
+                                moved = True
+                                yield
+                        if moved:
+                            print('moved')
+                            self.update_slider(self.sample_pos)     # Update slide with newest z depth
+                            if self.instrument.scout_mode:
+                                self.start_stop_ni()
+
                         yield
-                if moved:
-                    self.update_slider(self.sample_pos)     # Update slide with newest z depth
-                    if self.instrument.scout_mode:
-                        self.start_stop_ni()
+                    except Exception as e:
+                        # Deal with garbled replies from tigerbox
+                        print(e)
+                        yield
 
-                yield
-            except:
-                # Deal with garbled replies from tigerbox
-
-                yield
-            #sleep(.5)
             yield
     def screenshot_button(self):
 

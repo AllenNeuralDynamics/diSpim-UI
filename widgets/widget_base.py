@@ -30,7 +30,7 @@ class WidgetBase:
         """Start and stop ni task """
         self.instrument.ni.start()
         sleep(self.cfg.get_period_time())
-        self.instrument.ni.stop()
+        self.instrument.ni.stop(self.cfg.get_period_time())
 
     def scan(self, dictionary: dict, attr: str, prev_key: str = None, QDictionary: dict = None,
              WindowDictionary: dict = None, wl: str = None, input_type: str = QLineEdit, subdict: bool = False):
