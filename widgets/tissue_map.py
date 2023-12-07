@@ -466,12 +466,12 @@ class TissueMap(WidgetBase):
                     yield
             except Exception as e:
                 print(e)
-                yield
-            finally:
-                old_coord = gui_coord
                 if self.instrument.stage_lock.locked():
                     # release stage lock if try errors out before releasing
                     self.instrument.stage_lock.release()
+                yield
+            finally:
+                old_coord = gui_coord
                 yield  # Yield so thread can stop
 
     def draw_tiles(self, coord):
