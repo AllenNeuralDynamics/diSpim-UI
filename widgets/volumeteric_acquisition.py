@@ -188,11 +188,11 @@ class VolumetericAcquisition(WidgetBase):
         """Check if scan with parameters in the cfg will exceed stage limits
         :param start_pos_um: start position of scan in um"""
 
-        with self.instrument.stage_query_lock:
+        with self.instrument.stage_lock:
             limits_mm = self.instrument.sample_pose.get_travel_limits(*['x', 'y', 'z'])
         limits_um = {k:[v[0]*1000,v[1]*1000] for k, v in limits_mm.items()}
         if start_pos_um == None:
-            with self.instrument.stage_query_lock:
+            with self.instrument.stage_lock:
                 start_pos = self.instrument.sample_pose.get_position()
             start_pos_um = {k:v/10 for k,v in start_pos.items()}
         limit_exceeded = []
